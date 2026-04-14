@@ -61,8 +61,16 @@
 	Consulta 8
     Lista de compañías y total de aviones por año (en los últimos 10 años).
 	========================= */
--- Descripcion:
--- SELECT ...
+
+SELECT 
+    c.Nombre_Compañia,
+    YEAR(a.Fecha_Adquisicion) AS Año, 
+    COUNT(Avion_ID) AS Total_Aviones
+FROM Compañia c 
+LEFT JOIN Avion a ON c.Compañia_ID = a.Compañia_ID
+WHERE a.Fecha_Adquisicion >= DATE_SUB(CURDATE(), INTERVAL 10 YEAR)
+GROUP BY c.Nombre_Compañia, YEAR(a.Fecha_Adquisicion)
+ORDER BY Año DESC, Total_Aviones DESC;
 
 /* =========================
 	Consulta 9
@@ -75,6 +83,27 @@
 	Consulta 10
     Modelo de avión más usado por compañía durante el 2021.
 	========================= */
--- Descripcion:
--- SELECT ...
 
+-- Se utiliza una CTE para calcular la cantidad de vuelos por modelo de avión y compañía
+WITH Cantidad_Modelos AS (
+    SELECT 
+        c.Nombre_Compañia,
+        a.Nombre_Modelo,
+        COUNT(v.Vuelo_ID) AS Cantidad_Vuelos,
+        -- RANK() para asignar un rango a cada modelo dentro de cada compañía, ordenado por cantidad de vuelos
+        RANK() OVER (PARTITION BY c.Nombre_Compañia ORDER BY COUNT(v.Vuelo_ID) DESC) AS Rango
+    FROM Compañia c
+    JOIN Avion a ON c.Compañia_ID = a.Compañia_ID
+    JOIN Modelo m ON a.Modelo_ID = m.Modelo_ID
+    JOIN Vuelo v ON a.Avion_ID = v.Avion_ID
+    -- Filtrar vuelos del año 2021, por rango ya que es más eficiente que usar YEAR() en la columna de fecha
+    WHERE v.Fecha_Vuelo BETWEEN '2021-01-01' AND '2021-12-31'
+    GROUP BY c.Nombre_Compañia, m.Nombre_Modelo
+),
+SELECT 
+    Nombre_Compañia,
+    Nombre_Modelo,
+    Cantidad_Vuelos
+FROM Cantidad_Modelos
+-- Solo seleccionar el modelo con el rango 1 para cada compañía, es decir, el más usado
+WHERE Rango = 1;
