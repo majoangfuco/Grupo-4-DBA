@@ -1,45 +1,47 @@
-/*
-  Archivo: loadData.sql
-  Objetivo: cargar datos de prueba (dummy) con valores validos para tablas catalogo.
-  Nota: ajuste nombres de columnas segun su modelo.
-*/
+-- Insertar datos en Tablas Padre
+INSERT INTO Cliente (Cliente_ID, Identificador_Cliente, Nombre_Cliente, Correo, Nacionalidad) VALUES
+(1, '11.111.111-1', 'Pedro Pascal', 'pedro@mail.com', 'Chile'),
+(2, '22.222.222-2', 'Lionel Messi', 'lio@mail.com', 'Argentina'),
+(3, '33.333.333-3', 'Ricardo Darin', 'ricardo@mail.com', 'Argentina'),
+(4, '44.444.444-4', 'Mon Laferte', 'mon@mail.com', 'Chile');
 
--- USE control1_db;
+INSERT INTO Compañia (Compania_ID, Nombre_Compañia) VALUES
+(1, 'LATAM Airlines'),
+(2, 'Sky Airline');
 
-START TRANSACTION;
+INSERT INTO Modelo (Modelo_ID, Nombre_Modelo) VALUES
+(1, 'Boeing 787 Dreamliner'),
+(2, 'Airbus A320neo'),
+(3, 'Boeing 737 MAX');
 
-/* =========================
-   1) Tablas catalogo obligatorias
-   ========================= */
+INSERT INTO Sección (Seccion_ID, Tipo_Seccion) VALUES
+(1, 'Economy'),
+(2, 'Premium economy'),
+(3, 'Business'),
+(4, 'First class');
 
--- TIPO_DOC: valores esperados por enunciado
--- Ajuste ID_TIPO_DOC/NOMBRE si usan otras columnas
-INSERT INTO TIPO_DOC (ID_TIPO_DOC, NOMBRE)
-VALUES
-  (1, 'Boleta'),
-  (2, 'Factura');
+-- Insertar Aviones y Vuelos
+INSERT INTO Avión (Avion_ID, Compania_ID, Modelo_ID, Fecha_Adquisicion) VALUES
+(1, 1, 1, '2020-01-15 00:00:00'),
+(2, 2, 2, '2021-03-10 00:00:00'),
+(3, 1, 3, '2022-05-20 00:00:00'); 
 
--- COMUNA: incluir valores validos que seran referenciados
--- Ajuste ID_COMUNA/NOMBRE segun su modelo
-INSERT INTO COMUNA (ID_COMUNA, NOMBRE)
-VALUES
-  (1, 'Santiago'),
-  (2, 'Providencia'),
-  (3, 'Nunoa'),
-  (4, 'Maipu'),
-  (5, 'La Florida');
+INSERT INTO Vuelo (Vuelo_ID, Avion_ID, Compania_ID, Origen, Destino, Fecha_Vuelo) VALUES
+(1, 1, 1, 'Santiago', 'Miami', '2023-08-15 10:00:00'),
+(2, 1, 1, 'Miami', 'Santiago', '2023-08-20 15:00:00'),
+(3, 2, 2, 'Buenos Aires', 'Lima', '2024-01-10 09:00:00'),
+(4, 3, 1, 'Santiago', 'Sao Paulo', '2024-02-05 12:00:00'),
+(5, 1, 1, 'Santiago', 'Bogota', '2021-06-15 10:00:00'); -- Vuelo agregado para probar la Sentencia 10
 
-/* =========================
-   2) Resto de tablas
-   ========================= */
+-- Insertar Pasajes y Costos
+INSERT INTO Pasaje (Pasaje_ID, Seccion_ID, Cliente_ID, Vuelo_ID) VALUES
+(1, 1, 1, 1), 
+(2, 3, 2, 3), 
+(3, 4, 3, 3), 
+(4, 2, 4, 2); 
 
--- Ejemplo:
--- INSERT INTO CLIENTE (ID_CLIENTE, NOMBRE, ID_COMUNA) VALUES
---   (1, 'Cliente Dummy 1', 1),
---   (2, 'Cliente Dummy 2', 2);
-
--- INSERT INTO DOCUMENTO (ID_DOCUMENTO, ID_TIPO_DOC, ID_CLIENTE, FECHA_EMISION) VALUES
---   (1, 1, 1, '2026-04-14'),
---   (2, 2, 2, '2026-04-14');
-
-COMMIT;
+INSERT INTO Costo (Costo_ID, Pasaje_ID, Precio) VALUES
+(1, 1, 500.00),
+(2, 2, 1200.00), 
+(3, 3, 2500.00), 
+(4, 4, 800.00);
