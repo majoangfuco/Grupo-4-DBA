@@ -23,10 +23,23 @@
 /* =========================
 	Consulta 3
     Lista mensual de países que más gastan en volar (durante los últimos 4 años).
-
 	========================= */
--- Descripcion:
--- SELECT ...
+
+SELECT 
+    EXTRACT(YEAR FROM v.Fecha_Vuelo) AS Anio,
+    EXTRACT(MONTH FROM v.Fecha_Vuelo) AS Mes,
+    c.Nacionalidad AS Pais,
+    SUM(co.Precio) AS Gasto_Total
+FROM Cliente c
+JOIN Pasaje p ON c.Cliente_ID = p.Cliente_ID
+JOIN Costo co ON p.Pasaje_ID = co.Pasaje_ID
+JOIN Vuelo v ON p.Vuelo_ID = v.Vuelo_ID
+WHERE v.Fecha_Vuelo >= CURRENT_DATE - INTERVAL '4 years'
+GROUP BY 
+    EXTRACT(YEAR FROM v.Fecha_Vuelo), 
+    EXTRACT(MONTH FROM v.Fecha_Vuelo), 
+    c.Nacionalidad
+ORDER BY Anio DESC, Mes DESC, Gasto_Total DESC;
 
 /* =========================
 	Consulta 4
@@ -40,8 +53,17 @@
 	Consulta 5
     Avión con menos vuelos.
 	========================= */
--- Descripcion:
--- SELECT ...
+
+SELECT 
+    a.Avion_ID,
+    m.Nombre_Modelo,
+    COUNT(v.Vuelo_ID) AS Total_Vuelos
+FROM Avión a
+JOIN Modelo m ON a.Modelo_ID = m.Modelo_ID
+LEFT JOIN Vuelo v ON a.Avion_ID = v.Avion_ID
+GROUP BY a.Avion_ID, m.Nombre_Modelo
+ORDER BY Total_Vuelos ASC
+LIMIT 1;
 
 /* =========================
 	Consulta 6
