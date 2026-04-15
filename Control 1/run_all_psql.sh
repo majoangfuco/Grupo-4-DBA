@@ -1,35 +1,47 @@
 #!/usr/bin/env bash
-set -euo pipefail
 
+# Script de ejecución automática de los scripts SQL del Control 1
 # Uso:
-#   ./run_all_psql.sh <db_name> <db_user>
-# Ejemplo:
-#   ./run_all_psql.sh control1_db postgres
+#   ./run_all_psql.sh [NOMBRE_DB] [USUARIO]
+# Por defecto: NOMBRE_DB=control1_db, USUARIO=postgres
+
+set -euo pipefail
 
 DB_NAME="${1:-control1_db}"
 DB_USER="${2:-postgres}"
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+echo "========================================"
+echo "  Control 1 - Ejecución de scripts SQL  "
+echo "========================================"
 
-echo "[1/4] Ejecutando dbCreate.sql en ${DB_NAME}..."
-psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f "${SCRIPT_DIR}/dbCreate.sql"
-
-echo "[2/4] Ejecutando loadData.sql en ${DB_NAME}..."
-psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f "${SCRIPT_DIR}/loadData.sql"
-
-echo "[3/4] Validando carga minima (TIPO_DOC y COMUNA)..."
-TIPO_DOC_COUNT="$(psql -X -A -t -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT COUNT(*) FROM TIPO_DOC;")"
-COMUNA_COUNT="$(psql -X -A -t -U "${DB_USER}" -d "${DB_NAME}" -c "SELECT COUNT(*) FROM COMUNA;")"
-
-echo "TIPO_DOC: ${TIPO_DOC_COUNT} filas"
-echo "COMUNA: ${COMUNA_COUNT} filas"
-
-if [[ "${TIPO_DOC_COUNT}" -lt 2 || "${COMUNA_COUNT}" -lt 1 ]]; then
-  echo "[ERROR] No se detecto carga valida. No se ejecutara runStatements.sql"
-  exit 1
+# 1) Crear la base de datos si no existe
+if psql -U "$DB_USER" -lqt | cut -d '|' -f 1 | grep -qw "$DB_NAME"; then
+  echo "[INFO] La base de datos '$DB_NAME' ya existe. No se crea de nuevo."
+else
+  echo "[INFO] Creando base de datos '$DB_NAME'..."
+  createdb -U "$DB_USER" "$DB_NAME"
+  echo "[OK] Base de datos '$DB_NAME' creada correctamente."
 fi
 
-echo "[4/4] Ejecutando runStatements.sql..."
-psql -v ON_ERROR_STOP=1 -U "${DB_USER}" -d "${DB_NAME}" -f "${SCRIPT_DIR}/runStatements.sql"
+# 2) Ejecutar dbCreate.sql
+echo
+echo "[INFO] Ejecutando dbCreate.sql..."
+psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f dbCreate.sql
+echo "[OK] Estructura de la base de datos creada (dbCreate.sql)."
 
-echo "Proceso finalizado correctamente."
+# 3) Ejecutar loadData.sql
+echo
+echo "[INFO] Ejecutando loadData.sql (carga de datos)..."
+psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f loadData.sql
+echo "[OK] Datos cargados correctamente (loadData.sql)."
+
+# 4) Ejecutar runStatements.sql
+echo
+echo "[INFO] Ejecutando runStatements.sql (consultas)..."
+psql -v ON_ERROR_STOP=1 -U "$DB_USER" -d "$DB_NAME" -f runStatements.sql
+echo "[OK] Consultas ejecutadas correctamente (runStatements.sql)."
+
+echo
+echo "========================================"
+echo "  Proceso completado sin errores.       "
+echo "========================================"

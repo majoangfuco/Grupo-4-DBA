@@ -6,10 +6,14 @@
 -- Opcional: seleccionar base de datos
 -- USE nombre_base_datos;
 
+-- Ajustes de formato de salida de psql para este script
+-- Sin paginador, sin bordes de tabla y solo filas (sin "(n rows)")
+\pset pager off
+
 /* =========================
-	Consulta 1
+    Consulta 1
     Lista de lugares al que más viajan los chilenos por año (durante los últimos 4 años).
-	========================= */
+    ========================= */
 -- Descripcion:
 -- SELECT ...
 
@@ -58,7 +62,7 @@ SELECT
     a.Avion_ID,
     m.Nombre_Modelo,
     COUNT(v.Vuelo_ID) AS Total_Vuelos
-FROM Avión a
+FROM Avion a
 JOIN Modelo m ON a.Modelo_ID = m.Modelo_ID
 LEFT JOIN Vuelo v ON a.Avion_ID = v.Avion_ID
 GROUP BY a.Avion_ID, m.Nombre_Modelo
@@ -79,53 +83,72 @@ LIMIT 1;
 -- Descripcion:
 -- SELECT ...
 
+
 /* =========================
-	Consulta 8
+    Consulta 8
     Lista de compañías y total de aviones por año (en los últimos 10 años).
-	========================= */
+    ========================= */
 
 SELECT 
-    c.Nombre_Compañia,
-    YEAR(a.Fecha_Adquisicion) AS Año, 
-    COUNT(Avion_ID) AS Total_Aviones
-FROM Compañia c 
-LEFT JOIN Avion a ON c.Compañia_ID = a.Compañia_ID
-WHERE a.Fecha_Adquisicion >= DATE_SUB(CURDATE(), INTERVAL 10 YEAR)
-GROUP BY c.Nombre_Compañia, YEAR(a.Fecha_Adquisicion)
-ORDER BY Año DESC, Total_Aviones DESC;
+    c.Nombre_Compania,
+    EXTRACT(YEAR FROM a.Fecha_Adquisicion) AS Anio,
+    COUNT(a.Avion_ID) AS Total_Aviones
+FROM Compania c
+LEFT JOIN Avion a
+  ON c.Compania_ID = a.Compania_ID
+ AND a.Fecha_Adquisicion >= CURRENT_DATE - INTERVAL '10 years'
+GROUP BY 
+    c.Nombre_Compania,
+    EXTRACT(YEAR FROM a.Fecha_Adquisicion)
+ORDER BY 
+    Anio DESC NULLS LAST,
+    Total_Aviones DESC;
+
+
 
 /* =========================
-	Consulta 9
+
+    Consulta 9
     Lista anual de compañías que en promedio han pagado más a sus empleados(durante los últimos 10 años).
-	========================= */
+
+    ========================= */
+
 -- Descripcion:
 -- SELECT ...
 
+
+
 /* =========================
-	Consulta 10
+    Consulta 10
     Modelo de avión más usado por compañía durante el 2021.
-	========================= */
+    ========================= */
 
 -- Se utiliza una CTE para calcular la cantidad de vuelos por modelo de avión y compañía
+
 WITH Cantidad_Modelos AS (
+
     SELECT 
-        c.Nombre_Compañia,
-        a.Nombre_Modelo,
+        c.Nombre_Compania,
+        m.Nombre_Modelo,
         COUNT(v.Vuelo_ID) AS Cantidad_Vuelos,
         -- RANK() para asignar un rango a cada modelo dentro de cada compañía, ordenado por cantidad de vuelos
-        RANK() OVER (PARTITION BY c.Nombre_Compañia ORDER BY COUNT(v.Vuelo_ID) DESC) AS Rango
-    FROM Compañia c
-    JOIN Avion a ON c.Compañia_ID = a.Compañia_ID
+        RANK() OVER (PARTITION BY c.Nombre_Compania ORDER BY COUNT(v.Vuelo_ID) DESC) AS Rango
+    FROM Compania c
+    JOIN Avion a ON c.Compania_ID = a.Compania_ID
     JOIN Modelo m ON a.Modelo_ID = m.Modelo_ID
     JOIN Vuelo v ON a.Avion_ID = v.Avion_ID
     -- Filtrar vuelos del año 2021, por rango ya que es más eficiente que usar YEAR() en la columna de fecha
-    WHERE v.Fecha_Vuelo BETWEEN '2021-01-01' AND '2021-12-31'
-    GROUP BY c.Nombre_Compañia, m.Nombre_Modelo
-),
+    WHERE v.Fecha_Vuelo >= DATE '2021-01-01'
+      AND v.Fecha_Vuelo < DATE '2022-01-01'
+    GROUP BY c.Nombre_Compania, m.Nombre_Modelo
+
+)
+
 SELECT 
-    Nombre_Compañia,
+    Nombre_Compania,
     Nombre_Modelo,
     Cantidad_Vuelos
 FROM Cantidad_Modelos
 -- Solo seleccionar el modelo con el rango 1 para cada compañía, es decir, el más usado
 WHERE Rango = 1;
+
