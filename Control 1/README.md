@@ -21,6 +21,32 @@ Desde la carpeta del proyecto:
 "/.../Grupo-4-DBA/Control 1"
 
 
+### Opcion 1: script automatizado (recomendada)
+
+El script [run_all_psql.sh](run_all_psql.sh) ejecuta en orden los archivos
+[dbCreate.sql](dbCreate.sql), [loadData.sql](loadData.sql) y [runStatements.sql](runStatements.sql),
+mostrando mensajes de avance y deteniendose ante cualquier error.
+
+Dar permisos de ejecucion (una sola vez):
+
+```bash
+chmod +x run_all_psql.sh
+```
+
+Luego ejecutar (usando por defecto la base de datos `control1_db` y el usuario `postgres`):
+
+```bash
+./run_all_psql.sh
+```
+
+Tambien se puede indicar explicitamente base de datos y usuario:
+
+```bash
+./run_all_psql.sh control1_db postgres
+```
+
+### Opcion 2: comandos manuales
+
 Crear la base de datos (si no existe):
 
 ```bash
@@ -37,9 +63,3 @@ psql -v ON_ERROR_STOP=1 -U postgres -d control1_db -f runStatements.sql
 
 Nota: `runStatements.sql` debe ejecutarse solo si `loadData.sql` cargo correctamente los datos.
 
-
-Alternativa automatizada:
-
-```bash
-./run_all_psql.sh control1_db postgres
-```

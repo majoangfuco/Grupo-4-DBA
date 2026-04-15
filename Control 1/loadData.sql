@@ -1,86 +1,240 @@
+-- Reinicio seguro para volver a cargar datos sin recrear el esquema
+TRUNCATE TABLE
+	Costo,
+	Pasaje,
+	Cliente_Vuelo,
+	Cliente_Comp,
+	Emp_Vuelo,
+	Sueldo,
+	Vuelo,
+	Avion,
+	Empleado,
+	Cliente,
+	Seccion,
+	Modelo,
+	Compania
+RESTART IDENTITY;
+
 -- 1. Secciones (Requerido para consultas de clases de vuelo)
-INSERT INTO "Seccion" ("Seccion_ID", "Tipo_Seccion") VALUES 
+INSERT INTO Seccion (Seccion_ID, Tipo_Seccion) VALUES 
 (1, 'Economy'), 
 (2, 'Premium economy'), 
 (3, 'Business'), 
 (4, 'First class');
 
--- 2. Compañías
-INSERT INTO "Compania" ("Compania_ID", "Nombre_Compania") VALUES 
-(1, 'LATAM'), 
-(2, 'Aerolineas Argentinas'), 
-(3, 'Iberia');
+-- 2. Compañias
+INSERT INTO Compania (Compania_ID, Nombre_Compania) VALUES
+(1, 'LATAM'),
+(2, 'Aerolineas Argentinas'),
+(3, 'Iberia'),
+(4, 'Sky Airline');
 
--- 3. Modelos de Avión
-INSERT INTO "Modelo" ("Modelo_ID", "Nombre_Modelo") VALUES 
-(1, 'Boeing 787'), 
-(2, 'Airbus A320'), 
-(3, 'Boeing 747');
+-- 3. Modelos
+INSERT INTO Modelo (Modelo_ID, Nombre_Modelo) VALUES
+(1, 'Boeing 787-9'),
+(2, 'Airbus A320neo'),
+(3, 'Boeing 737-800'),
+(4, 'Airbus A350-900'),
+(5, 'Embraer E190');
 
--- 4. Clientes (Nacionalidades estratégicas para filtrar)
-INSERT INTO "Cliente" ("Cliente_ID", "Identificador_Cliente", "Nombre_Cliente", "Correo", "Nacionalidad") VALUES 
+-- 4. Clientes
+INSERT INTO Cliente (Cliente_ID, Identificador_Cliente, Nombre_Cliente, Correo, Nacionalidad) VALUES
 (1, '18.456.789-0', 'Javiera Iturra', 'j.iturra@mail.cl', 'Chileno'),
 (2, '20.111.222-K', 'Carlos Gardel', 'carlos@mail.ar', 'Argentino'),
 (3, 'PAS887766', 'John Smith', 'john@mail.com', 'Estadounidense'),
-(4, '15.333.444-5', 'Pedro Pablo', 'pp@mail.cl', 'Chileno');
+(4, '15.333.444-5', 'Pedro Pablo', 'pp@mail.cl', 'Chileno'),
+(5, '23.444.555-6', 'Lucia Fernandez', 'lucia@mail.ar', 'Argentino'),
+(6, '11.222.333-4', 'Martin Reyes', 'martin@mail.cl', 'Chileno'),
+(7, 'PER998877', 'Ana Quispe', 'ana@mail.pe', 'Peruano'),
+(8, 'BRA556677', 'Bruno Silva', 'bruno@mail.br', 'Brasileno'),
+(9, 'ESP112233', 'Marta Lopez', 'marta@mail.es', 'Espanol'),
+(10, '22.999.888-7', 'Camila Rojas', 'camila@mail.cl', 'Chileno'),
+(11, 'ARG667788', 'Diego Milito', 'diego@mail.ar', 'Argentino'),
+(12, 'USA443322', 'Emma Stone', 'emma@mail.us', 'Estadounidense');
 
 -- 5. Empleados
-INSERT INTO "Empleado" ("Empleado_ID", "Compania_ID", "Puesto_Empleo", "Nombre_Empleado", "Identificador_Empleado") VALUES 
+INSERT INTO Empleado (Empleado_ID, Compania_ID, Puesto_Empleo, Nombre_Empleado, Identificador_Empleado) VALUES
 (1, 1, 'Piloto', 'Roberto Gomez', 'EMP001'),
 (2, 1, 'Copiloto', 'Andrea Marin', 'EMP002'),
-(3, 2, 'Piloto', 'Sebastian Vettel', 'EMP003'),
-(4, 3, 'Piloto', 'Fernando Alonso', 'EMP004');
+(3, 1, 'Tripulante', 'Carla Soto', 'EMP003'),
+(4, 2, 'Piloto', 'Sebastian Vettel', 'EMP004'),
+(5, 2, 'Copiloto', 'Nicolas Perez', 'EMP005'),
+(6, 2, 'Tripulante', 'Mauro Diaz', 'EMP006'),
+(7, 3, 'Piloto', 'Fernando Alonso', 'EMP007'),
+(8, 3, 'Copiloto', 'Irene Morales', 'EMP008'),
+(9, 3, 'Tripulante', 'Lucia Pardo', 'EMP009'),
+(10, 4, 'Piloto', 'Pablo Campos', 'EMP010'),
+(11, 4, 'Copiloto', 'Denise Araya', 'EMP011'),
+(12, 4, 'Tripulante', 'Raul Saez', 'EMP012');
 
--- 6. Sueldos (Separados según tu nueva estructura)
-INSERT INTO "Sueldo" ("Sueldo_ID", "Empleado_ID", "Monto_Sueldo") VALUES 
-(1, 1, 5500000.00),
-(2, 2, 3200000.00),
-(3, 3, 4800000.00),
-(4, 4, 6000000.00);
+-- 6. Sueldos
+INSERT INTO Sueldo (Sueldo_ID, Empleado_ID, Monto_Sueldo) VALUES
+(1, 1, 6400000.00),
+(2, 2, 4100000.00),
+(3, 3, 1900000.00),
+(4, 4, 6000000.00),
+(5, 5, 3900000.00),
+(6, 6, 1800000.00),
+(7, 7, 6800000.00),
+(8, 8, 4300000.00),
+(9, 9, 2100000.00),
+(10, 10, 5200000.00),
+(11, 11, 3500000.00),
+(12, 12, 1700000.00);
 
--- 7. Aviones (Fechas de adquisición variadas)
-INSERT INTO "Avion" ("Avion_ID", "Compania_ID", "Modelo_ID", "Fecha_Adquisicion") VALUES 
-(1, 1, 1, '2012-05-20 10:00:00'), -- Avión antiguo (>10 años)
-(2, 2, 2, '2020-11-15 09:00:00'), 
-(3, 1, 2, '2023-01-10 14:30:00');
+-- 7. Aviones (con adquisiciones distribuidas para consultas de 10 anos)
+INSERT INTO Avion (Avion_ID, Compania_ID, Modelo_ID, Fecha_Adquisicion) VALUES
+(1, 1, 1, '2017-05-20 10:00:00'),
+(2, 1, 2, '2020-11-15 09:00:00'),
+(3, 2, 3, '2019-08-01 12:00:00'),
+(4, 2, 5, '2022-01-10 14:30:00'),
+(5, 3, 4, '2018-03-03 18:00:00'),
+(6, 3, 2, '2024-06-20 11:15:00'),
+(7, 4, 2, '2021-09-09 08:20:00'),
+(8, 4, 5, '2025-02-14 16:40:00'),
+(9, 1, 3, '2015-12-12 10:10:00'),
+(10, 2, 1, '2012-05-20 10:00:00');
 
--- 8. Vuelos
-INSERT INTO "Vuelo" ("Vuelo_ID", "Avion_ID", "Compania_ID", "Origen", "Destino", "Fecha_Vuelo") VALUES 
-(1, 1, 1, 'Santiago', 'Miami', '2024-03-15 22:00:00'), 
-(2, 2, 2, 'Buenos Aires', 'Madrid', '2024-03-18 13:00:00'), 
-(3, 1, 1, 'Santiago', 'Lima', '2024-03-20 08:00:00'),
-(4, 3, 1, 'Santiago', 'Punta Arenas', '2024-04-01 07:00:00');
+-- 8. Vuelos (incluye 2021 para consulta 10 y ultimos 4 anos para consultas 1,3,7)
+INSERT INTO Vuelo (Vuelo_ID, Avion_ID, Compania_ID, Origen, Destino, Fecha_Vuelo) VALUES
+(1, 1, 1, 'Santiago', 'Madrid', '2021-01-12 22:00:00'),
+(2, 1, 1, 'Santiago', 'Miami', '2021-05-21 23:00:00'),
+(3, 2, 1, 'Santiago', 'Lima', '2021-09-02 07:00:00'),
+(4, 3, 2, 'Buenos Aires', 'Santiago', '2021-02-10 09:00:00'),
+(5, 3, 2, 'Buenos Aires', 'Lima', '2021-07-19 11:00:00'),
+(6, 10, 2, 'Buenos Aires', 'Madrid', '2021-11-25 20:30:00'),
+(7, 5, 3, 'Madrid', 'Santiago', '2021-03-14 10:00:00'),
+(8, 5, 3, 'Madrid', 'Buenos Aires', '2021-10-05 13:20:00'),
+(9, 7, 4, 'Santiago', 'Calama', '2021-12-18 06:45:00'),
+(10, 2, 1, 'Santiago', 'Lima', '2023-01-15 08:00:00'),
+(11, 1, 1, 'Santiago', 'Miami', '2024-03-05 22:00:00'),
+(12, 1, 1, 'Santiago', 'Lima', '2024-03-10 07:30:00'),
+(13, 1, 1, 'Santiago', 'Bogota', '2024-03-16 09:40:00'),
+(14, 2, 1, 'Santiago', 'Buenos Aires', '2024-03-20 12:15:00'),
+(15, 2, 1, 'Santiago', 'Punta Arenas', '2024-03-28 06:50:00'),
+(16, 3, 2, 'Buenos Aires', 'Santiago', '2024-04-03 14:10:00'),
+(17, 4, 2, 'Buenos Aires', 'Cordoba', '2024-06-11 16:30:00'),
+(18, 6, 3, 'Madrid', 'Santiago', '2024-09-01 19:00:00'),
+(19, 7, 4, 'Santiago', 'Antofagasta', '2024-10-10 06:20:00'),
+(20, 8, 4, 'Santiago', 'Puerto Montt', '2025-01-05 09:15:00'),
+(21, 5, 3, 'Madrid', 'Lima', '2025-02-14 21:00:00'),
+(22, 6, 3, 'Madrid', 'Bogota', '2025-07-07 17:00:00'),
+(23, 3, 2, 'Buenos Aires', 'Asuncion', '2026-01-12 10:00:00'),
+(24, 4, 2, 'Buenos Aires', 'Santiago', '2026-03-30 13:00:00');
 
--- 9. Pasajes (Relacionando con Secciones)
--- Importante: El Cliente 1 viaja varias veces para cumplir con las consultas de frecuencia
-INSERT INTO "Pasaje" ("Pasaje_ID", "Seccion_ID", "Cliente_ID", "Vuelo_ID") VALUES 
-(1, 4, 1, 1), -- Cliente 1 en First Class
-(2, 1, 2, 2), -- Cliente 2 en Economy
-(3, 4, 1, 3), -- Cliente 1 en First Class
-(4, 4, 1, 4), -- Cliente 1 en First Class
-(5, 3, 4, 1); -- Cliente 4 en Business
+-- 9. Pasajes
+INSERT INTO Pasaje (Pasaje_ID, Seccion_ID, Cliente_ID, Vuelo_ID) VALUES
+(1, 4, 1, 11),
+(2, 4, 1, 12),
+(3, 4, 1, 13),
+(4, 4, 1, 14),
+(5, 4, 1, 15),
+(6, 1, 2, 16),
+(7, 1, 2, 17),
+(8, 2, 5, 16),
+(9, 1, 11, 23),
+(10, 3, 4, 11),
+(11, 1, 6, 12),
+(12, 2, 10, 13),
+(13, 3, 3, 18),
+(14, 4, 9, 18),
+(15, 1, 7, 10),
+(16, 1, 8, 22),
+(17, 2, 12, 21),
+(18, 1, 2, 4),
+(19, 2, 5, 5),
+(20, 1, 11, 6),
+(21, 3, 1, 1),
+(22, 1, 4, 2),
+(23, 2, 6, 3),
+(24, 3, 3, 7),
+(25, 1, 8, 8),
+(26, 2, 9, 9),
+(27, 1, 10, 19),
+(28, 2, 7, 20),
+(29, 3, 5, 21),
+(30, 1, 2, 24),
+(31, 2, 11, 24),
+(32, 1, 5, 17),
+(33, 3, 6, 22),
+(34, 2, 4, 10),
+(35, 1, 1, 16),
+(36, 2, 1, 19),
+(37, 1, 2, 23),
+(38, 1, 11, 17),
+(39, 3, 9, 21),
+(40, 2, 12, 22);
 
 -- 10. Costos
-INSERT INTO "Costo" ("Costo_ID", "Pasaje_ID", "Precio") VALUES 
-(1, 1, 2500.00), 
-(2, 2, 850.00), 
-(3, 3, 2200.00),
-(4, 4, 1200.00),
-(5, 5, 1800.00);
+INSERT INTO Costo (Costo_ID, Pasaje_ID, Precio) VALUES
+(1, 1, 2600.00),
+(2, 2, 2200.00),
+(3, 3, 2300.00),
+(4, 4, 2100.00),
+(5, 5, 1800.00),
+(6, 6, 430.00),
+(7, 7, 390.00),
+(8, 8, 520.00),
+(9, 9, 410.00),
+(10, 10, 1500.00),
+(11, 11, 320.00),
+(12, 12, 480.00),
+(13, 13, 1700.00),
+(14, 14, 2950.00),
+(15, 15, 360.00),
+(16, 16, 900.00),
+(17, 17, 1300.00),
+(18, 18, 450.00),
+(19, 19, 620.00),
+(20, 20, 980.00),
+(21, 21, 2400.00),
+(22, 22, 1100.00),
+(23, 23, 520.00),
+(24, 24, 1900.00),
+(25, 25, 1400.00),
+(26, 26, 310.00),
+(27, 27, 280.00),
+(28, 28, 340.00),
+(29, 29, 1600.00),
+(30, 30, 500.00),
+(31, 31, 610.00),
+(32, 32, 450.00),
+(33, 33, 1200.00),
+(34, 34, 470.00),
+(35, 35, 380.00),
+(36, 36, 430.00),
+(37, 37, 420.00),
+(38, 38, 400.00),
+(39, 39, 1650.00),
+(40, 40, 980.00);
 
--- 11. Emp_Vuelo (Asignación de tripulación a vuelos)
-INSERT INTO "Emp_Vuelo" ("Emp_Vuelo_ID", "Vuelo_ID", "Empleado_ID") VALUES 
-(1, 1, 1), 
-(2, 1, 2),
-(3, 2, 3);
+-- 11. Emp_Vuelo (tripulaciones por vuelo)
+INSERT INTO Emp_Vuelo (Emp_Vuelo_ID, Vuelo_ID, Empleado_ID) VALUES
+(1, 1, 1), (2, 1, 2), (3, 2, 1), (4, 2, 3), (5, 3, 2),
+(6, 4, 4), (7, 4, 5), (8, 5, 4), (9, 6, 5), (10, 7, 7),
+(11, 8, 8), (12, 9, 10), (13, 10, 1), (14, 11, 1), (15, 12, 2),
+(16, 13, 3), (17, 14, 1), (18, 15, 2), (19, 16, 4), (20, 17, 5),
+(21, 18, 7), (22, 19, 10), (23, 20, 11), (24, 21, 8), (25, 22, 9),
+(26, 23, 4), (27, 24, 5);
 
--- 12. Cliente_Comp (Clientes frecuentes por compañía)
-INSERT INTO "Cliente_Comp" ("Cliente_Comp_ID", "Cliente_ID", "Compania_ID") VALUES 
-(1, 1, 1), 
-(2, 2, 2);
+-- 12. Cliente_Comp (clientes frecuentes por compania)
+INSERT INTO Cliente_Comp (Cliente_Comp_ID, Cliente_ID, Compania_ID) VALUES
+(1, 1, 1),
+(2, 4, 1),
+(3, 6, 1),
+(4, 2, 2),
+(5, 5, 2),
+(6, 11, 2),
+(7, 9, 3),
+(8, 3, 3),
+(9, 10, 4),
+(10, 7, 4);
 
 -- 13. Cliente_Vuelo
-INSERT INTO "Cliente_Vuelo" ("Cliente_Vuelo_ID", "Cliente_ID", "Vuelo_ID") VALUES 
-(1, 1, 1), 
-(2, 2, 2),
-(3, 1, 3);
+INSERT INTO Cliente_Vuelo (Cliente_Vuelo_ID, Cliente_ID, Vuelo_ID) VALUES
+(1, 1, 11), (2, 1, 12), (3, 1, 13), (4, 1, 14), (5, 1, 15),
+(6, 2, 16), (7, 2, 17), (8, 5, 16), (9, 11, 23), (10, 4, 11),
+(11, 6, 12), (12, 10, 13), (13, 3, 18), (14, 9, 18), (15, 7, 10),
+(16, 8, 22), (17, 12, 21), (18, 2, 4), (19, 5, 5), (20, 11, 6),
+(21, 4, 2), (22, 8, 8), (23, 9, 9), (24, 10, 19), (25, 7, 20),
+(26, 5, 21), (27, 2, 24), (28, 11, 24), (29, 6, 22), (30, 12, 22);

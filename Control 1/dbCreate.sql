@@ -3,97 +3,110 @@
   Objetivo: crear esquema, tablas, PK, FK, restricciones e indices.
 */
 
--- Opcional:
--- DROP DATABASE IF EXISTS control1_db;
--- CREATE DATABASE control1_db;
--- USE control1_db;
+
+
+-- Reinicio de esquema (PostgreSQL): borra tablas en orden por dependencias
+DROP TABLE IF EXISTS Costo CASCADE;
+DROP TABLE IF EXISTS Pasaje CASCADE;
+DROP TABLE IF EXISTS Cliente_Vuelo CASCADE;
+DROP TABLE IF EXISTS Cliente_Comp CASCADE;
+DROP TABLE IF EXISTS Emp_Vuelo CASCADE;
+DROP TABLE IF EXISTS Sueldo CASCADE;
+DROP TABLE IF EXISTS Vuelo CASCADE;
+DROP TABLE IF EXISTS Avion CASCADE;
+DROP TABLE IF EXISTS Empleado CASCADE;
+DROP TABLE IF EXISTS Seccion CASCADE;
+DROP TABLE IF EXISTS Modelo CASCADE;
+DROP TABLE IF EXISTS Cliente CASCADE;
+DROP TABLE IF EXISTS Compania CASCADE;
 
 /* =========================
    1) Tablas de catalogo
    ========================= */
 
 -- Tablas Maestras
-CREATE TABLE "Cliente" (
-  "Cliente_ID" INT PRIMARY KEY,
-  "Identificador_Cliente" VARCHAR(50),
-  "Nombre_Cliente" VARCHAR(50),
-  "Correo" VARCHAR(50),
-  "Nacionalidad" VARCHAR(50)
+CREATE TABLE Cliente (
+  Cliente_ID INT PRIMARY KEY,
+  Identificador_Cliente VARCHAR(50),
+  Nombre_Cliente VARCHAR(50),
+  Correo VARCHAR(50),
+  Nacionalidad VARCHAR(50)
 );
 
-CREATE TABLE "Compania" (
-  "Compania_ID" INT PRIMARY KEY,
-  "Nombre_Compania" VARCHAR(50)
+CREATE TABLE Compania (
+  Compania_ID INT PRIMARY KEY,
+  Nombre_Compania VARCHAR(50)
 );
 
-CREATE TABLE "Modelo" (
-  "Modelo_ID" INT PRIMARY KEY,
-  "Nombre_Modelo" VARCHAR(50)
+CREATE TABLE Modelo (
+  Modelo_ID INT PRIMARY KEY,
+  Nombre_Modelo VARCHAR(50)
 );
 
-CREATE TABLE "Seccion" (
-  "Seccion_ID" INT PRIMARY KEY,
-  "Tipo_Seccion" VARCHAR(50)
+CREATE TABLE Seccion (
+  Seccion_ID INT PRIMARY KEY,
+  Tipo_Seccion VARCHAR(50)
 );
 
 -- Tablas con Relaciones
-CREATE TABLE "Empleado" (
-  "Empleado_ID" INT PRIMARY KEY,
-  "Compania_ID" INT REFERENCES "Compania"("Compania_ID"),
-  "Puesto_Empleo" VARCHAR(50),
-  "Nombre_Empleado" VARCHAR(50),
-  "Identificador_Empleado" VARCHAR(50)
+CREATE TABLE Empleado (
+  Empleado_ID INT PRIMARY KEY,
+  Compania_ID INT REFERENCES Compania(Compania_ID),
+  Puesto_Empleo VARCHAR(50),
+  Nombre_Empleado VARCHAR(50),
+  Identificador_Empleado VARCHAR(50)
 );
 
-CREATE TABLE "Avion" (
-  "Avion_ID" INT PRIMARY KEY,
-  "Compania_ID" INT REFERENCES "Compania"("Compania_ID"),
-  "Modelo_ID" INT REFERENCES "Modelo"("Modelo_ID"),
-  "Fecha_Adquisicion" TIMESTAMP
+CREATE TABLE Avion (
+  Avion_ID INT PRIMARY KEY,
+  Compania_ID INT REFERENCES Compania(Compania_ID),
+  Modelo_ID INT REFERENCES Modelo(Modelo_ID),
+  Fecha_Adquisicion TIMESTAMP
 );
 
-CREATE TABLE "Vuelo" (
-  "Vuelo_ID" INT PRIMARY KEY,
-  "Avion_ID" INT REFERENCES "Avion"("Avion_ID"),
-  "Compania_ID" INT REFERENCES "Compania"("Compania_ID"),
-  "Origen" VARCHAR(50),
-  "Destino" VARCHAR(50),
-  "Fecha_Vuelo" TIMESTAMP
+CREATE TABLE Vuelo (
+  Vuelo_ID INT PRIMARY KEY,
+  Avion_ID INT REFERENCES Avion(Avion_ID),
+  Compania_ID INT REFERENCES Compania(Compania_ID),
+  Origen VARCHAR(50),
+  Destino VARCHAR(50),
+  Fecha_Vuelo TIMESTAMP
 );
 
-CREATE TABLE "Pasaje" (
-  "Pasaje_ID" INT PRIMARY KEY,
-  "Seccion_ID" INT REFERENCES "Seccion"("Seccion_ID"),
-  "Cliente_ID" INT REFERENCES "Cliente"("Cliente_ID"),
-  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID")
+CREATE TABLE Pasaje (
+  Pasaje_ID INT PRIMARY KEY,
+  Seccion_ID INT REFERENCES Seccion(Seccion_ID),
+  Cliente_ID INT REFERENCES Cliente(Cliente_ID),
+  Vuelo_ID INT REFERENCES Vuelo(Vuelo_ID)
 );
 
-CREATE TABLE "Costo" (
-  "Costo_ID" INT PRIMARY KEY,
-  "Pasaje_ID" INT REFERENCES "Pasaje"("Pasaje_ID"),
-  "Precio" DECIMAL(10,2)
+CREATE TABLE Costo (
+  Costo_ID INT PRIMARY KEY,
+  Pasaje_ID INT REFERENCES Pasaje(Pasaje_ID),
+  Precio DECIMAL(10,2)
 );
 
-CREATE TABLE "Sueldo" (
-  "Sueldo_ID" INT PRIMARY KEY,
-  "Empleado_ID" INT REFERENCES "Empleado"("Empleado_ID"),
-  "Monto_Sueldo" DECIMAL(10,2)
+CREATE TABLE Sueldo (
+  Sueldo_ID INT PRIMARY KEY,
+  Empleado_ID INT REFERENCES Empleado(Empleado_ID),
+  Monto_Sueldo DECIMAL(10,2),
+  Fecha_Pago TIMESTAMP
 );
 
-CREATE TABLE "Emp_Vuelo" (
-  "Emp_Vuelo_ID" INT PRIMARY KEY,
-  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID"),
-  "Empleado_ID" INT REFERENCES "Empleado"("Empleado_ID")
+CREATE TABLE Emp_Vuelo (
+  Emp_Vuelo_ID INT PRIMARY KEY,
+  Vuelo_ID INT REFERENCES Vuelo(Vuelo_ID),
+  Empleado_ID INT REFERENCES Empleado(Empleado_ID)
 );
 
-CREATE TABLE "Cliente_Comp" (
-  "Cliente_Comp_ID" INT PRIMARY KEY,
-  "Cliente_ID" INT REFERENCES "Cliente"("Cliente_ID"),
-  "Compania_ID" INT REFERENCES "Compania"("Compania_ID")
+CREATE TABLE Cliente_Comp (
+  Cliente_Comp_ID INT PRIMARY KEY,
+  Cliente_ID INT REFERENCES Cliente(Cliente_ID),
+  Compania_ID INT REFERENCES Compania(Compania_ID)
 );
 
-CREATE TABLE "Cliente_Vuelo" (
-  "Cliente_Vuelo_ID" INT PRIMARY KEY,
-  "Cliente_ID" INT REFERENCES "Cliente"("Cliente_ID"),
-  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID")
+CREATE TABLE Cliente_Vuelo (
+  Cliente_Vuelo_ID INT PRIMARY KEY,
+  Cliente_ID INT REFERENCES Cliente(Cliente_ID),
+  Vuelo_ID INT REFERENCES Vuelo(Vuelo_ID)
 );
