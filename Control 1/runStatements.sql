@@ -81,7 +81,33 @@ LIMIT 1;
     Lista de compañías indicando cuál es el avión que más ha recaudado en los últimos 4 años y cuál es el monto recaudado.
 	========================= */
 -- Descripcion:
--- SELECT ...
+WITH recaudacion AS (
+    SELECT 
+        com.nombre_compania AS compania, 
+        a.avion_id AS avion, 
+        SUM(c.precio) AS monto_recaudado
+    FROM pasaje p
+    INNER JOIN costo c ON p.pasaje_id = c.pasaje_id
+    INNER JOIN vuelo v ON p.vuelo_id = v.vuelo_id
+    INNER JOIN avion a ON v.avion_id = a.avion_id
+    INNER JOIN compania com ON com.compania_id = v.compania_id
+    
+    WHERE v.fecha_vuelo >= CURRENT_DATE - INTERVAL '4 years' 
+    GROUP BY com.nombre_compania, a.avion_id
+),
+ranking_aviones AS (
+    SELECT 
+        compania,
+        avion,
+        monto_recaudado,
+        
+        ROW_NUMBER() OVER(PARTITION BY compania ORDER BY monto_recaudado DESC) as ranking
+    FROM recaudacion
+)
+
+SELECT compania, avion, monto_recaudado
+FROM ranking_aviones
+WHERE ranking = 1;
 
 
 /* =========================
@@ -114,7 +140,29 @@ ORDER BY
     ========================= */
 
 -- Descripcion:
--- SELECT ...
+WITH promedio_anual AS (
+    SELECT 
+        EXTRACT(YEAR FROM s.fecha_pago) AS anio, 
+        c.nombre_compania AS compania, 
+        ROUND(AVG(s.monto_sueldo), 2) AS sueldo_promedio
+    FROM empleado e
+    INNER JOIN sueldo s ON e.empleado_id = s.empleado_id
+    INNER JOIN compania c ON c.compania_id = e.compania_id
+    WHERE s.fecha_pago >= CURRENT_DATE - INTERVAL '10 years'
+    GROUP BY EXTRACT(YEAR FROM s.fecha_pago), c.nombre_compania
+),
+ranking_companias AS (
+    SELECT 
+        anio,
+        compania,
+        sueldo_promedio,
+        ROW_NUMBER() OVER(PARTITION BY anio ORDER BY sueldo_promedio DESC) as ranking
+    FROM promedio_anual
+)
+SELECT anio, compania, sueldo_promedio
+FROM ranking_companias
+WHERE ranking = 1
+ORDER BY anio ASC;
 
 
 

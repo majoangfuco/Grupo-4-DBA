@@ -89,7 +89,8 @@ CREATE TABLE Costo (
 CREATE TABLE Sueldo (
   Sueldo_ID INT PRIMARY KEY,
   Empleado_ID INT REFERENCES Empleado(Empleado_ID),
-  Monto_Sueldo DECIMAL(10,2)
+  Monto_Sueldo DECIMAL(10,2),
+  Fecha_Pago TIMESTAMP
 );
 
 CREATE TABLE Emp_Vuelo (
