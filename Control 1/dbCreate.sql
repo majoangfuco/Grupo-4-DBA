@@ -12,73 +12,64 @@
    1) Tablas de catalogo
    ========================= */
 
--- 1. Tablas Independientes 
-CREATE TABLE "Compañia" (
-  "Compania_ID" SERIAL PRIMARY KEY,
-  "Nombre_Compañia" VARCHAR(100)
-);
-
-CREATE TABLE "Modelo" (
-  "Modelo_ID" SERIAL PRIMARY KEY,
-  "Nombre_Modelo" VARCHAR(50)
-);
-
-CREATE TABLE "Sección" (
-  "Seccion_ID" SERIAL PRIMARY KEY,
-  "Tipo_Seccion" VARCHAR(50)
-);
-
+-- Tablas Maestras
 CREATE TABLE "Cliente" (
-  "Cliente_ID" SERIAL PRIMARY KEY,
+  "Cliente_ID" INT PRIMARY KEY,
   "Identificador_Cliente" VARCHAR(50),
-  "Nombre_Cliente" VARCHAR(100),
-  "Correo" VARCHAR(100),
+  "Nombre_Cliente" VARCHAR(50),
+  "Correo" VARCHAR(50),
   "Nacionalidad" VARCHAR(50)
 );
 
--- 2. Tablas Dependientes 
-CREATE TABLE "Avión" (
-  "Avion_ID" SERIAL PRIMARY KEY,
-  "Compania_ID" INT REFERENCES "Compañia"("Compania_ID"),
-  "Modelo_ID" INT REFERENCES "Modelo"("Modelo_ID"),
-  "Fecha_Adquisicion" TIMESTAMP  
+CREATE TABLE "Compania" (
+  "Compania_ID" INT PRIMARY KEY,
+  "Nombre_Compania" VARCHAR(50)
 );
 
+CREATE TABLE "Modelo" (
+  "Modelo_ID" INT PRIMARY KEY,
+  "Nombre_Modelo" VARCHAR(50)
+);
+
+CREATE TABLE "Seccion" (
+  "Seccion_ID" INT PRIMARY KEY,
+  "Tipo_Seccion" VARCHAR(50)
+);
+
+-- Tablas con Relaciones
 CREATE TABLE "Empleado" (
-  "Empleado_ID" SERIAL PRIMARY KEY,
-  "Compania_ID" INT REFERENCES "Compañia"("Compania_ID"),
+  "Empleado_ID" INT PRIMARY KEY,
+  "Compania_ID" INT REFERENCES "Compania"("Compania_ID"),
   "Puesto_Empleo" VARCHAR(50),
-  "Nombre_Empleado" VARCHAR(100),
+  "Nombre_Empleado" VARCHAR(50),
   "Identificador_Empleado" VARCHAR(50)
 );
 
--- 3. Tablas Dependientes 
+CREATE TABLE "Avion" (
+  "Avion_ID" INT PRIMARY KEY,
+  "Compania_ID" INT REFERENCES "Compania"("Compania_ID"),
+  "Modelo_ID" INT REFERENCES "Modelo"("Modelo_ID"),
+  "Fecha_Adquisicion" TIMESTAMP
+);
+
 CREATE TABLE "Vuelo" (
-  "Vuelo_ID" SERIAL PRIMARY KEY,
-  "Avion_ID" INT REFERENCES "Avión"("Avion_ID"),
-  "Compania_ID" INT REFERENCES "Compañia"("Compania_ID"),
+  "Vuelo_ID" INT PRIMARY KEY,
+  "Avion_ID" INT REFERENCES "Avion"("Avion_ID"),
+  "Compania_ID" INT REFERENCES "Compania"("Compania_ID"),
   "Origen" VARCHAR(50),
   "Destino" VARCHAR(50),
-  "Fecha_Vuelo" TIMESTAMP 
+  "Fecha_Vuelo" TIMESTAMP
 );
 
-CREATE TABLE "Sueldo" (
-  "Sueldo_ID" SERIAL PRIMARY KEY,
-  "Empleado_ID" INT REFERENCES "Empleado"("Empleado_ID"),
-  "Monto_Sueldo" DECIMAL(10,2)
-);
-
--- 4. Tablas de Relación 
 CREATE TABLE "Pasaje" (
-  "Pasaje_ID" SERIAL PRIMARY KEY,
-  "Seccion_ID" INT REFERENCES "Sección"("Seccion_ID"),
+  "Pasaje_ID" INT PRIMARY KEY,
+  "Seccion_ID" INT REFERENCES "Seccion"("Seccion_ID"),
   "Cliente_ID" INT REFERENCES "Cliente"("Cliente_ID"),
-  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID"),
-  "Precio" DECIMAL(10,2)
+  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID")
 );
 
-CREATE TABLE "Emp_Vuelo" (
-  "Emp_Vuelo_ID" SERIAL PRIMARY KEY,
-  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID"),
-  "Empleado_ID" INT REFERENCES "Empleado"("Empleado_ID")
+CREATE TABLE "Costo" (
+  "Costo_ID" INT PRIMARY KEY,
+  "Pasaje_ID" INT REFERENCES "Pasaje"("Pasaje_ID"),
+  "Precio" DECIMAL(10,2)
 );
