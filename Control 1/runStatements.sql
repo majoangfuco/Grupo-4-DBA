@@ -10,8 +10,31 @@
 	Consulta 1
     Lista de lugares al que más viajan los chilenos por año (durante los últimos 4 años).
 	========================= */
--- Descripcion:
--- SELECT ...
+
+WITH ViajesChilenos AS (
+    SELECT 
+        EXTRACT(YEAR FROM v."Fecha_Vuelo") AS Anio,
+        v."Destino",
+        COUNT(*) AS Cantidad_Viajes
+    FROM "Cliente" c
+    JOIN "Pasaje" p ON c."Cliente_ID" = p."Cliente_ID"
+    JOIN "Vuelo" v ON p."Vuelo_ID" = v."Vuelo_ID"
+    WHERE c."Nacionalidad" = 'Chileno'
+      AND v."Fecha_Vuelo" >= CURRENT_DATE - INTERVAL '4 years'
+    GROUP BY Anio, v."Destino"
+),
+RankingDestinos AS (
+    SELECT 
+        Anio, 
+        "Destino", 
+        Cantidad_Viajes,
+        RANK() OVER (PARTITION BY Anio ORDER BY Cantidad_Viajes DESC) as posicion
+    FROM ViajesChilenos
+)
+SELECT Anio, "Destino", Cantidad_Viajes
+FROM RankingDestinos
+WHERE posicion = 1
+ORDER BY Anio DESC;
 
 /* =========================
 	Consulta 2
@@ -44,10 +67,20 @@ ORDER BY Anio DESC, Mes DESC, Gasto_Total DESC;
 /* =========================
 	Consulta 4
     Lista de pasajeros que viajan en “First Class” más de 4 veces al mes.
-
 	========================= */
--- Descripcion:
--- SELECT ...
+
+SELECT 
+    c."Nombre_Cliente",
+    EXTRACT(YEAR FROM v."Fecha_Vuelo") AS Anio,
+    EXTRACT(MONTH FROM v."Fecha_Vuelo") AS Mes,
+    COUNT(*) AS Total_Viajes
+FROM "Pasaje" p
+JOIN "Cliente" c ON p."Cliente_ID" = c."Cliente_ID"
+JOIN "Seccion" s ON p."Seccion_ID" = s."Seccion_ID"
+JOIN "Vuelo" v ON p."Vuelo_ID" = v."Vuelo_ID"
+WHERE s."Tipo_Seccion" = 'First class'
+GROUP BY c."Cliente_ID", c."Nombre_Cliente", Anio, Mes
+HAVING COUNT(*) > 4;
 
 /* =========================
 	Consulta 5
