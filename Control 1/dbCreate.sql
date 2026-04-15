@@ -73,3 +73,27 @@ CREATE TABLE "Costo" (
   "Pasaje_ID" INT REFERENCES "Pasaje"("Pasaje_ID"),
   "Precio" DECIMAL(10,2)
 );
+
+CREATE TABLE "Sueldo" (
+  "Sueldo_ID" INT PRIMARY KEY,
+  "Empleado_ID" INT REFERENCES "Empleado"("Empleado_ID"),
+  "Monto_Sueldo" DECIMAL(10,2)
+);
+
+CREATE TABLE "Emp_Vuelo" (
+  "Emp_Vuelo_ID" INT PRIMARY KEY,
+  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID"),
+  "Empleado_ID" INT REFERENCES "Empleado"("Empleado_ID")
+);
+
+CREATE TABLE "Cliente_Comp" (
+  "Cliente_Comp_ID" INT PRIMARY KEY,
+  "Cliente_ID" INT REFERENCES "Cliente"("Cliente_ID"),
+  "Compania_ID" INT REFERENCES "Compania"("Compania_ID")
+);
+
+CREATE TABLE "Cliente_Vuelo" (
+  "Cliente_Vuelo_ID" INT PRIMARY KEY,
+  "Cliente_ID" INT REFERENCES "Cliente"("Cliente_ID"),
+  "Vuelo_ID" INT REFERENCES "Vuelo"("Vuelo_ID")
+);
