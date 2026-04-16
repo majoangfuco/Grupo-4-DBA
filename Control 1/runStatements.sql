@@ -50,8 +50,14 @@ ORDER BY Anio DESC;
 	Consulta 2
     Lista con las secciones de vuelos más compradas por argentinos.
 	========================= */
--- Descripcion:
--- SELECT ...
+
+SELECT s.Tipo_Seccion, COUNT(p.Pasaje_ID) AS Total_Comprado
+FROM Cliente c
+JOIN Pasaje p ON c.Cliente_ID = p.Cliente_ID
+JOIN Seccion s ON p.Seccion_ID = s.Seccion_ID
+WHERE c.Nacionalidad = 'Argentino'
+GROUP BY s.Tipo_Seccion
+ORDER BY Total_Comprado DESC;
 
 /* =========================
 	Consulta 3
@@ -112,8 +118,27 @@ LIMIT 1;
 	Consulta 6
     Lista mensual de pilotos con mayor sueldo (durante los últimos 4 años).
 	========================= */
--- Descripcion:
--- SELECT ...
+
+SELECT Anio, Mes, Nombre_Empleado, Monto_Sueldo
+FROM (
+    SELECT 
+        EXTRACT(YEAR FROM v.Fecha_Vuelo) AS Anio,
+        EXTRACT(MONTH FROM v.Fecha_Vuelo) AS Mes,
+        e.Nombre_Empleado,
+        s.Monto_Sueldo,
+        RANK() OVER (
+            PARTITION BY EXTRACT(YEAR FROM v.Fecha_Vuelo), EXTRACT(MONTH FROM v.Fecha_Vuelo) 
+            ORDER BY s.Monto_Sueldo DESC
+        ) as Rnk
+    FROM Empleado e
+    JOIN Sueldo s ON e.Empleado_ID = s.Empleado_ID
+    JOIN Emp_Vuelo ev ON e.Empleado_ID = ev.Empleado_ID
+    JOIN Vuelo v ON ev.Vuelo_ID = v.Vuelo_ID
+    WHERE e.Puesto_Empleo = 'Piloto'
+      AND v.Fecha_Vuelo >= CURRENT_DATE - INTERVAL '4 years'
+) sub
+WHERE Rnk = 1
+ORDER BY Anio DESC, Mes DESC;
 
 /* =========================
 	Consulta 7
