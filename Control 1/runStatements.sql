@@ -116,20 +116,18 @@ LIMIT 1;
 SELECT Anio, Mes, Nombre_Empleado, Monto_Sueldo
 FROM (
     SELECT 
-        EXTRACT(YEAR FROM v.Fecha_Vuelo) AS Anio,
-        EXTRACT(MONTH FROM v.Fecha_Vuelo) AS Mes,
+        EXTRACT(YEAR FROM s.Fecha_Pago) AS Anio,
+        EXTRACT(MONTH FROM s.Fecha_Pago) AS Mes,
         e.Nombre_Empleado,
         s.Monto_Sueldo,
         RANK() OVER (
-            PARTITION BY EXTRACT(YEAR FROM v.Fecha_Vuelo), EXTRACT(MONTH FROM v.Fecha_Vuelo)
+            PARTITION BY EXTRACT(YEAR FROM s.Fecha_Pago), EXTRACT(MONTH FROM s.Fecha_Pago)
             ORDER BY s.Monto_Sueldo DESC
         ) AS Rnk
     FROM Empleado e
     JOIN Sueldo s ON e.Empleado_ID = s.Empleado_ID
-    JOIN Emp_Vuelo ev ON e.Empleado_ID = ev.Empleado_ID
-    JOIN Vuelo v ON ev.Vuelo_ID = v.Vuelo_ID
     WHERE e.Puesto_Empleo = 'Piloto'
-      AND v.Fecha_Vuelo >= CURRENT_DATE - INTERVAL '4 years'
+      AND s.Fecha_Pago >= CURRENT_DATE - INTERVAL '4 years'
 ) sub
 WHERE Rnk = 1
 ORDER BY Anio DESC, Mes DESC;
