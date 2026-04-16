@@ -9,6 +9,23 @@ set -euo pipefail
 
 DB_NAME="${1:-control1_db}"
 DB_USER="${2:-postgres}"
+CLEAR_PGPASSWORD=0
+
+# Pedir password una sola vez (si no viene definida en PGPASSWORD)
+if [[ -z "${PGPASSWORD:-}" ]]; then
+  read -rsp "Password for user '$DB_USER': " DB_PASS
+  echo
+  export PGPASSWORD="$DB_PASS"
+  unset DB_PASS
+  CLEAR_PGPASSWORD=1
+fi
+
+cleanup() {
+  if [[ "$CLEAR_PGPASSWORD" -eq 1 ]]; then
+    unset PGPASSWORD
+  fi
+}
+trap cleanup EXIT
 
 echo "========================================"
 echo "  Control 1 - Ejecución de scripts SQL  "

@@ -13,38 +13,32 @@
 /* =========================
     Consulta 1
     Lista de lugares al que más viajan los chilenos por año (durante los últimos 4 años).
-<<<<<<< HEAD
 	========================= */
 
 WITH ViajesChilenos AS (
     SELECT 
-        EXTRACT(YEAR FROM v."Fecha_Vuelo") AS Anio,
-        v."Destino",
+        EXTRACT(YEAR FROM v.Fecha_Vuelo) AS Anio,
+        v.Destino,
         COUNT(*) AS Cantidad_Viajes
-    FROM "Cliente" c
-    JOIN "Pasaje" p ON c."Cliente_ID" = p."Cliente_ID"
-    JOIN "Vuelo" v ON p."Vuelo_ID" = v."Vuelo_ID"
-    WHERE c."Nacionalidad" = 'Chileno'
-      AND v."Fecha_Vuelo" >= CURRENT_DATE - INTERVAL '4 years'
-    GROUP BY Anio, v."Destino"
+    FROM Cliente c
+    JOIN Pasaje p ON c.Cliente_ID = p.Cliente_ID
+    JOIN Vuelo v ON p.Vuelo_ID = v.Vuelo_ID
+    WHERE c.Nacionalidad = 'Chileno'
+      AND v.Fecha_Vuelo >= CURRENT_DATE - INTERVAL '4 years'
+    GROUP BY Anio, v.Destino
 ),
 RankingDestinos AS (
     SELECT 
         Anio, 
-        "Destino", 
+        Destino, 
         Cantidad_Viajes,
         RANK() OVER (PARTITION BY Anio ORDER BY Cantidad_Viajes DESC) as posicion
     FROM ViajesChilenos
 )
-SELECT Anio, "Destino", Cantidad_Viajes
+SELECT Anio, Destino, Cantidad_Viajes
 FROM RankingDestinos
 WHERE posicion = 1
 ORDER BY Anio DESC;
-=======
-    ========================= */
--- Descripcion:
--- SELECT ...
->>>>>>> 7f9dba7c3b95b869c55f31cef48fab95eebd7487
 
 /* =========================
 	Consulta 2
@@ -86,16 +80,16 @@ ORDER BY Anio DESC, Mes DESC, Gasto_Total DESC;
 	========================= */
 
 SELECT 
-    c."Nombre_Cliente",
-    EXTRACT(YEAR FROM v."Fecha_Vuelo") AS Anio,
-    EXTRACT(MONTH FROM v."Fecha_Vuelo") AS Mes,
+    c.Nombre_Cliente,
+    EXTRACT(YEAR FROM v.Fecha_Vuelo) AS Anio,
+    EXTRACT(MONTH FROM v.Fecha_Vuelo) AS Mes,
     COUNT(*) AS Total_Viajes
-FROM "Pasaje" p
-JOIN "Cliente" c ON p."Cliente_ID" = c."Cliente_ID"
-JOIN "Seccion" s ON p."Seccion_ID" = s."Seccion_ID"
-JOIN "Vuelo" v ON p."Vuelo_ID" = v."Vuelo_ID"
-WHERE s."Tipo_Seccion" = 'First class'
-GROUP BY c."Cliente_ID", c."Nombre_Cliente", Anio, Mes
+FROM Pasaje p
+JOIN Cliente c ON p.Cliente_ID = c.Cliente_ID
+JOIN Seccion s ON p.Seccion_ID = s.Seccion_ID
+JOIN Vuelo v ON p.Vuelo_ID = v.Vuelo_ID
+WHERE s.Tipo_Seccion = 'First class'
+GROUP BY c.Cliente_ID, c.Nombre_Cliente, Anio, Mes
 HAVING COUNT(*) > 4;
 
 /* =========================
