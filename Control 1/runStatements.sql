@@ -189,6 +189,7 @@ ORDER BY
 -- Descripcion:
 WITH promedio_anual AS (
     SELECT 
+<<<<<<< Updated upstream
         EXTRACT(YEAR FROM s.fecha_pago) AS anio,
         c.nombre_compania AS compania,
         ROUND(AVG(s.monto_sueldo), 2) AS sueldo_promedio
@@ -198,6 +199,18 @@ WITH promedio_anual AS (
     WHERE s.fecha_pago >= CURRENT_DATE - INTERVAL '10 years'
     GROUP BY EXTRACT(YEAR FROM s.fecha_pago), c.nombre_compania
 ), ranking_companias AS (
+=======
+        EXTRACT(YEAR FROM s.Fecha_Pago) AS anio, 
+        c.Nombre_Compania AS compania, 
+        ROUND(AVG(s.Monto_Sueldo), 2) AS sueldo_promedio
+    FROM empleado e
+    INNER JOIN sueldo s ON e.Empleado_Id = s.Empleado_id
+    INNER JOIN compania c ON c.Compania_id = e.Compania_id
+    WHERE s.Fecha_Pago >= CURRENT_DATE - INTERVAL '10 years'
+    GROUP BY EXTRACT(YEAR FROM s.Fecha_Pago), c.Nombre_Compania
+),
+ranking_companias AS (
+>>>>>>> Stashed changes
     SELECT 
         anio,
         compania,
