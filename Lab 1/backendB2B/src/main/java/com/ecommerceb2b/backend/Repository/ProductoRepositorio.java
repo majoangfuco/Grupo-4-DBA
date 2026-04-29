@@ -1,0 +1,130 @@
+package com.ecommerceb2b.backend.Repository;
+
+import com.ecommerceb2b.backend.Entities.ProductoEntidad;
+
+
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public class ProductoRepositorio {
+
+    private final JdbcTemplate jdbcTemplate;
+
+    public ProductoRepositorio(JdbcTemplate jdbcTemplate) {
+        this.jdbcTemplate = jdbcTemplate;
+    }
+
+    // RowMapper reutilizable
+    private final RowMapper<ProductoEntidad> rowMapper = (rs, rowNum) -> {
+        ProductoEntidad p = new ProductoEntidad();
+        p.setProducto_ID(rs.getLong("producto_id"));
+        p.setCategoria_ID(rs.getLong("categoria_id"));
+        p.setNombre_producto(rs.getString("nombre_producto"));
+        p.setDescripcion(rs.getString("descripcion"));
+        p.setPrecio(rs.getFloat("precio"));
+        p.setStock(rs.getInt("stock"));
+        p.setSku(rs.getString("sku"));
+        return p;
+    };
+
+    // Crear
+    public int crear(ProductoEntidad p) {
+        String sql = """
+                INSERT INTO productos
+                (categoria_id, nombre_producto, descripcion, precio, stock, sku)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """;
+        return jdbcTemplate.update(sql,
+                p.getCategoria_ID(),
+                p.getNombre_producto(),
+                p.getDescripcion(),
+                p.getPrecio(),
+                p.getStock(),
+                p.getSku());
+    }
+
+    // todos
+    public List<ProductoEntidad> encontrarTodos() {
+        String sql = "SELECT * FROM productos";
+        return jdbcTemplate.query(sql, rowMapper);
+    }
+
+    // encontrar por ID
+    public Optional<ProductoEntidad> encontrarPorId(Long id) {
+        String sql = "SELECT * FROM productos WHERE producto_id = ?";
+        List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, id);
+        return result.stream().findFirst();
+    }
+
+    // buscar por nombre o descripción 
+    public List<ProductoEntidad> encontrarPorNombreODescripcion(String termino) {
+        String sql = """
+                SELECT * FROM productos
+                WHERE nombre_producto ILIKE ?
+                OR descripcion ILIKE ?
+                """;
+        String patron = "%" + termino + "%";
+        return jdbcTemplate.query(sql, rowMapper, patron, patron);
+    }
+
+    // actualizar
+    public int actualizar(ProductoEntidad p) {
+        String sql = """
+                UPDATE productos SET
+                    categoria_id = ?,
+                    nombre_producto = ?,
+                    descripcion = ?,
+                    precio = ?,
+                    stock = ?,
+                    sku = ?
+                WHERE producto_id = ?
+                """;
+        return jdbcTemplate.update(sql,
+                p.getCategoria_ID(),
+                p.getNombre_producto(),
+                p.getDescripcion(),
+                p.getPrecio(),
+                p.getStock(),
+                p.getSku(),
+                p.getProducto_ID());
+    }
+
+    // DELETE
+    public int borrarPorId(Long id) {
+        String sql = "DELETE FROM productos WHERE producto_id = ?";
+        return jdbcTemplate.update(sql, id);
+    }
+
+    // buscar stock 
+    public int encontrarStockPorId(Long productoId) {
+        String sql = "SELECT stock FROM productos WHERE producto_id = ?";
+        Integer stock = jdbcTemplate.queryForObject(sql, Integer.class, productoId);
+        return stock != null ? stock : 0;
+    }
+
+    // Buscar por SKU 
+    public Optional<ProductoEntidad> encontrarPorSku(String sku) {
+        String sql = "SELECT * FROM productos WHERE sku = ?";
+        List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, sku);
+        return result.stream().findFirst();
+    }
+
+    // Buscar por categoría 
+    public List<ProductoEntidad> encontrarPorCategoria(Long categoriaId) {
+        String sql = "SELECT * FROM productos WHERE categoria_id = ?";
+        return jdbcTemplate.query(sql, rowMapper, categoriaId);
+    }
+
+    public void aplicarDescuentoPorCategoria(Long categoriaId, Float porcentaje) {
+    String sql = "CALL aplicar_descuento_categoria(?, ?)";
+    jdbcTemplate.update(sql, categoriaId, porcentaje);
+}
+
+
+
+}
