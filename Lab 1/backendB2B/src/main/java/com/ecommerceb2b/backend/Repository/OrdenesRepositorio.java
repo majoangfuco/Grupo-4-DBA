@@ -1,7 +1,6 @@
 package com.ecommerceb2b.backend.Repository;
 
 import com.ecommerceb2b.backend.Entities.OrdenesEntidad;
-import com.ecommerceb2b.backend.Entities.ProductoEntidad;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
