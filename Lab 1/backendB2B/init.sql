@@ -22,7 +22,8 @@ CREATE TABLE producto_entidad (
     descripcion TEXT,
     precio REAL,
     stock INT,
-    sku VARCHAR(255)
+    sku VARCHAR(255),
+    activo BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE carrito_entidad (

@@ -29,6 +29,7 @@ public class ProductoRepositorio {
         p.setPrecio(rs.getFloat("precio"));
         p.setStock(rs.getInt("stock"));
         p.setSku(rs.getString("sku"));
+        p.setActivo(rs.getBoolean("activo"));
         return p;
     };
 
@@ -36,8 +37,8 @@ public class ProductoRepositorio {
     public int crear(ProductoEntidad p) {
         String sql = """
                 INSERT INTO producto_entidad
-                (categoria_categoria_id, nombre_producto, descripcion, precio, stock, sku)
-                VALUES (?, ?, ?, ?, ?, ?)
+            (categoria_categoria_id, nombre_producto, descripcion, precio, stock, sku, activo)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
                 """;
         return jdbcTemplate.update(sql,
                 p.getCategoria_ID(),
@@ -45,18 +46,19 @@ public class ProductoRepositorio {
                 p.getDescripcion(),
                 p.getPrecio(),
                 p.getStock(),
-                p.getSku());
+            p.getSku(),
+            p.isActivo());
     }
 
     // todos
     public List<ProductoEntidad> encontrarTodos() {
-        String sql = "SELECT * FROM producto_entidad";
+        String sql = "SELECT * FROM producto_entidad WHERE activo = true";
         return jdbcTemplate.query(sql, rowMapper);
     }
 
     // encontrar por ID
     public Optional<ProductoEntidad> encontrarPorId(Long id) {
-        String sql = "SELECT * FROM producto_entidad WHERE producto_id = ?";
+        String sql = "SELECT * FROM producto_entidad WHERE producto_id = ? AND activo = true";
         List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, id);
         return result.stream().findFirst();
     }
@@ -65,8 +67,9 @@ public class ProductoRepositorio {
     public List<ProductoEntidad> encontrarPorNombreODescripcion(String termino) {
         String sql = """
                 SELECT * FROM producto_entidad
-                WHERE nombre_producto ILIKE ?
-                OR descripcion ILIKE ?
+                WHERE activo = true
+                AND (nombre_producto ILIKE ?
+                OR descripcion ILIKE ?)
                 """;
         String patron = "%" + termino + "%";
         return jdbcTemplate.query(sql, rowMapper, patron, patron);
@@ -81,7 +84,8 @@ public class ProductoRepositorio {
                     descripcion = ?,
                     precio = ?,
                     stock = ?,
-                    sku = ?
+                    sku = ?,
+                    activo = ?
                 WHERE producto_id = ?
                 """;
         return jdbcTemplate.update(sql,
@@ -91,6 +95,7 @@ public class ProductoRepositorio {
                 p.getPrecio(),
                 p.getStock(),
                 p.getSku(),
+                p.isActivo(),
                 p.getProducto_ID());
     }
 
@@ -98,19 +103,25 @@ public class ProductoRepositorio {
     public int borrarPorId(Long id) {
         String sqlDeleteFromCart = "DELETE FROM carrito_productos WHERE producto_id = ?";
         jdbcTemplate.update(sqlDeleteFromCart, id);
-        String sql = "DELETE FROM producto_entidad WHERE producto_id = ?";
+        String sql = "UPDATE producto_entidad SET activo = false WHERE producto_id = ? AND activo = true";
         return jdbcTemplate.update(sql, id);
     }
 
     // buscar stock 
     public int encontrarStockPorId(Long productoId) {
-        String sql = "SELECT stock FROM producto_entidad WHERE producto_id = ?";
+        String sql = "SELECT stock FROM producto_entidad WHERE producto_id = ? AND activo = true";
         Integer stock = jdbcTemplate.queryForObject(sql, Integer.class, productoId);
         return stock != null ? stock : 0;
     }
 
     // Buscar por SKU 
     public Optional<ProductoEntidad> encontrarPorSku(String sku) {
+        String sql = "SELECT * FROM producto_entidad WHERE sku = ? AND activo = true";
+        List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, sku);
+        return result.stream().findFirst();
+    }
+
+    public Optional<ProductoEntidad> encontrarPorSkuCualquierEstado(String sku) {
         String sql = "SELECT * FROM producto_entidad WHERE sku = ?";
         List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, sku);
         return result.stream().findFirst();
@@ -118,7 +129,7 @@ public class ProductoRepositorio {
 
     // Buscar por categoría 
     public List<ProductoEntidad> encontrarPorCategoria(Long categoriaId) {
-        String sql = "SELECT * FROM producto_entidad WHERE categoria_categoria_id = ?";
+        String sql = "SELECT * FROM producto_entidad WHERE categoria_categoria_id = ? AND activo = true";
         return jdbcTemplate.query(sql, rowMapper, categoriaId);
     }
 

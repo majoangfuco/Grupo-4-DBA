@@ -20,6 +20,7 @@ public class ProductoServicio {
 
 	@Transactional
 	public ProductoEntidad crearProducto(ProductoEntidad producto) {
+		producto.setActivo(true);
 		validarProducto(producto);
 		validarSkuUnico(producto.getSku(), null);
 
@@ -82,6 +83,7 @@ public class ProductoServicio {
 		// actualización
 		productoActualizado.setProducto_ID(actual.getProducto_ID());
 		productoActualizado.setStock(actual.getStock());
+		productoActualizado.setActivo(actual.isActivo());
 
 		validarProducto(productoActualizado);
 		validarSkuUnico(productoActualizado.getSku(), productoId);
@@ -166,7 +168,7 @@ public class ProductoServicio {
 	}
 
 	private void validarSkuUnico(String sku, Long productoIdActual) {
-		Optional<ProductoEntidad> existente = productoRepositorio.encontrarPorSku(sku);
+		Optional<ProductoEntidad> existente = productoRepositorio.encontrarPorSkuCualquierEstado(sku);
 		if (existente.isPresent()) {
 			boolean mismoProducto = productoIdActual != null
 					&& productoIdActual.equals(existente.get().getProducto_ID());
