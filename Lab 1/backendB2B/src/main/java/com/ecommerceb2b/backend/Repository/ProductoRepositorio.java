@@ -96,6 +96,8 @@ public class ProductoRepositorio {
 
     // DELETE
     public int borrarPorId(Long id) {
+        String sqlDeleteFromCart = "DELETE FROM carrito_productos WHERE producto_id = ?";
+        jdbcTemplate.update(sqlDeleteFromCart, id);
         String sql = "DELETE FROM productos WHERE producto_id = ?";
         return jdbcTemplate.update(sql, id);
     }
