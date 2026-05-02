@@ -2,20 +2,23 @@
 // http-common.ts
 // Cliente HTTP base con Axios.
 //
-// 🔧 BACKEND PENDIENTE:
-//   - Ajusta VITE_BACKEND_SERVER y VITE_BACKEND_PORT en tu .env
-//     para que apunten a tu servidor Spring Boot / Node / etc.
+// 🔧 BACKEND:
+//   - Ajusta VITE_API_BASE_URL en tu .env
+//     para que apunte a tu servidor Spring Boot / Node / etc.
 //   - El interceptor de request adjunta automáticamente el JWT
 //     almacenado en localStorage en cada petición autenticada.
 // ============================================================
 
 import axios from 'axios'
 
-const BackendServer = import.meta.env.VITE_BACKEND_SERVER ?? 'localhost'
-const BackendPort   = import.meta.env.VITE_BACKEND_PORT   ?? '8080'
+const apiBaseUrl = import.meta.env.VITE_API_BASE_URL
+
+if (!apiBaseUrl) {
+  throw new Error('VITE_API_BASE_URL no esta definido en el .env del frontend')
+}
 
 const httpClient = axios.create({
-  baseURL: `http://${BackendServer}:${BackendPort}`,
+  baseURL: apiBaseUrl,
   headers: {
     'Content-Type': 'application/json',
   },

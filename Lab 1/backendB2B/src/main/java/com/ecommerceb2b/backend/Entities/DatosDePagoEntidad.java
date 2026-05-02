@@ -1,6 +1,5 @@
 package com.ecommerceb2b.backend.Entities;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -9,11 +8,11 @@ import lombok.NoArgsConstructor;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class CategoriaEntidad {
+public class DatosDePagoEntidad {
 
-    private int categoria_ID;
+    Long datos_Pago_ID;
 
-    private String nombre_Categoria;
-
-    private boolean estado_Categoria;
+    String metodo_Pago;
+    String numero_Tarjeta;
+    String fecha_Expiracion;
 }

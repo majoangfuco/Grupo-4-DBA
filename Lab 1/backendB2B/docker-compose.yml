@@ -1,0 +1,33 @@
+version: "3.9"
+services:
+  db:
+    image: postgres:16
+    container_name: b2b-db
+    environment:
+      POSTGRES_DB: b2b
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+  backend:
+    build:
+      context: .
+    container_name: b2b-backend
+    environment:
+      APP_PORT: 8090
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_NAME: b2b
+      DB_USER: postgres
+      DB_PASSWORD: postgres
+      JWT_SECRET: mySecureSecretKeyForJwtTokenGenerationAndValidation2024
+      JWT_EXPIRATION_MS: 86400000
+    ports:
+      - "8090:8090"
+    depends_on:
+      - db
+volumes:
+  db_data:

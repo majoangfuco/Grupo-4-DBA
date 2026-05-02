@@ -28,6 +28,7 @@ public class ProductoRepositorio {
         p.setDescripcion(rs.getString("descripcion"));
         p.setPrecio(rs.getFloat("precio"));
         p.setStock(rs.getInt("stock"));
+        p.setStock_reservado(rs.getInt("stock_reservado"));
         p.setSku(rs.getString("sku"));
         p.setActivo(rs.getBoolean("activo"));
         return p;

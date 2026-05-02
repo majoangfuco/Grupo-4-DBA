@@ -14,6 +14,7 @@ public class ProductoEntidad {
     private String descripcion;
     private Float precio;
     private Integer stock;
+    private Integer stock_reservado;
     private String sku;
     private boolean activo; // Nuevo campo para indicar si el producto está activo o no
 }
