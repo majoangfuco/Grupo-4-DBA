@@ -8,16 +8,17 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import ListaProductos from '@/components/productos/ListaProductos.vue'
 import FormularioAgregarProducto from '@/components/productos/FormularioAgregarProducto.vue'
+import { productoServicio } from '@/services/productoServicio'
 
 // ===================== TIPOS ========================
 interface Producto {
-  idProducto: number
-  nombre: string
-  categoria: string
-  valorReposicion: number
-  tarifaDiaria: number
-  tarifaAtraso: number
+  producto_ID: number
+  categoria_ID: number
+  nombre_producto: string
+  descripcion: string
+  precio: number
   stock: number
+  sku: string
 }
 
 // ==================== ESTADO ========================
@@ -27,24 +28,24 @@ const error      = ref<string | null>(null)
 const modalAbierto = ref(false)
 
 // ==================== FILTROS =======================
-const filtros = reactive({ idProducto: '', nombre: '', categoria: '' })
+const filtros = reactive({ producto_ID: '', nombre_producto: '', categoria_ID: '' })
 
 // Categorías disponibles (se calculan desde los datos)
 const opcionesCategorias = computed(() => {
-  const set = new Set(productos.value.map(p => p.categoria).filter(Boolean))
-  return Array.from(set).sort((a, b) => a.localeCompare(b))
+  const set = new Set(productos.value.map(p => p.categoria_ID).filter(Boolean))
+  return Array.from(set).sort((a, b) => a - b)
 })
 
 const limpiarFiltros = () => {
-  filtros.idProducto = ''
-  filtros.nombre     = ''
-  filtros.categoria  = ''
+  filtros.producto_ID = ''
+  filtros.nombre_producto     = ''
+  filtros.categoria_ID  = ''
   paginaActual.value = 1
 }
 
 // =================== ORDENAMIENTO ==================
 const configOrden = reactive<{ clave: string; direccion: 'asc' | 'desc' }>({
-  clave: 'nombre', direccion: 'asc',
+  clave: 'nombre_producto', direccion: 'asc',
 })
 
 const cambiarOrden = (clave: string) => {
@@ -59,9 +60,9 @@ const cambiarOrden = (clave: string) => {
 // ==================== FILTRADO =====================
 const productosFiltrados = computed(() =>
   productos.value.filter(p => {
-    const coincideNombre    = !filtros.nombre     || p.nombre.toLowerCase().includes(filtros.nombre.toLowerCase())
-    const coincideCategoria = !filtros.categoria  || p.categoria.toLowerCase().includes(filtros.categoria.toLowerCase())
-    const coincideId        = !filtros.idProducto || String(p.idProducto).includes(filtros.idProducto)
+    const coincideNombre    = !filtros.nombre_producto     || p.nombre_producto.toLowerCase().includes(filtros.nombre_producto.toLowerCase())
+    const coincideCategoria = !filtros.categoria_ID  || String(p.categoria_ID).includes(filtros.categoria_ID)
+    const coincideId        = !filtros.producto_ID || String(p.producto_ID).includes(filtros.producto_ID)
     return coincideNombre && coincideCategoria && coincideId
   })
 )
@@ -100,31 +101,16 @@ const cargarProductos = async () => {
   cargando.value = true
   error.value    = null
   try {
-    // ====================================================
-    // 🔌 BACKEND — Obtener todos los tipos de herramientas
-    // Endpoint esperado: GET /api/herramientas
-    // Respuesta esperada: Producto[]
-    //
-    // Descomentar cuando el backend esté listo:
-    // import { productoServicio } from '@/services/productoServicio'
-    // const respuesta = await productoServicio.obtenerTodos()
-    // productos.value = respuesta.data
-    // ====================================================
-
-    // Datos simulados para desarrollo sin backend
-    productos.value = [
-      { idProducto: 1, nombre: 'Martillo', categoria: 'Construcción', valorReposicion: 50000, tarifaDiaria: 3000, tarifaAtraso: 5000, stock: 8 },
-      { idProducto: 2, nombre: 'Taladro',  categoria: 'Eléctrico',    valorReposicion: 150000, tarifaDiaria: 8000, tarifaAtraso: 12000, stock: 3 },
-      { idProducto: 3, nombre: 'Sierra',   categoria: 'Construcción', valorReposicion: 80000, tarifaDiaria: 5000, tarifaAtraso: 7000, stock: 5 },
-    ]
+    const respuesta = await productoServicio.obtenerTodos()
+    productos.value = respuesta.data
   } catch (err: unknown) {
-    console.error('Error al obtener herramientas:', err)
+    console.error('Error al obtener productos:', err)
     productos.value = []
     // ====================================================
     // 🔌 BACKEND — Manejo de error de la API
     // ====================================================
     const axiosErr = err as { response?: { data?: { message?: string } } }
-    error.value = axiosErr.response?.data?.message ?? 'Error al cargar las herramientas.'
+    error.value = axiosErr.response?.data?.message ?? 'Error al cargar los productos.'
   } finally {
     cargando.value = false
   }
@@ -155,8 +141,10 @@ onMounted(cargarProductos)
     <Teleport to="body">
       <div v-if="modalAbierto" class="modal-overlay" @click.self="modalAbierto = false">
         <div class="modal-contenido">
-          <button class="modal-cerrar" @click="modalAbierto = false" aria-label="Cerrar">✕</button>
-          <FormularioAgregarProducto @productoAgregado="manejarProductoAgregado" />
+          <FormularioAgregarProducto 
+            @productoAgregado="manejarProductoAgregado" 
+            @cancelado="modalAbierto = false" 
+          />
         </div>
       </div>
     </Teleport>
@@ -165,14 +153,14 @@ onMounted(cargarProductos)
     <div class="barra-filtros">
       <div class="filtros-grupo">
         <input
-          v-model="filtros.idProducto"
+          v-model="filtros.producto_ID"
           class="filtro-entrada"
           type="text"
           placeholder="Buscar por ID"
           @input="paginaActual = 1"
         />
         <input
-          v-model="filtros.nombre"
+          v-model="filtros.nombre_producto"
           class="filtro-entrada"
           type="text"
           placeholder="Buscar por Nombre"
@@ -180,7 +168,7 @@ onMounted(cargarProductos)
         />
         <!-- Categorías dinámicas desde los datos -->
         <select
-          v-model="filtros.categoria"
+          v-model="filtros.categoria_ID"
           class="filtro-entrada filtro-select"
           @change="paginaActual = 1"
         >

@@ -7,12 +7,10 @@
 
 // --- Tipos ---
 interface Cliente {
-  idCliente: number
-  nombre: string
-  rut: string
-  telefono: string
-  email: string
-  estado: string
+  usuario_ID: number
+  nombre_Usuario: string
+  correo: string
+  rut_Empresa: string
 }
 
 interface ConfigOrden {
@@ -58,12 +56,11 @@ const estaOrdenandoPor = (clave: string): boolean => {
         <tr>
           <th
             v-for="col in [
-              { clave: 'idCliente',  etiqueta: 'ID Cliente' },
-              { clave: 'nombre',     etiqueta: 'Nombre' },
-              { clave: 'rut',        etiqueta: 'RUT' },
-              { clave: 'telefono',   etiqueta: 'Teléfono' },
-              { clave: 'email',      etiqueta: 'Email' },
-              { clave: 'estado',     etiqueta: 'Estado' },
+              { clave: 'usuario_ID',    etiqueta: 'ID Cliente' },
+              { clave: 'nombre_Usuario', etiqueta: 'Nombre' },
+              { clave: 'correo',         etiqueta: 'Correo' },
+              { clave: 'rut_Empresa',    etiqueta: 'RUT Empresa' },
+              { clave: 'ordenes_Realizadas',    etiqueta: 'Ordenes' },
             ]"
             :key="col.clave"
             class="celda-encabezado"
@@ -87,7 +84,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: cargando -->
         <tr v-if="cargando">
-          <td colspan="6" class="celda-estado">
+          <td colspan="4" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando datos...</span>
           </td>
@@ -95,7 +92,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: error -->
         <tr v-else-if="error">
-          <td colspan="6" class="celda-estado">
+          <td colspan="4" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">
               ↺ Reintentar
@@ -105,7 +102,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: lista vacía -->
         <tr v-else-if="clientes.length === 0">
-          <td colspan="6" class="celda-estado">
+          <td colspan="4" class="celda-estado">
             <p class="texto-vacio">No se encontraron clientes registrados.</p>
             <p class="texto-vacio-sub">Puedes agregar uno nuevo usando el botón "Agregar cliente".</p>
           </td>
@@ -115,22 +112,13 @@ const estaOrdenandoPor = (clave: string): boolean => {
         <tr
           v-else
           v-for="cliente in clientes"
-          :key="cliente.idCliente"
+          :key="cliente.usuario_ID"
           class="fila-cliente"
         >
-          <td class="celda">{{ cliente.idCliente }}</td>
-          <td class="celda">{{ cliente.nombre }}</td>
-          <td class="celda">{{ cliente.rut }}</td>
-          <td class="celda">{{ cliente.telefono }}</td>
-          <td class="celda">{{ cliente.email }}</td>
-          <td class="celda">
-            <span
-              class="badge-estado"
-              :class="cliente.estado === 'ACTIVO' ? 'estado-activo' : 'estado-restringido'"
-            >
-              {{ cliente.estado === 'ACTIVO' ? 'Activo' : 'Restringido' }}
-            </span>
-          </td>
+          <td class="celda">{{ cliente.usuario_ID }}</td>
+          <td class="celda">{{ cliente.nombre_Usuario }}</td>
+          <td class="celda">{{ cliente.correo }}</td>
+          <td class="celda">{{ cliente.rut_Empresa }}</td>
         </tr>
 
       </tbody>

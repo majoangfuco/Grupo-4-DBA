@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -34,7 +35,7 @@ public class UsuarioRepositorio {
     };
 
     public Optional<UsuarioEntidad> findByCorreo(String correo) {
-        String sql = "SELECT * FROM usuario WHERE correo = ?";
+        String sql = "SELECT * FROM usuario_entidad WHERE LOWER(correo) = LOWER(?)";
         try {
             UsuarioEntidad usuario = jdbcTemplate.queryForObject(sql, rowMapper, correo);
             return Optional.of(usuario);
@@ -44,7 +45,7 @@ public class UsuarioRepositorio {
     }
 
     public Optional<UsuarioEntidad> findById(Long id) {
-        String sql = "SELECT * FROM usuario WHERE usuario_id = ?";
+        String sql = "SELECT * FROM usuario_entidad WHERE usuario_id = ?";
         try {
             UsuarioEntidad usuario = jdbcTemplate.queryForObject(sql, rowMapper, id);
             return Optional.of(usuario);
@@ -54,7 +55,7 @@ public class UsuarioRepositorio {
     }
 
     public void save(UsuarioEntidad usuario) {
-        String sql = "INSERT INTO usuario (nombre_usuario, correo, contrasena, rut_empresa, rol) VALUES (?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO usuario_entidad (nombre_usuario, correo, contrasena, rut_empresa, rol) VALUES (?, ?, ?, ?, ?)";
         jdbcTemplate.update(sql, 
             usuario.getNombre_Usuario(),
             usuario.getCorreo(),
@@ -62,5 +63,10 @@ public class UsuarioRepositorio {
             usuario.getRut_Empresa(),
             usuario.getRol() != null ? usuario.getRol() : "CLIENTE"
         );
+    }
+
+    public List<UsuarioEntidad> findByRol(String rol) {
+        String sql = "SELECT * FROM usuario_entidad WHERE rol = ?";
+        return jdbcTemplate.query(sql, rowMapper, rol);
     }
 }

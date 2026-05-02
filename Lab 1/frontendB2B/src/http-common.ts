@@ -12,7 +12,7 @@
 import axios from 'axios'
 
 const BackendServer = import.meta.env.VITE_BACKEND_SERVER ?? 'localhost'
-const BackendPort   = import.meta.env.VITE_BACKEND_PORT   ?? '8090'
+const BackendPort   = import.meta.env.VITE_BACKEND_PORT   ?? '8080'
 
 const httpClient = axios.create({
   baseURL: `http://${BackendServer}:${BackendPort}`,
@@ -41,11 +41,16 @@ httpClient.interceptors.request.use(
 httpClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401 || error.response?.status === 403) {
+    // Si la llamada fue a /login, NO hacemos la redirección global
+    // para permitir que Login.vue muestre el mensaje de "Credenciales incorrectas".
+    const isLogin = error.config?.url?.includes('/usuario/login')
+
+    if (!isLogin && (error.response?.status === 401 || error.response?.status === 403)) {
       // Token expirado o inválido → limpiamos sesión y redirigimos a login
       localStorage.removeItem('jwt')
       localStorage.removeItem('userId')
       localStorage.removeItem('userEmail')
+      localStorage.removeItem('userName')
       localStorage.removeItem('userRole')
       window.location.href = '/login'
     }

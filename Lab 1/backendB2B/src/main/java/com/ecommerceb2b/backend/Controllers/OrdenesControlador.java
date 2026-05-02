@@ -11,6 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/ordenes")
+@CrossOrigin("localhost:5174")
 public class OrdenesControlador {
 
     private final OrdenesServicio ordenesServicio;

@@ -59,12 +59,27 @@ const breadcrumbs = computed(() => {
 
 const isHome = computed(() => route.path === '/')
 
-// --- Ítems de navegación (adapta las rutas a las de tu proyecto) ---
-const navItems = [
-  { label: 'Inicio',     path: '/',          icon: '🏠' },
-  { label: 'Clientes',  path: '/clientesAdmin',  icon: '👥' },
-  { label: 'Productos',  path: '/productosAdmin',  icon: '📦' },
-]
+// --- Ítems de navegación según rol ---
+const navItems = computed(() => {
+  const baseItems = [
+    { label: 'Inicio', path: '/', icon: '🏠' },
+  ]
+
+  if (authStore.isAdmin) {
+    return [
+      ...baseItems,
+      { label: 'Productos', path: '/productosAdmin', icon: '📦' },
+      { label: 'Clientes', path: '/clientesAdmin', icon: '👥' },
+    ]
+  } else if (authStore.isCliente) {
+    return [
+      { label: 'Productos', path: '/productosCliente', icon: '📦' },
+      { label: 'Órdenes', path: '/ordenesCliente', icon: '📋' },
+    ]
+  }
+
+  return baseItems
+})
 </script>
 
 <template>

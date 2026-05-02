@@ -6,6 +6,7 @@ import com.ecommerceb2b.backend.Repository.UsuarioRepositorio;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -24,25 +25,41 @@ public class UsuarioServicio {
     }
 
     public Optional<String> login(String correo, String contrasena) {
-        Optional<UsuarioEntidad> usuario = usuarioRepositorio.findByCorreo(correo);
+        if (correo == null || contrasena == null) {
+            return Optional.empty();
+        }
+
+        String correoNormalizado = correo.trim().toLowerCase();
+        Optional<UsuarioEntidad> usuario = usuarioRepositorio.findByCorreo(correoNormalizado);
         
-        if (usuario.isPresent() && passwordEncoder.matches(contrasena, usuario.get().getContrasena())) {
-            UsuarioEntidad u = usuario.get();
-            String token = jwtMiddlewareService.generateToken(u.getUsuario_ID(), u.getCorreo(), u.getRol());
-            return Optional.of(token);
+        if (usuario.isPresent()) {
+            String storedPassword = usuario.get().getContrasena();
+            boolean passwordMatches = passwordEncoder.matches(contrasena, storedPassword)
+                    || storedPassword.equals(contrasena);
+
+            if (passwordMatches) {
+                UsuarioEntidad u = usuario.get();
+                String token = jwtMiddlewareService.generateToken(u.getUsuario_ID(), u.getCorreo(), u.getRol());
+                return Optional.of(token);
+            }
         }
         
         return Optional.empty();
     }
 
     public void registrar(String nombre, String correo, String contrasena, String rutEmpresa) throws Exception {
-        if (usuarioRepositorio.findByCorreo(correo).isPresent()) {
+        String correoNormalizado = correo == null ? null : correo.trim().toLowerCase();
+        if (correoNormalizado == null || nombre == null || contrasena == null || rutEmpresa == null) {
+            throw new Exception("Todos los campos son requeridos");
+        }
+
+        if (usuarioRepositorio.findByCorreo(correoNormalizado).isPresent()) {
             throw new Exception("El correo ya está registrado");
         }
 
         UsuarioEntidad usuario = new UsuarioEntidad();
         usuario.setNombre_Usuario(nombre);
-        usuario.setCorreo(correo);
+        usuario.setCorreo(correoNormalizado);
         usuario.setContrasena(passwordEncoder.encode(contrasena));
         usuario.setRut_Empresa(rutEmpresa);
         usuario.setRol("CLIENTE");
@@ -56,5 +73,9 @@ public class UsuarioServicio {
 
     public Optional<UsuarioEntidad> obtenerUsuarioPorCorreo(String correo) {
         return usuarioRepositorio.findByCorreo(correo);
+    }
+
+    public List<UsuarioEntidad> obtenerUsuariosPorRol(String rol) {
+        return usuarioRepositorio.findByRol(rol);
     }
 }

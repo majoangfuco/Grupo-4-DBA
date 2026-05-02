@@ -30,6 +30,7 @@ export interface RegisterPayload {
   nombre: string
   correo: string
   contrasena: string
+  rut_empresa: string
   rol?: string          // 'ADMIN' | 'CLIENTE' — según tu backend
 }
 
@@ -40,15 +41,23 @@ export interface UsuarioDTO {
   rol: string
 }
 
+export interface LoginResponse {
+  token: string
+  mensaje?: string
+}
+
+export interface RegisterResponse {
+  mensaje: string
+}
+
 // ─── Llamadas al backend ──────────────────────────────────────
 
 /**
  * 🔧 BACKEND: POST /usuario/login
- * El backend debe devolver el token JWT como string plano o como JSON.
- * Ajusta `response.data` según lo que retorne tu backend.
+ * El backend devuelve { token, mensaje }.
  */
 const login = (correo: string, contrasena: string) => {
-  return httpClient.post<string>('/usuario/login', { correo, contrasena })
+  return httpClient.post<LoginResponse>('/usuario/login', { correo, contrasena })
 }
 
 /**
@@ -56,7 +65,7 @@ const login = (correo: string, contrasena: string) => {
  * El backend debe crear el usuario y devolver un mensaje de confirmación.
  */
 const register = (usuario: RegisterPayload) => {
-  return httpClient.post<string>('/usuario/register', usuario)
+  return httpClient.post<RegisterResponse>('/usuario/register', usuario)
 }
 
 /**

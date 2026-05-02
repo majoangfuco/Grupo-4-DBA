@@ -15,60 +15,24 @@ const contrasena = ref('')
 const loading    = ref(false)
 const errorMsg   = ref('')
 const showPass   = ref(false)
-const usedMock   = ref(false)   // true cuando el login fue por credenciales locales
-
-// ════════════════════════════════════════════════════════════
-// 🔧 MODO MOCK — Solo mientras el backend NO esté disponible.
-//   Elimina este bloque (y la variable `usedMock`) cuando el
-//   backend esté funcionando.
-//
-//   Credenciales de prueba:
-//     admin@b2b.com  / admin123   → rol ADMIN
-//     cliente@b2b.com / cliente123 → rol CLIENTE
-// ════════════════════════════════════════════════════════════
-const MOCK_USERS = [
-  { id: 1, nombre: 'Admin Demo',   correo: 'admin@b2b.com',   contrasena: 'admin123',   rol: 'ADMIN'   },
-  { id: 2, nombre: 'Cliente Demo', correo: 'cliente@b2b.com', contrasena: 'cliente123', rol: 'CLIENTE' },
-]
-
-function tryMockLogin(email: string, pass: string): boolean {
-  const match = MOCK_USERS.find(
-    (u) => u.correo === email && u.contrasena === pass,
-  )
-  if (!match) return false
-
-  authStore.setSession({
-    token:     'mock-jwt-token',
-    userId:    String(match.id),
-    userEmail: match.correo,
-    userName:  match.nombre,
-    userRole:  match.rol,
-  })
-  usedMock.value = true
-  return true
-}
-// ─── Fin bloque mock ─────────────────────────────────────────
 
 // ─── Acción de login ─────────────────────────────────────────
 async function handleLogin() {
   errorMsg.value = ''
   loading.value  = true
-  usedMock.value = false
 
   try {
-    // ════════════════════════════════════════════════════════
-    // 🔧 BACKEND PENDIENTE — POST /usuario/login
-    //   Espera: { correo, contrasena }
-    //   Retorna: token JWT (string)
-    // ════════════════════════════════════════════════════════
     const loginResponse = await AuthService.login(correo.value, contrasena.value)
-    const token = loginResponse.data
+    const token = loginResponse.data.token
 
-    // ════════════════════════════════════════════════════════
-    // 🔧 BACKEND PENDIENTE — GET /usuario/buscar?correo=xxx
-    //   El token ya va en el header (interceptor de http-common).
-    //   Retorna: { id, nombre, correo, rol }
-    // ════════════════════════════════════════════════════════
+    if (!token) {
+      throw new Error('Token JWT no recibido desde el backend')
+    }
+
+    // Guardar el token en localStorage antes de llamar a /buscar
+    // para que el interceptor de Axios (http-common) lo envíe en la cabecera
+    localStorage.setItem('jwt', token)
+
     const userResponse = await AuthService.getUserByEmail(correo.value)
     const usuario = userResponse.data
 
@@ -80,34 +44,21 @@ async function handleLogin() {
       userRole:  usuario.rol,
     })
 
-    // ════════════════════════════════════════════════════════
-    // 🔧 PENDIENTE — Redirección basada en rol
-    //   if (usuario.rol === 'ADMIN')         router.push({ name: 'Pagina-Principal' })
-    //   else if (usuario.rol === 'CLIENTE')  router.push({ name: 'Cliente-Productos' })
-    // ════════════════════════════════════════════════════════
     router.push({ name: 'Pagina-Principal' })
 
   } catch (error: unknown) {
-    const axiosError = error as { response?: { status: number }; code?: string }
+    const axiosError = error as { response?: { status: number; data?: { error?: string } }; code?: string }
+
+    // Si hubo un error en medio del proceso (ej. falló getUserByEmail), limpiamos el token parcial
+    localStorage.removeItem('jwt')
 
     if (axiosError.response?.status === 401) {
       // Backend respondió: credenciales incorrectas
-      errorMsg.value = 'Correo o contraseña incorrectos.'
-
+      errorMsg.value = axiosError.response.data?.error || 'Correo o contraseña incorrectos.'
     } else if (!axiosError.response || axiosError.code === 'ERR_NETWORK') {
-      // ════════════════════════════════════════════════════════
-      // 🔧 MODO MOCK — Backend no disponible → usar credenciales locales.
-      //   Elimina este bloque cuando el backend esté funcionando.
-      // ════════════════════════════════════════════════════════
-      const ok = tryMockLogin(correo.value, contrasena.value)
-      if (ok) {
-        router.push({ name: 'Pagina-Principal' })
-      } else {
-        errorMsg.value = 'Backend no disponible. Credenciales de prueba incorrectas.'
-      }
-
+      errorMsg.value = 'No se pudo conectar con el servidor. Verifica tu conexión.'
     } else {
-      errorMsg.value = 'Error inesperado. Intenta de nuevo.'
+      errorMsg.value = axiosError.response?.data?.error || 'Error inesperado. Intenta de nuevo.'
     }
   } finally {
     loading.value = false
@@ -153,18 +104,6 @@ async function handleLogin() {
           <div class="form-logo">B2B</div>
           <h2 class="form-title">Bienvenido de vuelta</h2>
           <p class="form-subtitle">Inicia sesión para continuar</p>
-        </div>
-
-        <!--
-          🔧 MODO DEMO — Elimina este bloque cuando el backend esté listo.
-          Muestra las credenciales de prueba mientras no hay servidor.
-        -->
-        <div class="demo-banner">
-          <div class="demo-title">⚠️ Modo demo (sin backend)</div>
-          <div class="demo-creds">
-            <span><strong>Admin:</strong> admin@b2b.com / admin123</span>
-            <span><strong>Cliente:</strong> cliente@b2b.com / cliente123</span>
-          </div>
         </div>
 
         <!-- Formulario -->
@@ -234,9 +173,7 @@ async function handleLogin() {
 
         <!-- Footer del formulario -->
         <p class="form-footer">
-          <!-- 🔧 PENDIENTE: Si implementas registro, agrega el enlace aquí -->
-          <!-- <RouterLink to="/registro">¿No tienes cuenta? Regístrate</RouterLink> -->
-          ¿Problemas para entrar? Contacta al administrador.
+          <RouterLink to="/register" class="register-link">¿No tienes cuenta? Regístrate aquí.</RouterLink>
         </p>
       </div>
     </div>
@@ -534,31 +471,6 @@ async function handleLogin() {
 .fade-leave-to {
   opacity: 0;
 }
-
-/* ─── Banner modo demo ─────────────────── */
-/* 🔧 Elimina este bloque de CSS cuando el backend esté listo */
-.demo-banner {
-  background: #fffbeb;
-  border: 1px dashed #f59e0b;
-  border-radius: 10px;
-  padding: 12px 14px;
-  margin-bottom: 20px;
-  font-size: 0.8rem;
-  color: #92400e;
-}
-
-.demo-title {
-  font-weight: 700;
-  margin-bottom: 6px;
-  color: #b45309;
-}
-
-.demo-creds {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
 
 /* ===== RESPONSIVE ===== */
 @media (max-width: 768px) {
