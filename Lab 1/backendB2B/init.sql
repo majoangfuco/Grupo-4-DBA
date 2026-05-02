@@ -76,16 +76,16 @@ CREATE TABLE factura_entidad (
 -- Poblamiento de datos
 
 INSERT INTO usuario_entidad (nombre_usuario, correo, contrasena, ultima_compra, rut_empresa, rol) VALUES
-('Juan Perez', 'jperez@techsolutions.cl', 'pass123', '2023-10-01 10:00:00', '76.123.456-7', 'CLIENTE'),
-('Maria Lopez', 'mlopez@techsolutions.cl', 'pass456', '2023-11-15 14:20:00', '76.123.456-7', 'CLIENTE'),
-('Carlos Ruiz', 'admin@ecommerceb2b.cl', 'adminpass', '2022-01-10 09:00:00', '77.000.111-K', 'ADMIN'),
-('Ana Soto', 'aso@construccionesdelnorte.cl', 'pass789', '2024-01-20 16:45:00', '80.555.444-2', 'CLIENTE'),
-('Luis Fernandez', 'lfernandez@logisticadelsur.cl', 'pass321', NULL, '90.222.333-1', 'CLIENTE'),
-('Pedro Morales', 'pmo@desarrolloweb.cl', 'pass999', '2024-03-10 11:30:00', '78.333.444-5', 'CLIENTE'),
-('Sofia Vergara', 'svergara@saludintegral.cl', 'pass888', '2024-02-28 09:15:00', '79.111.222-3', 'CLIENTE'),
-('Diego Vargas', 'dvar@adminb2b.cl', 'adminpass2', '2023-05-05 10:00:00', '77.000.111-K', 'ADMIN'),
-('Camila Rojas', 'crojas@mineraandina.cl', 'pass777', NULL, '88.999.000-4', 'CLIENTE'),
-('Javier Tello', 'jtello@educacionfuturo.cl', 'pass666', '2024-04-12 15:45:00', '70.888.777-6', 'CLIENTE');
+('Juan Perez', 'jperez@techsolutions.cl', '$2a$12$Ue51OzMXnpiqWLxMPaAKjOPSnfs1267HJakRsYNn1jUIlzKopwL/q', '2023-10-01 10:00:00', '76.123.456-7', 'CLIENTE'),
+('Maria Lopez', 'mlopez@techsolutions.cl', '$2a$12$D4WkfIGsvL1tXLgfxuDp0uNaKuhEremwCRTYsyHWHlHd/Ac/PYVcC', '2023-11-15 14:20:00', '76.123.456-7', 'CLIENTE'),
+('Carlos Ruiz', 'admin@ecommerceb2b.cl', '$2a$12$Z0rQJcFIeZcX6.XwosKuqOI.Y.kpfY/hdXxtA127heFc6.xyZXz4q', '2022-01-10 09:00:00', '77.000.111-K', 'ADMIN'),
+('Ana Soto', 'aso@construccionesdelnorte.cl', '$2a$12$QPGq3X4zz.Fe8Sl1A/UkMOVESAEDlNcUnq2d9MyWHhQzRAFW1hrCm', '2024-01-20 16:45:00', '80.555.444-2', 'CLIENTE'),
+('Luis Fernandez', 'lfernandez@logisticadelsur.cl', '$2a$12$IZ6UqglJaxjyqbiQXz4njuTvZPDz95.Nfs0L6AOg.5Kcj9hgGZWEO', NULL, '90.222.333-1', 'CLIENTE'),
+('Pedro Morales', 'pmo@desarrolloweb.cl', '$2a$12$jxYs5vcAixX9biOL/h91k.kIy0yfJn3PqlbSWHi3cnCUzfEUTRMBW', '2024-03-10 11:30:00', '78.333.444-5', 'CLIENTE'),
+('Sofia Vergara', 'svergara@saludintegral.cl', '$2a$12$Uh1qdcJFW5JhpNrxPFA60.TtPpWx6yVnRvEvvX5woy5mim7tlmlF6', '2024-02-28 09:15:00', '79.111.222-3', 'CLIENTE'),
+('Diego Vargas', 'dvar@adminb2b.cl', '$2a$12$NQUmXqv6moflf/rSszbz6up2GF9UpY0dLgKGDlquH0G6Dqek7dY5S', '2023-05-05 10:00:00', '77.000.111-K', 'ADMIN'),
+('Camila Rojas', 'crojas@mineraandina.cl', '$2a$12$67Wz0mNx8GYBYWUXwKLy3.2TXq8mQfjATolERMawVZYPXywzQmNi6', NULL, '88.999.000-4', 'CLIENTE'),
+('Javier Tello', 'jtello@educacionfuturo.cl', '$2a$12$vlx4hMEyKHW9nT8cHKQmmeV6HHlvB7iE1oJffk0aDpXDsg2oSrH.y', '2024-04-12 15:45:00', '70.888.777-6', 'CLIENTE');
 
 INSERT INTO categoria_entidad (nombre_categoria) VALUES
 ('Equipos de Computación'),
