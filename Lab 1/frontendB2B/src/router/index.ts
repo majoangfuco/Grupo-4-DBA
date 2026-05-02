@@ -62,6 +62,12 @@ const router = createRouter({
           component: () => import('@/views/Customers/Ordenes-PaginaClientes.vue'),
           meta: { requiresRole: 'CLIENTE' },
         },
+        {
+          path: 'perfil',
+          name: 'Perfil',
+          component: () => import('@/views/PerfilPagina.vue'),
+          meta: { requiresAuth: true },
+        },
       ],
     },
 

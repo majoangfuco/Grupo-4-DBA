@@ -21,6 +21,7 @@ interface Producto {
   precio: number
   stock: number
   sku: string
+  activo: boolean
 }
 
 interface ConfigOrden {
@@ -107,6 +108,7 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
 
 // --- Columnas de la tabla ---
 const columnas = [
+  { clave: 'activo',            etiqueta: 'Activo' },
   { clave: 'producto_ID',       etiqueta: 'ID' },
   { clave: 'nombre_producto',   etiqueta: 'Nombre' },
   { clave: 'categoria_ID',      etiqueta: 'Categoría ID' },
@@ -172,7 +174,11 @@ const columnas = [
         <tr v-else v-for="prod in productos" :key="prod.producto_ID" class="fila-producto">
           <td v-for="col in columnas" :key="col.clave" class="celda">
             <span v-if="col.clave === 'precio'">$ {{ prod.precio != null ? Number(prod.precio).toLocaleString('es-CL') : '0' }}</span>
-            <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
+           <span v-else-if="col.clave === 'activo'">
+                <span v-if="prod.activo" title="Activo">🟢</span>
+                <span v-else title="Inactivo">🔴</span>
+          </span>
+          <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
           </td>
           <td class="celda">
             <div class="acciones">
@@ -186,8 +192,9 @@ const columnas = [
                 ✏️
               </button>
 
-              <!-- Botón: Eliminar producto -->
+              <!-- Botón: Eliminar producto (solo si está activo) -->
               <button
+                v-if="prod.activo"
                 class="btn-accion btn-eliminar"
                 title="Eliminar producto"
                 @click="abrirModalEliminar(prod)"

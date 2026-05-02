@@ -15,6 +15,7 @@ export const useAuthStore = defineStore('auth', () => {
   const userEmail= ref<string | null>(localStorage.getItem('userEmail'))
   const userName = ref<string | null>(localStorage.getItem('userName'))
   const userRole = ref<string | null>(localStorage.getItem('userRole'))
+  const userRut  = ref<string | null>(localStorage.getItem('userRut'))
 
   // ─── Getters ────────────────────────────────────────────────
   const isAuthenticated = computed(() => !!token.value)
@@ -30,12 +31,14 @@ export const useAuthStore = defineStore('auth', () => {
     userEmail: string
     userName: string
     userRole: string
+    userRut: string
   }) {
     token.value     = payload.token
     userId.value    = payload.userId
     userEmail.value = payload.userEmail
     userName.value  = payload.userName
     userRole.value  = payload.userRole
+    userRut.value   = payload.userRut
 
     // Persistir en localStorage
     localStorage.setItem('jwt',       payload.token)
@@ -43,6 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('userEmail', payload.userEmail)
     localStorage.setItem('userName',  payload.userName)
     localStorage.setItem('userRole',  payload.userRole)
+    localStorage.setItem('userRut',   payload.userRut)
   }
 
   /** Limpia la sesión y redirige al login */
@@ -52,12 +56,14 @@ export const useAuthStore = defineStore('auth', () => {
     userEmail.value = null
     userName.value  = null
     userRole.value  = null
+    userRut.value   = null
 
     localStorage.removeItem('jwt')
     localStorage.removeItem('userId')
     localStorage.removeItem('userEmail')
     localStorage.removeItem('userName')
     localStorage.removeItem('userRole')
+    localStorage.removeItem('userRut')
   }
 
   return {
@@ -66,6 +72,7 @@ export const useAuthStore = defineStore('auth', () => {
     userEmail,
     userName,
     userRole,
+    userRut,
     isAuthenticated,
     isAdmin,
     isCliente,

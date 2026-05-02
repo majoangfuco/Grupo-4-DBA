@@ -1,5 +1,15 @@
--- Creación de tablas
 
+-- Eliminamos en orden inverso a la creación para respetar las dependencias
+DROP TABLE IF EXISTS factura_entidad;
+DROP TABLE IF EXISTS carrito_producto_entidad;
+DROP TABLE IF EXISTS informacion_entrega_entidad CASCADE;
+DROP TABLE IF EXISTS ordenes_entidad CASCADE;
+DROP TABLE IF EXISTS producto_entidad;
+DROP TABLE IF EXISTS carrito_entidad;
+DROP TABLE IF EXISTS categoria_entidad;
+DROP TABLE IF EXISTS usuario_entidad;
+
+-- Creación de tablas
 CREATE TABLE usuario_entidad (
     usuario_id BIGSERIAL PRIMARY KEY,
     nombre_usuario VARCHAR(255),
@@ -48,7 +58,9 @@ CREATE TABLE informacion_entrega_entidad (
     direccion VARCHAR(255),
     numero VARCHAR(255),
     rut_recibe_entrega VARCHAR(255),
-    rut_empresa VARCHAR(255)
+    rut_empresa VARCHAR(255),
+    estado_entrega VARCHAR(255),
+    activa BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE ordenes_entidad (
@@ -98,27 +110,27 @@ INSERT INTO categoria_entidad (nombre_categoria) VALUES
 ('Audio y Videoconferencia'),
 ('Seguridad Electrónica');
 
-INSERT INTO producto_entidad (categoria_categoria_id, nombre_producto, descripcion, precio, stock, sku) VALUES
-(1, 'Notebook Empresarial Pro 15"', 'Notebook Intel Core i7, 16GB RAM, 512GB SSD', 1200000.0, 150, 'SKU-COMP-001'),
-(1, 'Monitor 27" 4K', 'Monitor IPS orientable para trabajo prolongado', 350000.0, 200, 'SKU-COMP-002'),
-(1, 'Mini PC Corporativo', 'Desktop compacto Intel Core i5, 8GB RAM', 600000.0, 80, 'SKU-COMP-003'),
-(2, 'Silla Ergonómica Premium', 'Silla de oficina ergonómica avanzada, soporte lumbar', 180000.0, 300, 'SKU-OFI-001'),
-(2, 'Escritorio Eléctrico Ajustable', 'Escritorio con ajuste de altura motorizado', 450000.0, 50, 'SKU-OFI-002'),
-(3, 'Set Toners Impresora Láser', 'Pack de 4 tóners CMYK alto rendimiento', 85000.0, 500, 'SKU-INS-001'),
-(4, 'Router Empresarial Wi-Fi 6', 'Router VPN Gigabit Dual-WAN', 150000.0, 120, 'SKU-RED-001'),
-(4, 'Switch Administrable 24 Puertos', 'Switch Gigabit Ethernet con PoE+', 250000.0, 60, 'SKU-RED-002'),
-(5, 'Antivirus Corporativo (Licencia Anual)', 'Protección de endpoints para 10 usuarios', 300000.0, 999, 'SKU-SOFT-001'),
-(5, 'Suite Ofimática 365 (Licencia Anual)', 'Suscripción empresarial de herramientas de oficina por usuario', 120000.0, 999, 'SKU-SOFT-002'),
-(6, 'Servidor Rack 1U', 'Servidor Xeon, 32GB RAM, 2TB SSD NVMe', 2500000.0, 20, 'SKU-SRV-001'),
-(6, 'Disco Duro NAS 8TB', 'HDD optimizado para almacenamiento en red', 280000.0, 100, 'SKU-SRV-002'),
-(7, 'Cámara Videoconferencia 4K', 'Cámara PTZ para salas de reuniones', 450000.0, 40, 'SKU-AUD-001'),
-(7, 'Auriculares con Cancelación de Ruido', 'Headset profesional UC', 85000.0, 250, 'SKU-AUD-002'),
-(3, 'Resmas de Papel A4 (Caja)', 'Caja de 10 resmas de papel obra 75g', 35000.0, 1000, 'SKU-INS-002'),
-(8, 'Kit Cámaras de Seguridad CCTV', '4 cámaras 1080p + DVR 1TB', 380000.0, 30, 'SKU-SEG-001'),
-(8, 'Control de Acceso Biométrico', 'Lector de huella y tarjeta RFID', 120000.0, 80, 'SKU-SEG-002'),
-(1, 'Tablet Corporativa 10"', 'Tablet Android empresarial 64GB', 220000.0, 150, 'SKU-COMP-004'),
-(2, 'Cajonera Metálica', 'Cajonera bajo escritorio de 3 gavetas', 95000.0, 180, 'SKU-OFI-003'),
-(4, 'Access Point Techo Wi-Fi 6', 'Punto de acceso empresarial doble banda', 135000.0, 100, 'SKU-RED-003');
+INSERT INTO producto_entidad (categoria_categoria_id, nombre_producto, descripcion, precio, stock, sku, activo) VALUES
+(1, 'Notebook Empresarial Pro 15"', 'Notebook Intel Core i7, 16GB RAM, 512GB SSD', 1200000.0, 150, 'SKU-COMP-001', 'TRUE'),
+(1, 'Monitor 27" 4K', 'Monitor IPS orientable para trabajo prolongado', 350000.0, 200, 'SKU-COMP-002','TRUE' ),
+(1, 'Mini PC Corporativo', 'Desktop compacto Intel Core i5, 8GB RAM', 600000.0, 80, 'SKU-COMP-003','TRUE'),
+(2, 'Silla Ergonómica Premium', 'Silla de oficina ergonómica avanzada, soporte lumbar', 180000.0, 300, 'SKU-OFI-001','TRUE'),
+(2, 'Escritorio Eléctrico Ajustable', 'Escritorio con ajuste de altura motorizado', 450000.0, 50, 'SKU-OFI-002','TRUE'),
+(3, 'Set Toners Impresora Láser', 'Pack de 4 tóners CMYK alto rendimiento', 85000.0, 500, 'SKU-INS-001','TRUE'),
+(4, 'Router Empresarial Wi-Fi 6', 'Router VPN Gigabit Dual-WAN', 150000.0, 120, 'SKU-RED-001','TRUE'),
+(4, 'Switch Administrable 24 Puertos', 'Switch Gigabit Ethernet con PoE+', 250000.0, 60, 'SKU-RED-002','TRUE'),
+(5, 'Antivirus Corporativo (Licencia Anual)', 'Protección de endpoints para 10 usuarios', 300000.0, 999, 'SKU-SOFT-001','TRUE'),
+(5, 'Suite Ofimática 365 (Licencia Anual)', 'Suscripción empresarial de herramientas de oficina por usuario', 120000.0, 999, 'SKU-SOFT-002','TRUE'),
+(6, 'Servidor Rack 1U', 'Servidor Xeon, 32GB RAM, 2TB SSD NVMe', 2500000.0, 20, 'SKU-SRV-001','TRUE'),
+(6, 'Disco Duro NAS 8TB', 'HDD optimizado para almacenamiento en red', 280000.0, 100, 'SKU-SRV-002','TRUE'),
+(7, 'Cámara Videoconferencia 4K', 'Cámara PTZ para salas de reuniones', 450000.0, 40, 'SKU-AUD-001','TRUE'),
+(7, 'Auriculares con Cancelación de Ruido', 'Headset profesional UC', 85000.0, 250, 'SKU-AUD-002','TRUE'),
+(3, 'Resmas de Papel A4 (Caja)', 'Caja de 10 resmas de papel obra 75g', 35000.0, 1000, 'SKU-INS-002','TRUE'),
+(8, 'Kit Cámaras de Seguridad CCTV', '4 cámaras 1080p + DVR 1TB', 380000.0, 30, 'SKU-SEG-001','TRUE'),
+(8, 'Control de Acceso Biométrico', 'Lector de huella y tarjeta RFID', 120000.0, 80, 'SKU-SEG-002','TRUE'),
+(1, 'Tablet Corporativa 10"', 'Tablet Android empresarial 64GB', 220000.0, 150, 'SKU-COMP-004','TRUE'),
+(2, 'Cajonera Metálica', 'Cajonera bajo escritorio de 3 gavetas', 95000.0, 180, 'SKU-OFI-003','TRUE'),
+(4, 'Access Point Techo Wi-Fi 6', 'Punto de acceso empresarial doble banda', 135000.0, 100, 'SKU-RED-003','TRUE');
 
 -- Carritos 
 INSERT INTO carrito_entidad (carrito_usuario_id, estado, costo_carrito) VALUES
@@ -170,11 +182,11 @@ UPDATE carrito_entidad SET costo_carrito = 2550000 WHERE carrito_id = 6;
 
 
 -- Información de entrega para Carritos Completados (1, 3, 4, 5)
-INSERT INTO informacion_entrega_entidad (usuario_usuario, direccion, numero, rut_recibe_entrega, rut_empresa) VALUES
-(1, 'Av. Las Condes', '5430', '15.555.666-K', '76.123.456-7'),
-(4, 'Calle Industrias', '1020', '16.777.888-2', '80.555.444-2'),
-(6, 'Providencia', '1100', '14.222.333-1', '78.333.444-5'),
-(7, 'Alameda', '440', '12.888.999-5', '79.111.222-3');
+INSERT INTO informacion_entrega_entidad (usuario_usuario, direccion, numero, rut_recibe_entrega, rut_empresa, estado_entrega, activa) VALUES
+(1, 'Av. Las Condes', '5430', '15.555.666-K', '76.123.456-7', 'ENTREGADO', true),
+(4, 'Calle Industrias', '1020', '16.777.888-2', '80.555.444-2', 'EN CAMINO', true),
+(6, 'Providencia', '1100', '14.222.333-1', '78.333.444-5', 'PREPARANDO', true),
+(7, 'Alameda', '440', '12.888.999-5', '79.111.222-3', 'ENTREGADO', true);
 
 -- Ordenes generadas desde los carritos completados
 INSERT INTO ordenes_entidad (carrito_carrito_id, informacion_info_entrega_id, fecha_orden, estado) VALUES

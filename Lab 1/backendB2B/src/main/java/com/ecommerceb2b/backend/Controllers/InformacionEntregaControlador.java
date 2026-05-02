@@ -9,7 +9,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/entregas")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = "*")
 public class InformacionEntregaControlador {
 
     private final InformacionEntregaServicio servicio;
@@ -41,7 +41,7 @@ public class InformacionEntregaControlador {
 
     @PutMapping("/{id}")
     public ResponseEntity<String> actualizar(@PathVariable Long id,
-                                             @RequestBody InformacionEntregaEntidad entrega) {
+            @RequestBody InformacionEntregaEntidad entrega) {
         return ResponseEntity.ok(servicio.actualizar(id, entrega));
     }
 

@@ -38,10 +38,11 @@ async function handleLogin() {
 
     authStore.setSession({
       token,
-      userId:    String(usuario.id),
+      userId:    String(usuario.usuario_id || usuario.id),
       userEmail: usuario.correo,
       userName:  usuario.nombre,
       userRole:  usuario.rol,
+      userRut:   usuario.rut_empresa || 'No disponible',
     })
 
     router.push({ name: 'Pagina-Principal' })

@@ -23,6 +23,12 @@ const handleLogout = () => {
   router.push('/login')
 }
 
+const handleProfile = () => {
+  closeMenu()
+  router.push('/perfil')
+}
+
+
 // --- Breadcrumbs ---
 const routeLabels: Record<string, string> = {
   '/': 'Inicio',
@@ -88,8 +94,7 @@ const navItems = computed(() => {
     <!-- ===== SIDEBAR ===== -->
     <aside class="sidebar">
       <div class="sidebar-logo">
-        <!-- Reemplaza con tu logo: <img src="/logo.png" alt="Logo" /> -->
-        <span class="logo-text">B2B</span>
+        <img src="/icon.png" alt="Logo" width="100" height="80" />
       </div>
 
       <nav class="sidebar-nav">
@@ -150,7 +155,8 @@ const navItems = computed(() => {
             </button>
 
             <div v-if="menuOpen" class="dropdown-menu" @click.stop>
-              <button class="dropdown-item" @click="handleLogout">Cerrar sesión</button>
+              <button class="dropdown-item" @click="handleProfile">Mi Perfil</button>
+              <button class="dropdown-item" @click="handleLogout">Cerrar Sesión</button>
             </div>
 
             <!-- Overlay para cerrar menú al hacer clic afuera -->
@@ -188,7 +194,7 @@ const navItems = computed(() => {
 /* ===== BARRA LATERAL ===== */
 .sidebar {
   width: 180px;
-  min-width: 180px;
+  min-width: 100px;
   background-color: #7ca4c4;
   display: flex;
   flex-direction: column;
@@ -200,8 +206,7 @@ const navItems = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 64px;
-  padding: 8px;
+  margin-top: 20px;
 }
 
 .logo-text {
