@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
@@ -30,6 +31,8 @@ public class UsuarioControlador {
         
         String correo = credenciales.get("correo");
         String contrasena = credenciales.get("contrasena");
+
+        System.out.println("[LOGIN] correo=" + correo + " contraseña_proporcionada=" + (contrasena != null ? "****" : "null"));
 
         if (correo == null || contrasena == null) {
             response.put("error", "Correo y contraseña son requeridos");
@@ -102,6 +105,37 @@ public class UsuarioControlador {
         } else {
             response.put("error", "Usuario no encontrado");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response);
+        }
+    }
+
+    @GetMapping("/clientes")
+    public ResponseEntity<Map<String, Object>> obtenerClientes(@RequestHeader("Authorization") String authHeader) {
+        Map<String, Object> response = new HashMap<>();
+
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            response.put("error", "Token no proporcionado o formato inválido");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+
+        String token = authHeader.substring(7);
+
+        if (!jwtMiddlewareService.validateToken(token)) {
+            response.put("error", "Token inválido o expirado");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+
+        try {
+            List<UsuarioEntidad> clientes = usuarioServicio.obtenerUsuariosPorRol("CLIENTE");
+            response.put("clientes", clientes.stream().map(u -> Map.of(
+                "usuario_ID", u.getUsuario_ID(),
+                "nombre_Usuario", u.getNombre_Usuario(),
+                "correo", u.getCorreo(),
+                "rut_Empresa", u.getRut_Empresa()
+            )).toList());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("error", "Error al obtener clientes");
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 }

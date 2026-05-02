@@ -1,12 +1,13 @@
 <script setup lang="ts">
 // =====================================================
 // FormularioEliminarProducto.vue
-// Confirmación antes de eliminar un tipo de herramienta.
+// Confirmación antes de eliminar un producto.
 // Muestra el nombre del producto y pide confirmación
 // explícita antes de ejecutar la eliminación.
 // =====================================================
 
 import { reactive } from 'vue'
+import { productoServicio } from '@/services/productoServicio'
 
 // --- Props: datos del producto a eliminar ---
 const props = defineProps<{
@@ -30,16 +31,7 @@ const confirmarEliminar = async () => {
   alerta.visible = false
 
   try {
-    // ====================================================
-    // 🔌 BACKEND — Eliminar tipo de herramienta por ID
-    // Endpoint esperado: DELETE /api/herramientas/{id}
-    // Respuesta esperada: 204 No Content o 200 OK
-    //
-    // Descomentar cuando el backend esté listo:
-    // import { productoServicio } from '@/services/productoServicio'
-    // await productoServicio.eliminar(props.idProducto)
-    // ====================================================
-    console.log('🔌 Eliminar producto ID:', props.idProducto)
+    await productoServicio.eliminar(props.idProducto)
 
     alerta.visible = true
     alerta.mensaje = `"${props.nombreProducto}" fue eliminado correctamente.`
@@ -50,14 +42,14 @@ const confirmarEliminar = async () => {
 
   } catch (error: unknown) {
     // ====================================================
-    // 🔌 BACKEND — Manejo de error (ej: herramienta con préstamos activos)
-    // Spring Boot puede devolver un 409 Conflict si hay dependencias
+    // 🔌 BACKEND — Manejo de error (ej: producto con dependencias)
+    // Spring Boot puede devolver un 404 Not Found si no existe
     // ====================================================
     const axiosErr = error as { response?: { data?: string | { message?: string } } }
     const data = axiosErr.response?.data
     const msg = typeof data === 'string'
       ? data
-      : data?.message ?? 'No se pudo eliminar la herramienta. Intenta de nuevo.'
+      : data?.message ?? 'No se pudo eliminar el producto. Intenta de nuevo.'
     alerta.visible = true
     alerta.mensaje = msg
     alerta.tipo    = 'error'
@@ -69,11 +61,11 @@ const confirmarEliminar = async () => {
 
 <template>
   <div class="contenedor">
-
-    <!-- Ícono de advertencia -->
-    <div class="icono-advertencia" aria-hidden="true">⚠️</div>
-
-    <h3 class="titulo">Eliminar Herramienta</h3>
+    <div class="cabecera-modal">
+      <div class="icono-advertencia" aria-hidden="true">⚠️</div>
+      <button class="modal-cerrar" type="button" @click="emit('cancelado')" aria-label="Cerrar">✕</button>
+    </div>
+    <h3 class="titulo">Eliminar Producto</h3>
 
     <!-- Descripción del producto a eliminar -->
     <p class="descripcion">
@@ -119,10 +111,11 @@ const confirmarEliminar = async () => {
   max-width: 420px;
   display: flex;
   flex-direction: column;
-  align-items: center;
   gap: 14px;
   text-align: center;
 }
+
+.cabecera-modal { display: flex; justify-content: space-between; align-items: flex-start; }
 
 /* ===== ÍCONO ===== */
 .icono-advertencia {
@@ -135,6 +128,7 @@ const confirmarEliminar = async () => {
   font-size: 1.2rem;
   font-weight: 700;
   color: #b71c1c;
+  margin: 0;
 }
 
 .descripcion {
@@ -240,4 +234,7 @@ const confirmarEliminar = async () => {
 @keyframes girar {
   to { transform: rotate(360deg); }
 }
+
+.modal-cerrar { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; padding: 4px; line-height: 1; }
+.modal-cerrar:hover { color: #333; }
 </style>

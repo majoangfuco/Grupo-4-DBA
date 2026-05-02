@@ -1,117 +1,121 @@
 <script setup lang="ts">
 // =====================================================
 // FormularioEditarProducto.vue
-// Permite editar selectivamente: tarifa diaria,
-// tarifa de atraso y valor de reposición de un
-// tipo de herramienta existente.
+// Permite editar los campos de un producto existente.
 // =====================================================
 
-import { reactive } from 'vue'
+import { reactive, onMounted } from 'vue'
+import { productoServicio } from '@/services/productoServicio'
 
 // --- Props ---
 const props = defineProps<{
   idProducto: number
 }>()
 
-// --- Evento que emite al padre cuando se guarda ---
+// --- Evento que emite al padre cuando se guarda o se cancela ---
 const emit = defineEmits<{
   (e: 'actualizado'): void
+  (e: 'cancelado'): void
 }>()
 
-// --- Checkboxes: qué campos desea editar el usuario ---
-const seleccionados = reactive({
-  tarifaDiaria:    false,
-  tarifaAtraso:    false,
-  valorReposicion: false,
-})
-
-// --- Valores de cada campo ---
-const valores = reactive({
-  tarifaDiaria:    '',
-  tarifaAtraso:    '',
-  valorReposicion: '',
+// --- Estado del formulario ---
+const producto = reactive({
+  producto_ID: 0,
+  categoria_ID: 0,
+  nombre_producto: '',
+  descripcion: '',
+  precio: 0,
+  stock: 0,
+  sku: '',
 })
 
 // --- Alerta de resultado ---
 const alerta = reactive({ visible: false, mensaje: '', tipo: 'exito' as 'exito' | 'error' })
 
+// --- Cargar datos del producto ---
+const cargarProducto = async () => {
+  try {
+    const respuesta = await productoServicio.obtenerPorId(props.idProducto)
+    const data = respuesta.data
+    producto.producto_ID = data.producto_ID
+    producto.categoria_ID = data.categoria_ID
+    producto.nombre_producto = data.nombre_producto
+    producto.descripcion = data.descripcion
+    producto.precio = data.precio
+    producto.stock = data.stock
+    producto.sku = data.sku
+  } catch (error: unknown) {
+    const axiosErr = error as { response?: { data?: string | { error?: string; message?: string } } }
+    const data = axiosErr.response?.data
+    let msg = 'Error al cargar el producto.'
+    if (typeof data === 'string') {
+      msg = data
+    } else if (data?.message) {
+      msg = data.message
+    } else if (data?.error) {
+      msg = data.error
+    }
+    alerta.visible = true
+    alerta.mensaje = msg
+    alerta.tipo = 'error'
+  }
+}
+
 // --- Envío del formulario ---
 const manejarGuardar = async () => {
-  const hayCambios = Object.values(seleccionados).some(Boolean)
-
-  if (!hayCambios) {
+  if (!producto.nombre_producto.trim()) {
     alerta.visible = true
-    alerta.mensaje = 'Por favor, selecciona al menos una opción para actualizar.'
-    alerta.tipo    = 'error'
+    alerta.mensaje = 'El nombre del producto es obligatorio.'
+    alerta.tipo = 'error'
+    return
+  }
+  if (producto.categoria_ID <= 0) {
+    alerta.visible = true
+    alerta.mensaje = 'Selecciona una categoría válida.'
+    alerta.tipo = 'error'
+    return
+  }
+  if (producto.precio < 0) {
+    alerta.visible = true
+    alerta.mensaje = 'El precio no puede ser negativo.'
+    alerta.tipo = 'error'
     return
   }
 
   try {
-    // ====================================================
-    // 🔌 BACKEND — Actualizar tarifa diaria
-    // Endpoint esperado: PATCH /api/herramientas/{id}/tarifa-diaria
-    // Body: { tarifaDiaria: number }
-    //
-    // Descomentar cuando el backend esté listo:
-    // import { productoServicio } from '@/services/productoServicio'
-    // if (seleccionados.tarifaDiaria && valores.tarifaDiaria) {
-    //   await productoServicio.actualizarTarifaDiaria(props.idProducto, Number(valores.tarifaDiaria))
-    // }
-    // ====================================================
-    if (seleccionados.tarifaDiaria && valores.tarifaDiaria) {
-      console.log('🔌 Actualizar tarifa diaria:', props.idProducto, Number(valores.tarifaDiaria))
-    }
-
-    // ====================================================
-    // 🔌 BACKEND — Actualizar tarifa de atraso
-    // Endpoint esperado: PATCH /api/herramientas/{id}/tarifa-atraso
-    // Body: { tarifaAtraso: number }
-    //
-    // Descomentar cuando el backend esté listo:
-    // if (seleccionados.tarifaAtraso && valores.tarifaAtraso) {
-    //   await productoServicio.actualizarTarifaAtraso(props.idProducto, Number(valores.tarifaAtraso))
-    // }
-    // ====================================================
-    if (seleccionados.tarifaAtraso && valores.tarifaAtraso) {
-      console.log('🔌 Actualizar tarifa atraso:', props.idProducto, Number(valores.tarifaAtraso))
-    }
-
-    // ====================================================
-    // 🔌 BACKEND — Actualizar valor de reposición
-    // Endpoint esperado: PATCH /api/herramientas/{id}/valor-reposicion
-    // Body: { valorReposicion: number }
-    //
-    // Descomentar cuando el backend esté listo:
-    // if (seleccionados.valorReposicion && valores.valorReposicion) {
-    //   await productoServicio.actualizarValorReposicion(props.idProducto, Number(valores.valorReposicion))
-    // }
-    // ====================================================
-    if (seleccionados.valorReposicion && valores.valorReposicion) {
-      console.log('🔌 Actualizar valor reposición:', props.idProducto, Number(valores.valorReposicion))
-    }
+    await productoServicio.actualizar(props.idProducto, producto)
 
     alerta.visible = true
-    alerta.mensaje = '¡Datos actualizados correctamente!'
-    alerta.tipo    = 'exito'
+    alerta.mensaje = '¡Producto actualizado correctamente!'
+    alerta.tipo = 'exito'
     emit('actualizado')
 
   } catch (error: unknown) {
-    // ====================================================
-    // 🔌 BACKEND — Manejo de error de la API
-    // Spring Boot devuelve el mensaje en error.response.data
-    // ====================================================
-    const axiosErr = error as { response?: { data?: string } }
-    const msg = axiosErr.response?.data ?? 'Hubo un error al actualizar uno o más campos.'
+    const axiosErr = error as { response?: { data?: string | { error?: string; message?: string } } }
+    const data = axiosErr.response?.data
+    let msg = 'Hubo un error al actualizar el producto.'
+    if (typeof data === 'string') {
+      msg = data
+    } else if (data?.message) {
+      msg = data.message
+    } else if (data?.error) {
+      msg = data.error
+    }
     alerta.visible = true
     alerta.mensaje = msg
-    alerta.tipo    = 'error'
+    alerta.tipo = 'error'
   }
 }
+
+onMounted(cargarProducto)
 </script>
 
 <template>
   <div class="formulario-contenedor">
-    <h3 class="formulario-titulo">Configuración de Tarifas</h3>
+    <div class="cabecera-modal">
+      <h3 class="formulario-titulo">Editar Producto</h3>
+      <button class="modal-cerrar" type="button" @click="emit('cancelado')" aria-label="Cerrar">✕</button>
+    </div>
 
     <!-- Alerta de resultado -->
     <div v-if="alerta.visible" :class="['alerta', `alerta-${alerta.tipo}`]">
@@ -119,53 +123,65 @@ const manejarGuardar = async () => {
       <button class="alerta-cerrar" type="button" @click="alerta.visible = false">✕</button>
     </div>
 
-    <!-- Tarifa diaria -->
+    <!-- Categoría ID -->
     <div class="campo-grupo">
-      <label class="campo-check">
-        <input type="checkbox" v-model="seleccionados.tarifaDiaria" />
-        <span>Editar Tarifa Diaria</span>
-      </label>
+      <label class="campo-label">Categoría ID</label>
       <input
         class="entrada"
-        :class="{ 'entrada-desactivada': !seleccionados.tarifaDiaria }"
-        type="number" min="0"
-        placeholder="Precio diario"
-        v-model="valores.tarifaDiaria"
-        :disabled="!seleccionados.tarifaDiaria"
+        type="number"
+        v-model.number="producto.categoria_ID"
+        placeholder="ID de la categoría"
       />
     </div>
 
-    <!-- Tarifa de atraso -->
+    <!-- Nombre del producto -->
     <div class="campo-grupo">
-      <label class="campo-check">
-        <input type="checkbox" v-model="seleccionados.tarifaAtraso" />
-        <span>Editar Multa por Atraso</span>
-      </label>
+      <label class="campo-label">Nombre del Producto</label>
       <input
         class="entrada"
-        :class="{ 'entrada-desactivada': !seleccionados.tarifaAtraso }"
-        type="number" min="0"
-        placeholder="Costo por atraso"
-        v-model="valores.tarifaAtraso"
-        :disabled="!seleccionados.tarifaAtraso"
+        type="text"
+        v-model="producto.nombre_producto"
+        placeholder="Nombre del producto"
       />
     </div>
 
-    <!-- Valor de reposición -->
+    <!-- Descripción -->
     <div class="campo-grupo">
-      <label class="campo-check">
-        <input type="checkbox" v-model="seleccionados.valorReposicion" />
-        <span>Editar Valor de Reposición</span>
-      </label>
+      <label class="campo-label">Descripción</label>
+      <textarea
+        class="entrada"
+        v-model="producto.descripcion"
+        placeholder="Descripción del producto"
+        rows="3"
+      ></textarea>
+    </div>
+
+    <!-- Precio -->
+    <div class="campo-grupo">
+      <label class="campo-label">Precio</label>
       <input
         class="entrada"
-        :class="{ 'entrada-desactivada': !seleccionados.valorReposicion }"
-        type="number" min="1"
-        placeholder="Valor reposición"
-        v-model="valores.valorReposicion"
-        :disabled="!seleccionados.valorReposicion"
+        type="number"
+        step="0.01"
+        min="0"
+        v-model.number="producto.precio"
+        placeholder="Precio del producto"
       />
     </div>
+
+    <!-- SKU -->
+    <div class="campo-grupo">
+      <label class="campo-label">SKU</label>
+      <input
+        class="entrada"
+        type="text"
+        v-model="producto.sku"
+        placeholder="Código SKU"
+      />
+    </div>
+
+    <!-- Nota: El stock se conserva sin cambios -->
+    <p class="nota-stock">Nota: El stock del producto se mantiene sin cambios.</p>
 
     <div class="formulario-acciones">
       <button type="button" class="btn-guardar" @click="manejarGuardar">Guardar Cambios</button>
@@ -175,13 +191,12 @@ const manejarGuardar = async () => {
 
 <style scoped>
 .formulario-contenedor { padding: 8px; min-width: 320px; display: flex; flex-direction: column; gap: 16px; overflow-y: auto; max-height: 90vh; }
-.formulario-titulo { font-size: 1.1rem; font-weight: 700; color: #156895; }
-.campo-grupo { display: flex; flex-direction: column; gap: 8px; padding: 12px; background: #f8f9fa; border-radius: 10px; }
-.campo-check { display: flex; align-items: center; gap: 10px; font-size: 0.9rem; font-weight: 600; color: #333; cursor: pointer; }
-.campo-check input[type="checkbox"] { width: 16px; height: 16px; cursor: pointer; accent-color: #156895; }
+.cabecera-modal { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 4px; }
+.formulario-titulo { font-size: 1.1rem; font-weight: 700; color: #156895; margin: 0; }
+.campo-grupo { display: flex; flex-direction: column; gap: 8px; }
+.campo-label { font-size: 0.9rem; font-weight: 600; color: #333; }
 .entrada { padding: 9px 12px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.9rem; outline: none; transition: border-color 0.2s; }
 .entrada:focus { border-color: #156895; }
-.entrada-desactivada { background: #e9ecef; color: #aaa; cursor: not-allowed; }
 .alerta { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; border-radius: 8px; font-size: 0.875rem; }
 .alerta-exito { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
 .alerta-error  { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
@@ -189,4 +204,7 @@ const manejarGuardar = async () => {
 .formulario-acciones { display: flex; justify-content: center; }
 .btn-guardar { padding: 10px 28px; background-color: #156895; color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
 .btn-guardar:hover { background-color: #0f5070; }
+.nota-stock { font-size: 0.85rem; color: #666; font-style: italic; text-align: center; }
+.modal-cerrar { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; padding: 4px; line-height: 1; }
+.modal-cerrar:hover { color: #333; }
 </style>

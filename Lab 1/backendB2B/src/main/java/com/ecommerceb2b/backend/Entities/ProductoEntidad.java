@@ -13,6 +13,6 @@ public class ProductoEntidad {
     private String nombre_producto;
     private String descripcion;
     private Float precio;
-    private int stock;
+    private Integer stock;
     private String sku;
 }

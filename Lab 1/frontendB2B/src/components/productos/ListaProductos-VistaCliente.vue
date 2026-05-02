@@ -2,15 +2,8 @@
 // =====================================================
 // ListaProductos.vue
 // Tabla de productos con acciones:
-//   - Editar producto (modal)
-//   - Eliminar producto (modal)
 //   - Ver detalle de unidades (navegación)
 // =====================================================
-
-import { ref } from 'vue'
-import FormularioEditarProducto from '@/components/productos/FormularioEditarProducto.vue'
-import FormularioEliminarProducto from '@/components/productos/FormularioEliminarProducto.vue'
-import FormularioActualizarStock from '@/components/productos/FormularioActualizarStock.vue'
 
 // --- Tipos ---
 interface Producto {
@@ -40,65 +33,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'ordenar', clave: string): void
   (e: 'reintentar'): void
-  (e: 'actualizar'): void
 }>()
-
-// --- Estado de modales ---
-const modalEditarAbierto    = ref(false)
-const modalEliminarAbierto  = ref(false)
-const productoSeleccionado  = ref<Producto | null>(null)
-
-// --- Modal de Stock ---
-const modalStockAbierto = ref(false)
-const productoSeleccionadoStock = ref<Producto | null>(null)
-
-const abrirModalEditar = (producto: Producto) => {
-  productoSeleccionado.value = producto
-  modalEditarAbierto.value   = true
-}
-
-const cerrarModalEditar = () => {
-  modalEditarAbierto.value   = false
-  productoSeleccionado.value = null
-}
-
-const abrirModalEliminar = (producto: Producto) => {
-  productoSeleccionado.value  = producto
-  modalEliminarAbierto.value  = true
-}
-
-const cerrarModalEliminar = () => {
-  modalEliminarAbierto.value  = false
-  productoSeleccionado.value  = null
-}
-
-const agregarUnidades = (idProducto: number) => {
-  const prod = props.productos.find(p => p.producto_ID === idProducto)
-  if (prod) {
-    productoSeleccionadoStock.value = prod
-    modalStockAbierto.value = true
-  }
-}
-
-const cerrarModalStock = () => {
-  modalStockAbierto.value = false
-  productoSeleccionadoStock.value = null
-}
-
-const manejarStockActualizado = () => {
-  cerrarModalStock()
-  emit('actualizar')
-}
-
-const manejarActualizado = () => {
-  cerrarModalEditar()
-  emit('actualizar')
-}
-
-const manejarEliminado = () => {
-  cerrarModalEliminar()
-  emit('actualizar')
-}
 
 // --- Helpers de ordenamiento ---
 const estaOrdenandoPor = (clave: string) => props.configOrden?.clave === clave
@@ -107,13 +42,9 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
 
 // --- Columnas de la tabla ---
 const columnas = [
-  { clave: 'producto_ID',       etiqueta: 'ID' },
   { clave: 'nombre_producto',   etiqueta: 'Nombre' },
-  { clave: 'categoria_ID',      etiqueta: 'Categoría ID' },
   { clave: 'descripcion',       etiqueta: 'Descripción' },
-  { clave: 'precio',            etiqueta: 'Precio' },
-  { clave: 'stock',             etiqueta: 'Stock' },
-  { clave: 'sku',               etiqueta: 'SKU' },
+  { clave: 'precio',            etiqueta: 'Precio' }
 ]
 </script>
 
@@ -174,87 +105,10 @@ const columnas = [
             <span v-if="col.clave === 'precio'">$ {{ prod.precio != null ? Number(prod.precio).toLocaleString('es-CL') : '0' }}</span>
             <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
           </td>
-          <td class="celda">
-            <div class="acciones">
-
-              <!-- Botón: Editar producto -->
-              <button
-                class="btn-accion btn-editar"
-                title="Editar producto"
-                @click="abrirModalEditar(prod)"
-              >
-                ✏️
-              </button>
-
-              <!-- Botón: Eliminar producto -->
-              <button
-                class="btn-accion btn-eliminar"
-                title="Eliminar producto"
-                @click="abrirModalEliminar(prod)"
-              >
-                🗑️
-              </button>
-
-              <!-- Botón: Agregar unidades (Stock) -->
-              <button
-                class="btn-accion btn-detalle"
-                title="Agregar unidades"
-                @click="agregarUnidades(prod.producto_ID)"
-              >
-                ➕
-              </button>
-
-            </div>
-          </td>
         </tr>
 
       </tbody>
     </table>
-
-    <!-- Modal: Editar producto -->
-    <Teleport to="body">
-      <div v-if="modalEditarAbierto" class="modal-overlay" @click.self="cerrarModalEditar">
-        <div class="modal-contenido">
-          <FormularioEditarProducto
-            v-if="productoSeleccionado"
-            :id-producto="productoSeleccionado.producto_ID"
-            @actualizado="manejarActualizado"
-            @cancelado="cerrarModalEditar"
-          />
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Modal: Eliminar producto -->
-    <Teleport to="body">
-      <div v-if="modalEliminarAbierto" class="modal-overlay" @click.self="cerrarModalEliminar">
-        <div class="modal-contenido">
-          <FormularioEliminarProducto
-            v-if="productoSeleccionado"
-            :id-producto="productoSeleccionado.producto_ID"
-            :nombre-producto="productoSeleccionado.nombre_producto"
-            @eliminado="manejarEliminado"
-            @cancelado="cerrarModalEliminar"
-          />
-        </div>
-      </div>
-    </Teleport>
-
-    <!-- Modal: Agregar unidades (Stock) -->
-    <Teleport to="body">
-      <div v-if="modalStockAbierto" class="modal-overlay" @click.self="cerrarModalStock">
-        <div class="modal-contenido modal-pequeno">
-          <FormularioActualizarStock
-            v-if="productoSeleccionadoStock"
-            :id-producto="productoSeleccionadoStock.producto_ID"
-            :nombre-producto="productoSeleccionadoStock.nombre_producto"
-            :stock-actual="productoSeleccionadoStock.stock"
-            @actualizado="manejarStockActualizado"
-            @cancelado="cerrarModalStock"
-          />
-        </div>
-      </div>
-    </Teleport>
 
   </div>
 </template>

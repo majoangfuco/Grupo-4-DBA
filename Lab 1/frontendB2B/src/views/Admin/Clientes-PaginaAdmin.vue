@@ -7,16 +7,14 @@
 
 import { ref, reactive, computed, onMounted } from 'vue'
 import ListaClientes from '@/components/clientes/ListaClientes.vue'
-import FormularioAgregarCliente from '@/components/clientes/FormularioAgregarCliente.vue'
+import { usuarioServicio } from '@/services/usuarioServicio'
 
 // ===================== TIPOS ========================
 interface Cliente {
-  idCliente: number
-  nombre: string
-  rut: string
-  telefono: string
-  email: string
-  estado: string
+  usuario_ID: number
+  nombre_Usuario: string
+  correo: string
+  rut_Empresa: string
 }
 
 // ==================== ESTADO ========================
@@ -26,28 +24,25 @@ const clientes       = ref<Cliente[]>([])
 const cargando       = ref(true)
 const error          = ref<string | null>(null)
 
-// Modal de agregar cliente
-const modalAbierto   = ref(false)
-
 // ==================== FILTROS =======================
 const filtros = reactive({
-  idCliente: '',
-  nombre:    '',
-  rut:       '',
-  estado:    '',
+  usuario_ID: '',
+  nombre_Usuario: '',
+  correo: '',
+  rut_Empresa: '',
 })
 
 const limpiarFiltros = () => {
-  filtros.idCliente = ''
-  filtros.nombre    = ''
-  filtros.rut       = ''
-  filtros.estado    = ''
+  filtros.usuario_ID = ''
+  filtros.nombre_Usuario = ''
+  filtros.correo = ''
+  filtros.rut_Empresa = ''
   paginaActual.value = 1
 }
 
 // =================== ORDENAMIENTO ==================
 const configOrden = reactive<{ clave: string; direccion: 'asc' | 'desc' }>({
-  clave:     'nombre',
+  clave:     'nombre_Usuario',
   direccion: 'asc',
 })
 
@@ -63,11 +58,11 @@ const cambiarOrden = (clave: string) => {
 // ==================== FILTRADO =====================
 const clientesFiltrados = computed(() => {
   return clientes.value.filter(c => {
-    const coincideNombre   = !filtros.nombre    || c.nombre.toLowerCase().includes(filtros.nombre.toLowerCase())
-    const coincideRut      = !filtros.rut       || c.rut.toLowerCase().includes(filtros.rut.toLowerCase())
-    const coincideId       = !filtros.idCliente || String(c.idCliente).includes(filtros.idCliente)
-    const coincideEstado   = !filtros.estado    || c.estado.toUpperCase() === filtros.estado
-    return coincideNombre && coincideRut && coincideId && coincideEstado
+    const coincideNombre   = !filtros.nombre_Usuario || c.nombre_Usuario.toLowerCase().includes(filtros.nombre_Usuario.toLowerCase())
+    const coincideCorreo   = !filtros.correo         || c.correo.toLowerCase().includes(filtros.correo.toLowerCase())
+    const coincideId       = !filtros.usuario_ID     || String(c.usuario_ID).includes(filtros.usuario_ID)
+    const coincideRut      = !filtros.rut_Empresa    || c.rut_Empresa.toLowerCase().includes(filtros.rut_Empresa.toLowerCase())
+    return coincideNombre && coincideCorreo && coincideId && coincideRut
   })
 })
 
@@ -112,15 +107,8 @@ const cargarClientes = async () => {
   cargando.value = true
   error.value    = null
   try {
-    // TODO: reemplazar por la llamada real cuando el backend esté listo
-    // const respuesta = await clienteServicio.obtenerTodos()
-    // clientes.value = respuesta.data
-
-    // Datos simulados para desarrollo
-    clientes.value = [
-      { idCliente: 1, nombre: 'Juan Pérez',    rut: '12345678-9', telefono: '+56912345678', email: 'juan@mail.com',  estado: 'ACTIVO' },
-      { idCliente: 2, nombre: 'María González', rut: '98765432-1', telefono: '+56987654321', email: 'maria@mail.com', estado: 'RESTRINGIDO' },
-    ]
+    const respuesta = await usuarioServicio.obtenerClientes()
+    clientes.value = respuesta.data.clientes
   } catch (err: unknown) {
     console.error('Error al obtener clientes:', err)
     clientes.value = []
@@ -129,12 +117,6 @@ const cargarClientes = async () => {
   } finally {
     cargando.value = false
   }
-}
-
-// ============= MANEJADORES DE EVENTOS ==============
-const manejarClienteAgregado = () => {
-  cargarClientes()
-  modalAbierto.value = false
 }
 
 // Carga inicial
@@ -147,56 +129,39 @@ onMounted(cargarClientes)
     <!-- ===== ENCABEZADO ===== -->
     <div class="encabezado">
       <h1 class="titulo-pagina">Gestión de Clientes</h1>
-
-      <!-- Botón que abre el modal -->
-      <button class="btn-agregar-cliente" @click="modalAbierto = true">
-        + Agregar Cliente
-      </button>
     </div>
-
-    <!-- ===== MODAL PARA AGREGAR CLIENTE ===== -->
-    <Teleport to="body">
-      <div v-if="modalAbierto" class="modal-overlay" @click.self="modalAbierto = false">
-        <div class="modal-contenido">
-          <button class="modal-cerrar" @click="modalAbierto = false" aria-label="Cerrar">✕</button>
-          <FormularioAgregarCliente @clienteAgregado="manejarClienteAgregado" />
-        </div>
-      </div>
-    </Teleport>
 
     <!-- ===== BARRA DE FILTROS ===== -->
     <div class="barra-filtros">
       <div class="filtros-grupo">
         <input
-          v-model="filtros.idCliente"
+          v-model="filtros.usuario_ID"
           class="filtro-entrada"
           type="text"
-          placeholder="Buscar por ID"
+          placeholder="Buscar por ID Usuario"
           @input="manejarCambioFiltro"
         />
         <input
-          v-model="filtros.nombre"
+          v-model="filtros.nombre_Usuario"
           class="filtro-entrada"
           type="text"
           placeholder="Buscar por Nombre"
           @input="manejarCambioFiltro"
         />
         <input
-          v-model="filtros.rut"
+          v-model="filtros.correo"
           class="filtro-entrada"
           type="text"
-          placeholder="Buscar por RUT"
+          placeholder="Buscar por Correo"
           @input="manejarCambioFiltro"
         />
-        <select
-          v-model="filtros.estado"
-          class="filtro-entrada filtro-select"
-          @change="manejarCambioFiltro"
-        >
-          <option value="">Todos los estados</option>
-          <option value="ACTIVO">Activo</option>
-          <option value="RESTRINGIDO">Restringido</option>
-        </select>
+        <input
+          v-model="filtros.rut_Empresa"
+          class="filtro-entrada"
+          type="text"
+          placeholder="Buscar por RUT Empresa"
+          @input="manejarCambioFiltro"
+        />
       </div>
 
       <button class="btn-limpiar" @click="limpiarFiltros" title="Limpiar filtros">

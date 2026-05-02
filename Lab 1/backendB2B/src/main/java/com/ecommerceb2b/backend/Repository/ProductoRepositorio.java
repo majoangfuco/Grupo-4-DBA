@@ -23,7 +23,7 @@ public class ProductoRepositorio {
     private final RowMapper<ProductoEntidad> rowMapper = (rs, rowNum) -> {
         ProductoEntidad p = new ProductoEntidad();
         p.setProducto_ID(rs.getLong("producto_id"));
-        p.setCategoria_ID(rs.getLong("categoria_id"));
+        p.setCategoria_ID(rs.getLong("categoria_categoria_id"));
         p.setNombre_producto(rs.getString("nombre_producto"));
         p.setDescripcion(rs.getString("descripcion"));
         p.setPrecio(rs.getFloat("precio"));
@@ -35,8 +35,8 @@ public class ProductoRepositorio {
     // Crear
     public int crear(ProductoEntidad p) {
         String sql = """
-                INSERT INTO productos
-                (categoria_id, nombre_producto, descripcion, precio, stock, sku)
+                INSERT INTO producto_entidad
+                (categoria_categoria_id, nombre_producto, descripcion, precio, stock, sku)
                 VALUES (?, ?, ?, ?, ?, ?)
                 """;
         return jdbcTemplate.update(sql,
@@ -50,13 +50,13 @@ public class ProductoRepositorio {
 
     // todos
     public List<ProductoEntidad> encontrarTodos() {
-        String sql = "SELECT * FROM productos";
+        String sql = "SELECT * FROM producto_entidad";
         return jdbcTemplate.query(sql, rowMapper);
     }
 
     // encontrar por ID
     public Optional<ProductoEntidad> encontrarPorId(Long id) {
-        String sql = "SELECT * FROM productos WHERE producto_id = ?";
+        String sql = "SELECT * FROM producto_entidad WHERE producto_id = ?";
         List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, id);
         return result.stream().findFirst();
     }
@@ -64,7 +64,7 @@ public class ProductoRepositorio {
     // buscar por nombre o descripción 
     public List<ProductoEntidad> encontrarPorNombreODescripcion(String termino) {
         String sql = """
-                SELECT * FROM productos
+                SELECT * FROM producto_entidad
                 WHERE nombre_producto ILIKE ?
                 OR descripcion ILIKE ?
                 """;
@@ -75,8 +75,8 @@ public class ProductoRepositorio {
     // actualizar
     public int actualizar(ProductoEntidad p) {
         String sql = """
-                UPDATE productos SET
-                    categoria_id = ?,
+                UPDATE producto_entidad SET
+                    categoria_categoria_id = ?,
                     nombre_producto = ?,
                     descripcion = ?,
                     precio = ?,
@@ -98,34 +98,34 @@ public class ProductoRepositorio {
     public int borrarPorId(Long id) {
         String sqlDeleteFromCart = "DELETE FROM carrito_productos WHERE producto_id = ?";
         jdbcTemplate.update(sqlDeleteFromCart, id);
-        String sql = "DELETE FROM productos WHERE producto_id = ?";
+        String sql = "DELETE FROM producto_entidad WHERE producto_id = ?";
         return jdbcTemplate.update(sql, id);
     }
 
     // buscar stock 
     public int encontrarStockPorId(Long productoId) {
-        String sql = "SELECT stock FROM productos WHERE producto_id = ?";
+        String sql = "SELECT stock FROM producto_entidad WHERE producto_id = ?";
         Integer stock = jdbcTemplate.queryForObject(sql, Integer.class, productoId);
         return stock != null ? stock : 0;
     }
 
     // Buscar por SKU 
     public Optional<ProductoEntidad> encontrarPorSku(String sku) {
-        String sql = "SELECT * FROM productos WHERE sku = ?";
+        String sql = "SELECT * FROM producto_entidad WHERE sku = ?";
         List<ProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, sku);
         return result.stream().findFirst();
     }
 
     // Buscar por categoría 
     public List<ProductoEntidad> encontrarPorCategoria(Long categoriaId) {
-        String sql = "SELECT * FROM productos WHERE categoria_id = ?";
+        String sql = "SELECT * FROM producto_entidad WHERE categoria_categoria_id = ?";
         return jdbcTemplate.query(sql, rowMapper, categoriaId);
     }
 
     public void aplicarDescuentoPorCategoria(Long categoriaId, Float porcentaje) {
-    String sql = "CALL aplicar_descuento_categoria(?, ?)";
-    jdbcTemplate.update(sql, categoriaId, porcentaje);
-}
+        String sql = "CALL aplicar_descuento_categoria(?, ?)";
+        jdbcTemplate.update(sql, categoriaId, porcentaje);
+    }
 
 
 

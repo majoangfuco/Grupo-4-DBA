@@ -78,7 +78,11 @@ public class ProductoServicio {
 	public ProductoEntidad actualizarProducto(Long productoId, ProductoEntidad productoActualizado) {
 		ProductoEntidad actual = obtenerProductoPorId(productoId);
 
+		// Preservar el ID y el STOCK actuales para que no sean sobreescritos por la
+		// actualización
 		productoActualizado.setProducto_ID(actual.getProducto_ID());
+		productoActualizado.setStock(actual.getStock());
+
 		validarProducto(productoActualizado);
 		validarSkuUnico(productoActualizado.getSku(), productoId);
 
@@ -137,8 +141,8 @@ public class ProductoServicio {
 
 	@Transactional
 	public void aplicarDescuentoMasivoPorCategoria(Long categoriaId, float porcentaje) {
-    productoRepositorio.aplicarDescuentoPorCategoria(categoriaId, porcentaje);
-}
+		productoRepositorio.aplicarDescuentoPorCategoria(categoriaId, porcentaje);
+	}
 
 	private void validarProducto(ProductoEntidad producto) {
 		if (producto == null) {
@@ -153,8 +157,8 @@ public class ProductoServicio {
 		if (producto.getPrecio() == null || producto.getPrecio() < 0) {
 			throw new IllegalArgumentException("El precio no puede ser nulo ni negativo");
 		}
-		if (producto.getStock() < 0) {
-			throw new IllegalArgumentException("El stock no puede ser negativo");
+		if (producto.getStock() == null || producto.getStock() < 0) {
+			throw new IllegalArgumentException("El stock no puede ser nulo ni negativo");
 		}
 		if (producto.getSku() == null || producto.getSku().trim().isEmpty()) {
 			throw new IllegalArgumentException("El SKU es obligatorio");
@@ -164,7 +168,8 @@ public class ProductoServicio {
 	private void validarSkuUnico(String sku, Long productoIdActual) {
 		Optional<ProductoEntidad> existente = productoRepositorio.encontrarPorSku(sku);
 		if (existente.isPresent()) {
-			boolean mismoProducto = productoIdActual != null && productoIdActual.equals(existente.get().getProducto_ID());
+			boolean mismoProducto = productoIdActual != null
+					&& productoIdActual.equals(existente.get().getProducto_ID());
 			if (!mismoProducto) {
 				throw new IllegalArgumentException("El SKU ya existe: " + sku);
 			}
