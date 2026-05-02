@@ -26,21 +26,21 @@ public class InformacionEntregaRepositorio {
         e.setNumero(rs.getString("numero"));
         e.setRut_Recibe_Entrega(rs.getString("rut_recibe_entrega"));
         e.setRut_Empresa(rs.getString("rut_empresa"));
-        e.setEstado_Entrega(rs.getString("estado_entrega"));
-        e.setActiva(rs.getBoolean("activa"));
+        e.setEstado_Entrega(null);
+        e.setActiva(true);
         return e;
     };
 
     public List<InformacionEntregaEntidad> findAllActivas() {
         return jdbc.query(
-                "SELECT * FROM informacion_entrega_entidad WHERE activa = true",
+                "SELECT * FROM informacion_entrega_entidad",
                 rowMapper
         );
     }
 
     public Optional<InformacionEntregaEntidad> findById(Long id) {
         List<InformacionEntregaEntidad> result = jdbc.query(
-                "SELECT * FROM informacion_entrega_entidad WHERE info_entrega_id = ? AND activa = true",
+                "SELECT * FROM informacion_entrega_entidad WHERE info_entrega_id = ?",
                 rowMapper, id
         );
         return result.stream().findFirst();
@@ -48,7 +48,7 @@ public class InformacionEntregaRepositorio {
 
     public List<InformacionEntregaEntidad> findByUsuarioId(Long usuarioId) {
         return jdbc.query(
-                "SELECT * FROM informacion_entrega_entidad WHERE usuario_usuario = ? AND activa = true",
+                "SELECT * FROM informacion_entrega_entidad WHERE usuario_usuario = ?",
                 rowMapper, usuarioId
         );
     }
@@ -58,13 +58,11 @@ public class InformacionEntregaRepositorio {
                 """
                 INSERT INTO informacion_entrega_entidad
                     (usuario_usuario, orden_orden_id, direccion, numero,
-                     rut_recibe_entrega, rut_empresa, estado_entrega, activa)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                     rut_recibe_entrega, rut_empresa)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 e.getUsuarioId(), e.getOrdenId(), e.getDireccion(), e.getNumero(),
-                e.getRut_Recibe_Entrega(), e.getRut_Empresa(),
-                e.getEstado_Entrega() != null ? e.getEstado_Entrega() : "PENDIENTE",
-                true
+                e.getRut_Recibe_Entrega(), e.getRut_Empresa()
         );
     }
 
@@ -73,17 +71,17 @@ public class InformacionEntregaRepositorio {
                 """
                 UPDATE informacion_entrega_entidad
                 SET direccion = ?, numero = ?, rut_recibe_entrega = ?,
-                    rut_empresa = ?, estado_entrega = ?
-                WHERE info_entrega_id = ? AND activa = true
+                    rut_empresa = ?
+                WHERE info_entrega_id = ?
                 """,
                 e.getDireccion(), e.getNumero(), e.getRut_Recibe_Entrega(),
-                e.getRut_Empresa(), e.getEstado_Entrega(), e.getInfo_Entrega_ID()
+                e.getRut_Empresa(), e.getInfo_Entrega_ID()
         );
     }
 
     public int softDelete(Long id) {
         return jdbc.update(
-                "UPDATE informacion_entrega_entidad SET activa = false WHERE info_entrega_id = ?",
+                "DELETE FROM informacion_entrega_entidad WHERE info_entrega_id = ?",
                 id
         );
     }
