@@ -13,6 +13,25 @@ const emit = defineEmits<{
 const factura = ref<Factura | null>(null)
 const cargando = ref(false)
 const error = ref<string | null>(null)
+const descargando = ref(false)
+
+const descargarFactura = async () => {
+  if (!factura.value) return
+  descargando.value = true
+  try {
+    const response = await facturasServicio.descargarPdf(factura.value.factura_ID)
+    const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `factura-${factura.value.factura_ID}.pdf`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    alert('No se pudo descargar la factura. Intente nuevamente.')
+  } finally {
+    descargando.value = false
+  }
+}
 
 watch(() => props.ordenId, async (newOrdenId) => {
   if (newOrdenId !== null) {
@@ -50,6 +69,16 @@ const formatearFecha = (fecha: string) => {
       <div class="modal-content" @click.stop>
 
         <button class="btn-cerrar" @click="emit('cerrar')" aria-label="Cerrar modal">✕</button>
+        <button
+          v-if="factura"
+          class="btn-descargar"
+          :disabled="descargando"
+          @click="descargarFactura"
+          aria-label="Descargar factura PDF"
+        >
+          <span v-if="descargando" class="spinner-mini"></span>
+          <span v-else>⬇ Descargar PDF</span>
+        </button>
 
         <div class="modal-header">
           <h2>Detalle de Factura</h2>
@@ -185,10 +214,49 @@ const formatearFecha = (fecha: string) => {
   color: #0f172a;
 }
 
+.btn-descargar {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 8px;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  z-index: 10;
+}
+
+.btn-descargar:hover:not(:disabled) {
+  background-color: rgba(255, 255, 255, 0.35);
+}
+
+.btn-descargar:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.spinner-mini {
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255, 255, 255, 0.4);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  display: inline-block;
+}
+
 .modal-header {
   padding: 24px 24px 16px;
   background: linear-gradient(135deg, #156895 0%, #0d4b6e 100%);
   color: white;
+  position: relative;
 }
 
 .modal-header h2 {
