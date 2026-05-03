@@ -174,6 +174,42 @@
     FOR EACH ROW
     EXECUTE FUNCTION trg_carrito_estado_cambio();
 
+    -- Procedimiento Almacenado: Aplicar descuento masivo a productos de una categoría (Req. 4)
+    CREATE OR REPLACE PROCEDURE aplicar_descuento_categoria(
+        p_categoria_id INT,
+        p_porcentaje REAL
+    )
+    LANGUAGE plpgsql
+    AS $$
+    DECLARE
+        v_productos_afectados INT;
+    BEGIN
+        -- Validar que la categoría exista
+        IF NOT EXISTS (SELECT 1 FROM categoria_entidad WHERE categoria_id = p_categoria_id) THEN
+            RAISE EXCEPTION 'La categoría % no existe', p_categoria_id;
+        END IF;
+
+        -- Validar que el porcentaje esté entre 0 y 100
+        IF p_porcentaje < 0 OR p_porcentaje > 100 THEN
+            RAISE EXCEPTION 'El porcentaje debe estar entre 0 y 100, se recibió: %', p_porcentaje;
+        END IF;
+
+        -- Aplicar el descuento a todos los productos activos de la categoría
+        -- Fórmula: nuevo_precio = precio * (1 - porcentaje/100)
+        UPDATE producto_entidad
+        SET precio = precio * (1 - (p_porcentaje / 100.0))
+        WHERE categoria_categoria_id = p_categoria_id
+          AND activo = true;
+
+        -- Obtener el número de productos afectados
+        GET DIAGNOSTICS v_productos_afectados = ROW_COUNT;
+
+        -- Log informativo
+        RAISE NOTICE 'Descuento del % aplicado a % productos de la categoría %',
+            p_porcentaje, v_productos_afectados, p_categoria_id;
+    END;
+    $$;
+
     CREATE TABLE informacion_entrega_entidad (
         info_entrega_id BIGSERIAL PRIMARY KEY,
         usuario_usuario BIGINT REFERENCES usuario_entidad(usuario_id),
@@ -347,3 +383,34 @@
     (4, 2, 1260000.0, '2024-01-20 17:15:00', 1058824.0, 201176.0),
     (6, 3, 3610000.0, '2024-03-10 12:00:00', 3033613.0, 576387.0),
     (7, 4, 255000.0, '2024-02-28 09:45:00', 214286.0, 40714.0);
+
+    -- Vista Materializada: Reporte Consolidado de Ventas Mensuales por Categoría (Req. 7)
+    DROP MATERIALIZED VIEW IF EXISTS vw_ventas_mensuales_por_categoria CASCADE;
+
+    CREATE MATERIALIZED VIEW vw_ventas_mensuales_por_categoria AS
+    SELECT
+        TO_CHAR(o.fecha_orden, 'YYYY-MM') AS mes_ano,
+        EXTRACT(YEAR FROM o.fecha_orden)::INT AS anio,
+        EXTRACT(MONTH FROM o.fecha_orden)::INT AS mes,
+        c.nombre_categoria,
+        COUNT(DISTINCT o.orden_id) AS cantidad_ordenes,
+        SUM(cp.unidad_producto)::INT AS cantidad_productos,
+        ROUND(SUM(cp.unidad_producto * p.precio)::NUMERIC, 2) AS total_vendido,
+        ROUND(AVG(p.precio)::NUMERIC, 2) AS precio_promedio
+    FROM ordenes_entidad o
+    JOIN carrito_entidad cart ON o.carrito_carrito_id = cart.carrito_id
+    JOIN carrito_producto_entidad cp ON cart.carrito_id = cp.carrito_carrito_id
+    JOIN producto_entidad p ON cp.producto_producto_id = p.producto_id
+    JOIN categoria_entidad c ON p.categoria_categoria_id = c.categoria_id
+    WHERE o.estado IN ('ENTREGADO', 'EN_RUTA', 'PREPARANDO', 'PAGADO')
+      AND o.fecha_orden IS NOT NULL
+    GROUP BY
+        TO_CHAR(o.fecha_orden, 'YYYY-MM'),
+        EXTRACT(YEAR FROM o.fecha_orden),
+        EXTRACT(MONTH FROM o.fecha_orden),
+        c.nombre_categoria
+    ORDER BY anio DESC, mes DESC, c.nombre_categoria;
+
+    -- Índice para acelerar consultas sobre la vista materializada
+    CREATE INDEX idx_vw_ventas_mes_ano ON vw_ventas_mensuales_por_categoria (mes_ano);
+    CREATE INDEX idx_vw_ventas_categoria ON vw_ventas_mensuales_por_categoria (nombre_categoria);
