@@ -51,8 +51,25 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/usuario/login", "/usuario/register").permitAll()
-                        .requestMatchers("/usuario/buscar").authenticated()
-                        .anyRequest().permitAll())
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/productos/**",
+                                "/api/categorias/**")
+                        .permitAll()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/productos/**",
+                                "/api/categorias/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.PUT, "/api/productos/**",
+                                "/api/categorias/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.DELETE, "/api/productos/**",
+                                "/api/categorias/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers(org.springframework.http.HttpMethod.PATCH, "/api/productos/**")
+                        .hasRole("ADMIN")
+                        .requestMatchers("/api/ordenes/*/aprobar").hasRole("ADMIN")
+                        .requestMatchers("/api/reportes/**").hasRole("ADMIN")
+                        .requestMatchers("/api/carritos/**").hasRole("CLIENTE")
+                        .requestMatchers("/api/informacion-entrega/**").hasRole("CLIENTE")
+                        .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
 
         return http.build();
