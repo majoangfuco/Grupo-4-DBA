@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 import java.util.Date;
+import java.util.List;
 
 @Data
 @NoArgsConstructor
@@ -17,4 +18,5 @@ public class FacturaEntidad {
     private Date fecha_Emision;
     private Float total_Neto;
     private Float iva;
+    private List<CarritoProductoEntidad> items;
 }

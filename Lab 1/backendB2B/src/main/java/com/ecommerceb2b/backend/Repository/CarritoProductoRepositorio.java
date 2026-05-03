@@ -96,18 +96,29 @@ public class CarritoProductoRepositorio {
                    cp.carrito_carrito_id,
                    cp.producto_producto_id,
                    cp.unidad_producto,
-                   p.producto_id,
                    p.nombre_producto,
-                   p.descripcion,
-                   p.precio,
-                   p.stock,
-                   p.sku,
-                   p.activo
+                   p.precio
             FROM carrito_producto_entidad cp
             JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
             WHERE cp.carrito_carrito_id = ?
             """;
-        return jdbcTemplate.query(sql, rowMapperDetalle, carritoId);
+        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+            CarritoProductoEntidad cp = new CarritoProductoEntidad();
+            cp.setCarrito_Producto_ID(rs.getLong("carrito_producto_id"));
+
+            CarritoEntidad carrito = new CarritoEntidad();
+            carrito.setCarrito_ID(rs.getLong("carrito_carrito_id"));
+            cp.setCarrito(carrito);
+
+            ProductoEntidad producto = new ProductoEntidad();
+            producto.setProducto_ID(rs.getLong("producto_producto_id"));
+            producto.setNombre_producto(rs.getString("nombre_producto"));
+            producto.setPrecio(rs.getFloat("precio"));
+            cp.setProducto(producto);
+
+            cp.setUnidad_producto(rs.getLong("unidad_producto"));
+            return cp;
+        }, carritoId);
     }
 
     public int crear(Long carritoId, Long productoId, Long cantidad) {

@@ -86,6 +86,30 @@ const formatearFecha = (fecha: string) => {
 
             <div class="divider"></div>
 
+            <div v-if="factura.items && factura.items.length > 0" class="items-seccion">
+              <h3 class="items-titulo">Detalle de Productos</h3>
+              <table class="items-tabla">
+                <thead>
+                  <tr>
+                    <th>Producto</th>
+                    <th class="text-right">Cant.</th>
+                    <th class="text-right">Precio unit.</th>
+                    <th class="text-right">Subtotal</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in factura.items" :key="item.carrito_Producto_ID">
+                    <td>{{ item.producto.nombre_producto }}</td>
+                    <td class="text-right">{{ item.unidad_producto }}</td>
+                    <td class="text-right">{{ formatearMoneda(item.producto.precio) }}</td>
+                    <td class="text-right">{{ formatearMoneda(item.producto.precio * item.unidad_producto) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="divider"></div>
+
             <div class="resumen-seccion">
               <div class="resumen-fila">
                 <span>Total Neto:</span>
@@ -128,7 +152,7 @@ const formatearFecha = (fecha: string) => {
   background: white;
   border-radius: 16px;
   width: 90%;
-  max-width: 480px;
+  max-width: 560px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   position: relative;
   overflow: hidden;
@@ -303,6 +327,52 @@ const formatearFecha = (fecha: string) => {
   background-color: #94a3b8;
   cursor: not-allowed;
   opacity: 0.7;
+}
+
+.items-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.items-titulo {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+
+.items-tabla {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.items-tabla thead tr {
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.items-tabla th {
+  padding: 6px 8px;
+  color: #64748b;
+  font-weight: 600;
+  text-align: left;
+}
+
+.items-tabla td {
+  padding: 8px 8px;
+  color: #0f172a;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.items-tabla tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.text-right {
+  text-align: right;
 }
 
 @keyframes fadeIn {
