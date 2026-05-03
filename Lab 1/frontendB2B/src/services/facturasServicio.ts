@@ -21,9 +21,13 @@ export interface Factura {
   items: ItemFactura[]
 }
 
-const obtenerFacturaPorOrden = (ordenId: number) => 
+const obtenerFacturaPorOrden = (ordenId: number) =>
   httpClient.get<Factura>(`/api/facturas/orden/${ordenId}`)
 
+const descargarPdf = (facturaId: number) =>
+  httpClient.get(`/api/facturas/${facturaId}/descargar`, { responseType: 'blob' })
+
 export const facturasServicio = {
-  obtenerFacturaPorOrden
+  obtenerFacturaPorOrden,
+  descargarPdf,
 }
