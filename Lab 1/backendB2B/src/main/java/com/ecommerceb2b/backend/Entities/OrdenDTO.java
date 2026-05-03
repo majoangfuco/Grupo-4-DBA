@@ -9,13 +9,10 @@ import java.util.Date;
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class OrdenesEntidad {
+public class OrdenDTO {
     private Long orden_ID;
-    private Long carrito_ID;
-    private Long usuario_ID;
     private String rut_Empresa;
-    private Long info_Entrega_ID;
     private Date fecha_Orden;
-    //Estados: "PENDIENTE", "APROBADA", "CANCELADA"
     private String estado;
+    private Long usuario_ID;
 }

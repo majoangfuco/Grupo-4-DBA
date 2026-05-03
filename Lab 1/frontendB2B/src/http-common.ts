@@ -39,7 +39,7 @@ httpClient.interceptors.request.use(
 )
 
 // -----------------------------------------------------------------
-// Interceptor de RESPONSE → manejo global de errores 401 / 403
+// Interceptor de RESPONSE → manejo global de errores 401
 // -----------------------------------------------------------------
 httpClient.interceptors.response.use(
   (response) => response,
@@ -48,7 +48,7 @@ httpClient.interceptors.response.use(
     // para permitir que Login.vue muestre el mensaje de "Credenciales incorrectas".
     const isLogin = error.config?.url?.includes('/usuario/login')
 
-    if (!isLogin && (error.response?.status === 401 || error.response?.status === 403)) {
+    if (!isLogin && error.response?.status === 401) {
       // Token expirado o inválido → limpiamos sesión y redirigimos a login
       localStorage.removeItem('jwt')
       localStorage.removeItem('userId')

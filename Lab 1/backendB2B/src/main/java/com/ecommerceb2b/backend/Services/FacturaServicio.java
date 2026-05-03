@@ -53,4 +53,30 @@ public class FacturaServicio {
         cargarItems(factura);
         return factura;
     }
+
+    public FacturaEntidad crearFactura(FacturaEntidad factura) {
+        validarFactura(factura);
+        Long facturaId = repositorio.crear(factura);
+        factura.setFactura_ID(facturaId);
+        cargarItems(factura);
+        return factura;
+    }
+
+    private void validarFactura(FacturaEntidad factura) {
+        if (factura == null) {
+            throw new IllegalArgumentException("La factura es obligatoria");
+        }
+        if (factura.getUsuarioId() == null || factura.getUsuarioId() <= 0) {
+            throw new IllegalArgumentException("El usuario de la factura es obligatorio");
+        }
+        if (factura.getOrdenId() == null || factura.getOrdenId() <= 0) {
+            throw new IllegalArgumentException("La orden de la factura es obligatoria");
+        }
+        if (factura.getPrecio_Total() == null || factura.getPrecio_Total() <= 0) {
+            throw new IllegalArgumentException("El precio total de la factura es obligatorio");
+        }
+        if (factura.getFecha_Emision() == null) {
+            throw new IllegalArgumentException("La fecha de emisión es obligatoria");
+        }
+    }
 }

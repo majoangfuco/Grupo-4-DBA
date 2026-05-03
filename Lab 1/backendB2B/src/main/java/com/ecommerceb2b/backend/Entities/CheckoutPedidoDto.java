@@ -4,17 +4,12 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class DatosDePagoEntidad {
+public class CheckoutPedidoDto {
 
-    Long datos_Pago_ID;
-    Long usuario_ID;
-
-    String metodo_Pago;
-    String numero_Tarjeta;
-    String fecha_Expiracion;
-    
+    private Long infoEntregaId;
+    private Long datosPagoId;
+    private DatosDePagoEntidad datosPago;
 }

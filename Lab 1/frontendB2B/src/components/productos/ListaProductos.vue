@@ -20,6 +20,7 @@ interface Producto {
   descripcion: string
   precio: number
   stock: number
+  stock_reservado?: number
   sku: string
   activo: boolean
 }
@@ -35,6 +36,7 @@ const props = defineProps<{
   cargando: boolean
   error: string | null
   configOrden?: ConfigOrden
+  categoriasMap?: Map<number, string>
 }>()
 
 // --- Eventos ---
@@ -109,12 +111,12 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
 // --- Columnas de la tabla ---
 const columnas = [
   { clave: 'activo',            etiqueta: 'Activo' },
-  { clave: 'producto_ID',       etiqueta: 'ID' },
   { clave: 'nombre_producto',   etiqueta: 'Nombre' },
-  { clave: 'categoria_ID',      etiqueta: 'Categoría ID' },
+  { clave: 'categoria_ID',      etiqueta: 'Categoría' },
   { clave: 'descripcion',       etiqueta: 'Descripción' },
   { clave: 'precio',            etiqueta: 'Precio' },
   { clave: 'stock',             etiqueta: 'Stock' },
+  { clave: 'stock_disponible',  etiqueta: 'Stock disponible' },
   { clave: 'sku',               etiqueta: 'SKU' },
 ]
 </script>
@@ -148,7 +150,7 @@ const columnas = [
 
         <!-- Cargando -->
         <tr v-if="cargando">
-          <td colspan="8" class="celda-estado">
+          <td colspan="9" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando datos...</span>
           </td>
@@ -156,7 +158,7 @@ const columnas = [
 
         <!-- Error -->
         <tr v-else-if="error">
-          <td colspan="8" class="celda-estado">
+          <td colspan="9" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">↺ Reintentar</button>
           </td>
@@ -164,7 +166,7 @@ const columnas = [
 
         <!-- Lista vacía -->
         <tr v-else-if="productos.length === 0">
-          <td colspan="8" class="celda-estado">
+          <td colspan="9" class="celda-estado">
             <p class="texto-vacio">No se encontraron productos registrados en el inventario.</p>
             <p class="texto-vacio-sub">Puedes agregar una nueva usando el botón "Agregar Nuevo Producto".</p>
           </td>
@@ -174,11 +176,17 @@ const columnas = [
         <tr v-else v-for="prod in productos" :key="prod.producto_ID" class="fila-producto">
           <td v-for="col in columnas" :key="col.clave" class="celda">
             <span v-if="col.clave === 'precio'">$ {{ prod.precio != null ? Number(prod.precio).toLocaleString('es-CL') : '0' }}</span>
-           <span v-else-if="col.clave === 'activo'">
-                <span v-if="prod.activo" title="Activo">🟢</span>
-                <span v-else title="Inactivo">🔴</span>
-          </span>
-          <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
+            <span v-else-if="col.clave === 'categoria_ID'">
+              {{ props.categoriasMap?.get(prod.categoria_ID) ?? prod.categoria_ID }}
+            </span>
+            <span v-else-if="col.clave === 'stock_disponible'">
+              {{ (prod.stock ?? 0) - (prod.stock_reservado ?? 0) }}
+            </span>
+            <span v-else-if="col.clave === 'activo'">
+              <span v-if="prod.activo" title="Activo">🟢</span>
+              <span v-else title="Inactivo">🔴</span>
+            </span>
+            <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
           </td>
           <td class="celda">
             <div class="acciones">

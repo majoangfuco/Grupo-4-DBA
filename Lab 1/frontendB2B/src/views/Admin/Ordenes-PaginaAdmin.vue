@@ -9,7 +9,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
-import { ordenesServicio, type Orden } from '@/services/ordenesServicio'
+import { ordenesServicio, type OrdenAdmin } from '@/services/ordenesServicio'
 
 // ==================== ESTADO ========================
 const route = useRoute()
@@ -19,16 +19,22 @@ const cargando  = ref(true)
 const error     = ref<string | null>(null)
 
 // ==================== FILTROS =======================
-const filtros = reactive({ orden_ID: '', usuario_ID: (route.query.usuario_ID as string) || '', estado: '' })
+const filtros = reactive({ rut_Empresa: '', estado: '' })
+const route  = useRoute()
+const router = useRouter()
 
-watch(
-  () => route.query.usuario_ID,
-  (newVal) => {
-    if (newVal !== undefined) {
-      filtros.usuario_ID = newVal as string
-    }
-  }
-)
+const usuarioSeleccionado = computed<number | null>(() => {
+  const valor = route.query.usuario_ID
+  if (!valor) return null
+  const id = Number(valor)
+  return Number.isNaN(id) ? null : id
+})
+
+const correoClienteSeleccionado = computed<string | null>(() => {
+  const valor = route.query.correo
+  if (!valor) return null
+  return String(valor)
+})
 
 const opcionesEstado = computed(() => {
   const set = new Set(ordenes.value.map(o => o.estado).filter(Boolean))
@@ -36,18 +42,12 @@ const opcionesEstado = computed(() => {
 })
 
 const limpiarFiltros = () => {
-  filtros.orden_ID   = ''
-  filtros.usuario_ID = ''
-  filtros.estado     = ''
-  paginaActual.value = 1
-  router.replace({ query: {} })
+  filtros.rut_Empresa = ''
+  filtros.estado      = ''
+  paginaActual.value  = 1
 }
 
-const formatearEstado = (estado: string) => {
-  if (!estado) return ''
-  if (estado.toUpperCase() === 'EN_RUTA') return 'En Ruta'
-  return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase()
-}
+const tieneClienteSeleccionado = computed(() => correoClienteSeleccionado.value !== null)
 
 // =================== ORDENAMIENTO ==================
 const configOrden = reactive<{ clave: string; direccion: 'asc' | 'desc' }>({
@@ -66,17 +66,17 @@ const cambiarOrden = (clave: string) => {
 // ==================== FILTRADO =====================
 const ordenesFiltradas = computed(() =>
   ordenes.value.filter(o => {
-    const coincideId      = !filtros.orden_ID   || String(o.orden_ID).includes(filtros.orden_ID)
-    const coincideUsuario = !filtros.usuario_ID || String(o.usuario_ID).includes(filtros.usuario_ID)
+    const coincideRut     = !filtros.rut_Empresa || o.rut_Empresa.includes(filtros.rut_Empresa)
     const coincideEstado  = !filtros.estado     || o.estado === filtros.estado
-    return coincideId && coincideUsuario && coincideEstado
+    const coincideUsuario = !usuarioSeleccionado.value || o.usuario_ID === usuarioSeleccionado.value
+    return coincideRut && coincideEstado && coincideUsuario
   })
 )
 
 // ================== ORDENAMIENTO ==================
 const ordenesOrdenadas = computed(() =>
   [...ordenesFiltradas.value].sort((a, b) => {
-    const clave = configOrden.clave as keyof Orden
+    const clave = configOrden.clave as keyof OrdenAdmin
     const valA  = String(a[clave] ?? '').toLowerCase()
     const valB  = String(b[clave] ?? '').toLowerCase()
     if (valA < valB) return configOrden.direccion === 'asc' ? -1 : 1
@@ -107,13 +107,43 @@ const cargarOrdenes = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const respuesta = await ordenesServicio.obtenerTodas()
+    const respuesta = await ordenesServicio.obtenerVistaAdmin()
     ordenes.value = respuesta.data
   } catch (err: unknown) {
     console.error('Error al obtener órdenes:', err)
     ordenes.value = []
     const axiosErr = err as { response?: { data?: { message?: string } } }
     error.value = axiosErr.response?.data?.message ?? 'Error al cargar las órdenes.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+const aprobarOrden = async (ordenId: number) => {
+  cargando.value = true
+  error.value = null
+  try {
+    await ordenesServicio.aprobar(ordenId)
+    await cargarOrdenes()
+  } catch (err: unknown) {
+    console.error('Error al aprobar orden:', err)
+    const axiosErr = err as { response?: { data?: { message?: string } } }
+    error.value = axiosErr.response?.data?.message ?? 'Error al aprobar la orden.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+const cancelarOrden = async (ordenId: number) => {
+  cargando.value = true
+  error.value = null
+  try {
+    await ordenesServicio.cancelar(ordenId)
+    await cargarOrdenes()
+  } catch (err: unknown) {
+    console.error('Error al cancelar orden:', err)
+    const axiosErr = err as { response?: { data?: { message?: string } } }
+    error.value = axiosErr.response?.data?.message ?? 'Error al cancelar la orden.'
   } finally {
     cargando.value = false
   }
@@ -134,17 +164,10 @@ onMounted(cargarOrdenes)
     <div class="barra-filtros">
       <div class="filtros-grupo">
         <input
-          v-model="filtros.orden_ID"
+          v-model="filtros.rut_Empresa"
           class="filtro-entrada"
           type="text"
-          placeholder="Buscar por N° Orden"
-          @input="paginaActual = 1"
-        />
-        <input
-          v-model="filtros.usuario_ID"
-          class="filtro-entrada"
-          type="text"
-          placeholder="Buscar por ID Usuario"
+          placeholder="Buscar por RUT Empresa"
           @input="paginaActual = 1"
         />
         <select
@@ -158,6 +181,9 @@ onMounted(cargarOrdenes)
       </div>
       <button class="btn-limpiar" @click="limpiarFiltros" title="Limpiar filtros">✕</button>
     </div>
+    <div v-if="tieneClienteSeleccionado" class="cliente-seleccionado">
+      <span>Órdenes de: <strong>{{ correoClienteSeleccionado }}</strong></span>
+    </div>
 
     <!-- ===== TABLA ===== -->
     <ListaOrdenes
@@ -167,6 +193,8 @@ onMounted(cargarOrdenes)
       :config-orden="configOrden"
       @ordenar="cambiarOrden"
       @reintentar="cargarOrdenes"
+      @aprobar="aprobarOrden"
+      @cancelar="cancelarOrden"
     />
 
     <!-- ===== PAGINACIÓN ===== -->

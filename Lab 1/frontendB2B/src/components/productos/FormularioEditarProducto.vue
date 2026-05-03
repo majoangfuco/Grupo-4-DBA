@@ -4,8 +4,9 @@
 // Permite editar los campos de un producto existente.
 // =====================================================
 
-import { reactive, onMounted } from 'vue'
+import { reactive, onMounted, ref } from 'vue'
 import { productoServicio } from '@/services/productoServicio'
+import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
 // --- Props ---
 const props = defineProps<{
@@ -28,6 +29,8 @@ const producto = reactive({
   stock: 0,
   sku: '',
 })
+
+const categorias = ref<CategoriaEntidad[]>([])
 
 // --- Alerta de resultado ---
 const alerta = reactive({ visible: false, mensaje: '', tipo: 'exito' as 'exito' | 'error' })
@@ -58,6 +61,15 @@ const cargarProducto = async () => {
     alerta.visible = true
     alerta.mensaje = msg
     alerta.tipo = 'error'
+  }
+}
+
+const cargarCategorias = async () => {
+  try {
+    const resp = await categoriaServicio.listar(true)
+    categorias.value = resp.data
+  } catch (error: unknown) {
+    console.error('Error al cargar categorias:', error)
   }
 }
 
@@ -107,7 +119,10 @@ const manejarGuardar = async () => {
   }
 }
 
-onMounted(cargarProducto)
+onMounted(() => {
+  cargarProducto()
+  cargarCategorias()
+})
 </script>
 
 <template>
@@ -123,15 +138,15 @@ onMounted(cargarProducto)
       <button class="alerta-cerrar" type="button" @click="alerta.visible = false">✕</button>
     </div>
 
-    <!-- Categoría ID -->
+    <!-- Categoría -->
     <div class="campo-grupo">
-      <label class="campo-label">Categoría ID</label>
-      <input
-        class="entrada"
-        type="number"
-        v-model.number="producto.categoria_ID"
-        placeholder="ID de la categoría"
-      />
+      <label class="campo-label">Categoría</label>
+      <select class="entrada" v-model.number="producto.categoria_ID">
+        <option value="0">Selecciona una categoría</option>
+        <option v-for="cat in categorias" :key="cat.categoria_ID" :value="cat.categoria_ID">
+          {{ cat.estado_Categoria ? cat.nombre_Categoria : `${cat.nombre_Categoria} (inactiva)` }}
+        </option>
+      </select>
     </div>
 
     <!-- Nombre del producto -->

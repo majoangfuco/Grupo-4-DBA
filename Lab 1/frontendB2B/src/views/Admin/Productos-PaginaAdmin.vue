@@ -9,6 +9,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import ListaProductos from '@/components/productos/ListaProductos.vue'
 import FormularioAgregarProducto from '@/components/productos/FormularioAgregarProducto.vue'
 import { productoServicio } from '@/services/productoServicio'
+import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
 // ===================== TIPOS ========================
 interface Producto {
@@ -18,7 +19,9 @@ interface Producto {
   descripcion: string
   precio: number
   stock: number
+  stock_reservado?: number
   sku: string
+  activo?: boolean
 }
 
 // ==================== ESTADO ========================
@@ -26,18 +29,26 @@ const productos  = ref<Producto[]>([])
 const cargando   = ref(true)
 const error      = ref<string | null>(null)
 const modalAbierto = ref(false)
+const categorias = ref<CategoriaEntidad[]>([])
 
 // ==================== FILTROS =======================
-const filtros = reactive({ producto_ID: '', nombre_producto: '', categoria_ID: '' })
+const filtros = reactive({ nombre_producto: '', categoria_ID: '' })
 
 // Categorías disponibles (se calculan desde los datos)
-const opcionesCategorias = computed(() => {
-  const set = new Set(productos.value.map(p => p.categoria_ID).filter(Boolean))
-  return Array.from(set).sort((a, b) => a - b)
+const opcionesCategorias = computed(() =>
+  categorias.value.map(c => ({
+    id: c.categoria_ID,
+    nombre: c.estado_Categoria ? c.nombre_Categoria : `${c.nombre_Categoria} (inactiva)`,
+  }))
+)
+
+const categoriasMap = computed(() => {
+  const map = new Map<number, string>()
+  categorias.value.forEach(c => map.set(c.categoria_ID, c.nombre_Categoria))
+  return map
 })
 
 const limpiarFiltros = () => {
-  filtros.producto_ID = ''
   filtros.nombre_producto     = ''
   filtros.categoria_ID  = ''
   paginaActual.value = 1
@@ -61,18 +72,22 @@ const cambiarOrden = (clave: string) => {
 const productosFiltrados = computed(() =>
   productos.value.filter(p => {
     const coincideNombre    = !filtros.nombre_producto     || p.nombre_producto.toLowerCase().includes(filtros.nombre_producto.toLowerCase())
-    const coincideCategoria = !filtros.categoria_ID  || String(p.categoria_ID).includes(filtros.categoria_ID)
-    const coincideId        = !filtros.producto_ID || String(p.producto_ID).includes(filtros.producto_ID)
-    return coincideNombre && coincideCategoria && coincideId
+    const coincideCategoria = !filtros.categoria_ID  || p.categoria_ID === Number(filtros.categoria_ID)
+    return coincideNombre && coincideCategoria
   })
 )
 
 // ================== ORDENAMIENTO ==================
 const productosOrdenados = computed(() =>
   [...productosFiltrados.value].sort((a, b) => {
-    const clave = configOrden.clave as keyof Producto
-    const valA  = String(a[clave] ?? '').toLowerCase()
-    const valB  = String(b[clave] ?? '').toLowerCase()
+    const clave = configOrden.clave
+    const valor = (p: Producto): string | number => {
+      if (clave === 'stock_disponible') return (p.stock ?? 0) - (p.stock_reservado ?? 0)
+      if (clave === 'activo') return p.activo ? 1 : 0
+      return String((p as Record<string, unknown>)[clave] ?? '').toLowerCase()
+    }
+    const valA = valor(a)
+    const valB = valor(b)
     if (valA < valB) return configOrden.direccion === 'asc' ? -1 : 1
     if (valA > valB) return configOrden.direccion === 'asc' ?  1 : -1
     return 0
@@ -101,8 +116,12 @@ const cargarProductos = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const respuesta = await productoServicio.obtenerTodos()
-    productos.value = respuesta.data
+    const [productosResp, categoriasResp] = await Promise.all([
+      productoServicio.obtenerTodos(),
+      categoriaServicio.listar(true),
+    ])
+    productos.value = productosResp.data
+    categorias.value = categoriasResp.data
   } catch (err: unknown) {
     console.error('Error al obtener productos:', err)
     productos.value = []
@@ -153,13 +172,6 @@ onMounted(cargarProductos)
     <div class="barra-filtros">
       <div class="filtros-grupo">
         <input
-          v-model="filtros.producto_ID"
-          class="filtro-entrada"
-          type="text"
-          placeholder="Buscar por ID"
-          @input="paginaActual = 1"
-        />
-        <input
           v-model="filtros.nombre_producto"
           class="filtro-entrada"
           type="text"
@@ -173,18 +185,19 @@ onMounted(cargarProductos)
           @change="paginaActual = 1"
         >
           <option value="">Todas las categorías</option>
-          <option v-for="cat in opcionesCategorias" :key="cat" :value="cat">{{ cat }}</option>
+          <option v-for="cat in opcionesCategorias" :key="cat.id" :value="cat.id">{{ cat.nombre }}</option>
         </select>
       </div>
       <button class="btn-limpiar" @click="limpiarFiltros" title="Limpiar filtros">✕</button>
     </div>
 
     <!-- ===== TABLA ===== -->
-    <ListaProductos
+    <ListaProductos 
       :productos="productosPaginaActual"
       :cargando="cargando"
       :error="error"
       :config-orden="configOrden"
+      :categorias-map="categoriasMap"
       @ordenar="cambiarOrden"
       @reintentar="cargarProductos"
       @actualizar="cargarProductos"

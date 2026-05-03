@@ -13,23 +13,26 @@ const emit = defineEmits<{
 const factura = ref<Factura | null>(null)
 const cargando = ref(false)
 const error = ref<string | null>(null)
+const descargaError = ref<string | null>(null)
 const descargando = ref(false)
 
 const descargarFactura = async () => {
-  if (!factura.value) return
+  if (!factura.value || props.ordenId === null) return
+  descargaError.value = null
   descargando.value = true
   try {
-    const response = await facturasServicio.descargarPdf(factura.value.factura_ID)
+    const response = await facturasServicio.descargarPdfPorOrden(props.ordenId)
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
     const link = document.createElement('a')
     link.href = url
-    link.setAttribute('download', `factura-${factura.value.factura_ID}.pdf`)
+    link.download = `factura-${factura.value.fecha_Emision}${factura.value.fecha_Emision}.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     URL.revokeObjectURL(url)
-  } catch {
-    alert('No se pudo descargar la factura. Intente nuevamente.')
+  } catch (err) {
+    console.error('Error al descargar factura:', err)
+    descargaError.value = 'No se pudo descargar la factura. Intente nuevamente.'
   } finally {
     descargando.value = false
   }
@@ -71,6 +74,15 @@ const formatearFecha = (fecha: string) => {
       <div class="modal-content" @click.stop>
 
         <button class="btn-cerrar" @click="emit('cerrar')" aria-label="Cerrar modal">✕</button>
+        <button
+          v-if="factura"
+          class="btn-descargar"
+          :disabled="descargando"
+          @click="descargarFactura"
+        >
+          <span v-if="descargando" class="spinner-mini"></span>
+          <span v-else>⬇</span>
+        </button>
 
         <div class="modal-header">
           <h2>Detalle de Factura</h2>
@@ -86,6 +98,10 @@ const formatearFecha = (fecha: string) => {
 
           <div v-else-if="error" class="estado-contenedor error">
             <p>{{ error }}</p>
+          </div>
+
+          <div v-if="descargaError" class="estado-contenedor error descarga-error">
+            <p>{{ descargaError }}</p>
           </div>
 
           <div v-else-if="factura" class="factura-detalles">
@@ -185,8 +201,10 @@ const formatearFecha = (fecha: string) => {
 .modal-content {
   background: white;
   border-radius: 16px;
-  width: 90%;
-  max-width: 560px;
+  width: 92%;
+  max-width: 700px;
+  min-width: 380px;
+  min-height: 560px;
   box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
   position: relative;
   overflow: hidden;
@@ -217,6 +235,48 @@ const formatearFecha = (fecha: string) => {
 .btn-cerrar:hover {
   background: #e2e8f0;
   color: #0f172a;
+}
+
+.btn-descargar {
+  position: absolute;
+  top: 16px;
+  right: 56px;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background-color: White;
+  color: #156895;
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10;
+}
+
+.btn-descargar:hover:not(:disabled) {
+  background-color: #72bcf1;
+  transform: translateY(-1px);
+}
+
+.btn-descargar:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.descarga-error {
+  width: 100%;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+  color: #b91c1c;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 16px;
+  text-align: left;
 }
 
 .spinner-mini {

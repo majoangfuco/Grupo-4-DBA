@@ -11,6 +11,9 @@ interface Cliente {
   nombre_Usuario: string
   correo: string
   rut_Empresa: string
+  ordenes_Pendiente: number
+  ordenes_Aprobada: number
+  ordenes_Cancelada: number
 }
 
 interface ConfigOrden {
@@ -30,6 +33,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'ordenar', clave: string): void
   (e: 'reintentar'): void
+  (e: 'seleccionar', cliente: Cliente): void
 }>()
 
 // --- Métodos ---
@@ -45,6 +49,10 @@ const obtenerDireccionOrden = (clave: string): 'asc' | 'desc' => {
 const estaOrdenandoPor = (clave: string): boolean => {
   return props.configOrden?.clave === clave
 }
+
+const navegarOrdenes = (cliente: Cliente) => {
+  emit('seleccionar', cliente)
+}
 </script>
 
 <template>
@@ -56,11 +64,10 @@ const estaOrdenandoPor = (clave: string): boolean => {
         <tr>
           <th
             v-for="col in [
-              { clave: 'usuario_ID',    etiqueta: 'ID Cliente' },
               { clave: 'nombre_Usuario', etiqueta: 'Nombre' },
               { clave: 'correo',         etiqueta: 'Correo' },
               { clave: 'rut_Empresa',    etiqueta: 'RUT Empresa' },
-              { clave: 'ordenes_Realizadas',    etiqueta: 'Ordenes' },
+              { clave: 'ordenes_Pendiente', etiqueta: 'Ordenes (Pendiente / Aprobada / Cancelada)' },
             ]"
             :key="col.clave"
             class="celda-encabezado"
@@ -84,7 +91,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: cargando -->
         <tr v-if="cargando">
-          <td colspan="5" class="celda-estado">
+          <td colspan="4" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando datos...</span>
           </td>
@@ -92,7 +99,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: error -->
         <tr v-else-if="error">
-          <td colspan="5" class="celda-estado">
+          <td colspan="4" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">
               ↺ Reintentar
@@ -102,7 +109,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: lista vacía -->
         <tr v-else-if="clientes.length === 0">
-          <td colspan="5" class="celda-estado">
+          <td colspan="4" class="celda-estado">
             <p class="texto-vacio">No se encontraron clientes registrados.</p>
             <p class="texto-vacio-sub">Puedes agregar uno nuevo usando el botón "Agregar cliente".</p>
           </td>
@@ -113,19 +120,23 @@ const estaOrdenandoPor = (clave: string): boolean => {
           v-else
           v-for="cliente in clientes"
           :key="cliente.usuario_ID"
-          class="fila-cliente"
+          class="fila-cliente fila-clickable"
+          role="button"
+          tabindex="0"
+          @click="navegarOrdenes(cliente)"
+          @keydown.enter="navegarOrdenes(cliente)"
         >
-          <td class="celda">{{ cliente.usuario_ID }}</td>
           <td class="celda">{{ cliente.nombre_Usuario }}</td>
           <td class="celda">{{ cliente.correo }}</td>
           <td class="celda">{{ cliente.rut_Empresa }}</td>
           <td class="celda">
-            <router-link
-              :to="{ path: '/ordenesAdmin', query: { usuario_ID: cliente.usuario_ID } }"
-              class="btn-ver-ordenes"
-            >
-              Ver órdenes
-            </router-link>
+            <div class="ordenes-resumen">
+              <span class="estado-chip estado-pendiente">PENDIENTE: {{ cliente.ordenes_Pendiente }}</span>
+              <span class="estado-sep">|</span>
+              <span class="estado-chip estado-aprobada">APROBADA: {{ cliente.ordenes_Aprobada }}</span>
+              <span class="estado-sep">|</span>
+              <span class="estado-chip estado-cancelada">CANCELADA: {{ cliente.ordenes_Cancelada }}</span>
+            </div>
           </td>
         </tr>
 
@@ -150,17 +161,15 @@ const estaOrdenandoPor = (clave: string): boolean => {
   min-width: 700px;
 }
 
-/* ===== ENCABEZADO ===== */
 .tabla-encabezado {
   background-color: #156895;
   color: white;
 }
 
 .celda-encabezado {
-  padding: 12px 16px;
+  padding: 14px 16px;
   text-align: center;
   font-weight: 600;
-  cursor: pointer;
   user-select: none;
   white-space: nowrap;
 }
@@ -190,26 +199,57 @@ const estaOrdenandoPor = (clave: string): boolean => {
   background-color: #f0f7ff;
 }
 
+.fila-clickable {
+  cursor: pointer;
+}
+
+.fila-clickable:focus {
+  outline: 2px solid #156895;
+  outline-offset: -2px;
+}
+
 .celda {
   padding: 12px 16px;
   text-align: center;
   color: #333;
 }
 
-.btn-ver-ordenes {
-  display: inline-block;
-  padding: 6px 12px;
-  background-color: #156895;
-  color: white;
-  text-decoration: none;
-  border-radius: 6px;
-  font-size: 0.85rem;
-  font-weight: 500;
-  transition: background-color 0.2s;
+.ordenes-resumen {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
 }
 
-.btn-ver-ordenes:hover {
-  background-color: #0f5070;
+.estado-chip {
+  border-radius: 12px;
+  padding: 3px 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.estado-pendiente {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #f1d28a;
+}
+
+.estado-aprobada {
+  background: #d1e7dd;
+  color: #0a5c36;
+  border: 1px solid #a8d5b6;
+}
+
+.estado-cancelada {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #f1b8bf;
+}
+
+.estado-sep {
+  color: #a0a0a0;
+  font-size: 0.8rem;
 }
 
 /* ===== ESTADOS ESPECIALES ===== */

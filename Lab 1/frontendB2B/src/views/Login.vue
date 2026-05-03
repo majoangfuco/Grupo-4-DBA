@@ -45,7 +45,13 @@ async function handleLogin() {
       userRut:   usuario.rut_empresa || 'No disponible',
     })
 
-    router.push({ name: 'Pagina-Principal' })
+    if (authStore.isAdmin) {
+      router.push('/productosAdmin')
+    } else if (authStore.isCliente) {
+      router.push('/productosCliente')
+    } else {
+      router.push('/login')
+    }
 
   } catch (error: unknown) {
     const axiosError = error as { response?: { status: number; data?: { error?: string } }; code?: string }

@@ -5,6 +5,8 @@
 //   - Ver detalle de unidades (navegación)
 // =====================================================
 
+import { ref } from 'vue'
+
 // --- Tipos ---
 interface Producto {
   producto_ID: number
@@ -28,13 +30,27 @@ const props = defineProps<{
   cargando: boolean
   error: string | null
   configOrden?: ConfigOrden
+  categoriasMap?: Map<number, string>
 }>()
 
 // --- Eventos ---
 const emit = defineEmits<{
   (e: 'ordenar', clave: string): void
   (e: 'reintentar'): void
+  (e: 'agregar', producto: Producto, cantidad: number): void
 }>()
+
+// --- Cantidades por producto ---
+const cantidades = ref<Record<number, number>>({})
+
+const obtenerCantidad = (productoId: number) => {
+  return cantidades.value[productoId] ?? 1
+}
+
+const setCantidad = (productoId: number, valor: string) => {
+  const num = Number(valor)
+  cantidades.value[productoId] = Number.isNaN(num) || num <= 0 ? 1 : num
+}
 
 // --- Helpers de ordenamiento ---
 const estaOrdenandoPor = (clave: string) => props.configOrden?.clave === clave
@@ -45,6 +61,7 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
 const columnas = [
   { clave: 'nombre_producto',   etiqueta: 'Nombre' },
   { clave: 'descripcion',       etiqueta: 'Descripción' },
+  { clave: 'categoria_ID',      etiqueta: 'Categoría' },
   { clave: 'precio',            etiqueta: 'Precio' }
 ]
 </script>
@@ -104,7 +121,23 @@ const columnas = [
         <tr v-else v-for="prod in productos" :key="prod.producto_ID" class="fila-producto">
           <td v-for="col in columnas" :key="col.clave" class="celda">
             <span v-if="col.clave === 'precio'">$ {{ prod.precio != null ? Number(prod.precio).toLocaleString('es-CL') : '0' }}</span>
+            <span v-else-if="col.clave === 'categoria_ID'">
+              {{ props.categoriasMap?.get(prod.categoria_ID) ?? prod.categoria_ID }}
+            </span>
             <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
+          </td>
+          <td class="celda acciones">
+            <input
+              class="input-cantidad"
+              type="number"
+              min="1"
+              :value="obtenerCantidad(prod.producto_ID)"
+              @input="setCantidad(prod.producto_ID, ($event.target as HTMLInputElement).value)"
+            />
+            <button
+              class="btn-accion"
+              @click="emit('agregar', prod, obtenerCantidad(prod.producto_ID))"
+            >Agregar</button>
           </td>
         </tr>
 
@@ -135,8 +168,9 @@ const columnas = [
 .texto-vacio { color: #555; margin-bottom: 6px; }
 .texto-vacio-sub { color: #888; font-size: 0.85rem; }
 .acciones { display: flex; justify-content: center; gap: 8px; }
-.btn-accion { background: none; border: 1px solid #e0e0e0; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 1rem; transition: border-color 0.2s, filter 0.2s; }
-.btn-accion:hover { border-color: #156895; filter: drop-shadow(0 0 6px rgba(21,104,149,0.4)); }
+.btn-accion { background: #156895; color: #fff; border: none; border-radius: 8px; padding: 6px 10px; cursor: pointer; font-size: 0.85rem; transition: background 0.2s; }
+.btn-accion:hover { background: #1b76a5; }
+.input-cantidad { width: 64px; padding: 6px 8px; border: 1px solid #ddd; border-radius: 8px; font-size: 0.85rem; text-align: center; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal-contenido { background: white; border-radius: 12px; padding: 28px; min-width: 360px; max-width: 90vw; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
 </style>

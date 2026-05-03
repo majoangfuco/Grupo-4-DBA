@@ -5,8 +5,9 @@
 // con su lote inicial de stock.
 // =====================================================
 
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { productoServicio } from '@/services/productoServicio'
+import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
 // --- Evento que emite al padre cuando se agrega el producto o se cancela ---
 const emit = defineEmits<{
@@ -27,6 +28,7 @@ const errores = reactive<Record<string, string>>({})
 
 // --- Alerta de resultado ---
 const alerta = reactive({ visible: false, mensaje: '', tipo: 'exito' as 'exito' | 'error' })
+const categorias = ref<CategoriaEntidad[]>([])
 
 // --- Limpia el formulario ---
 const limpiarFormulario = () => {
@@ -37,6 +39,15 @@ const limpiarFormulario = () => {
   stock.value          = ''
   sku.value            = ''
   Object.keys(errores).forEach(k => delete errores[k])
+}
+
+const cargarCategorias = async () => {
+  try {
+    const resp = await categoriaServicio.listar(true)
+    categorias.value = resp.data.filter(c => c.estado_Categoria)
+  } catch (error: unknown) {
+    console.error('Error al cargar categorias:', error)
+  }
 }
 
 // --- Validación local ---
@@ -103,6 +114,8 @@ const manejarEnvio = async () => {
     alerta.tipo    = 'error'
   }
 }
+
+onMounted(cargarCategorias)
 </script>
 
 <template>
@@ -121,9 +134,19 @@ const manejarEnvio = async () => {
 
       <!-- Categoría -->
       <div class="campo">
-        <label for="prod-categoria" class="etiqueta">Categoría (ID)</label>
-        <input id="prod-categoria" class="entrada" :class="{ 'entrada-error': errores.categoria_ID }"
-          type="number" min="1" placeholder="Ej: 1" v-model="categoria_ID" @input="delete errores.categoria_ID" />
+        <label for="prod-categoria" class="etiqueta">Categoría</label>
+        <select
+          id="prod-categoria"
+          class="entrada"
+          :class="{ 'entrada-error': errores.categoria_ID }"
+          v-model="categoria_ID"
+          @change="delete errores.categoria_ID"
+        >
+          <option value="">Selecciona una categoría</option>
+          <option v-for="cat in categorias" :key="cat.categoria_ID" :value="cat.categoria_ID">
+            {{ cat.nombre_Categoria }}
+          </option>
+        </select>
         <span v-if="errores.categoria_ID" class="mensaje-error">{{ errores.categoria_ID }}</span>
       </div>
 
