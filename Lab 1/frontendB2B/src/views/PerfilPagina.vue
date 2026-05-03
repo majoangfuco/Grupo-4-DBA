@@ -67,9 +67,6 @@
             <div class="address-content">
               <h4>{{ entrega.direccion }} {{ entrega.numero }}</h4>
               <p><strong>Recibe:</strong> {{ entrega.rut_Recibe_Entrega }} <br> <strong>Empresa:</strong> {{ entrega.rut_Empresa }}</p>
-              <div class="status-badge" :class="(entrega.estado_Entrega || '').toLowerCase().replace(' ', '_')">
-                {{ entrega.estado_Entrega || 'N/A' }}
-              </div>
             </div>
             <div v-if="entrega.activa" class="active-badge">Activa</div>
           </div>

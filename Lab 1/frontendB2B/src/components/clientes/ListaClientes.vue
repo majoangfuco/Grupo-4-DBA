@@ -84,7 +84,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: cargando -->
         <tr v-if="cargando">
-          <td colspan="4" class="celda-estado">
+          <td colspan="5" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando datos...</span>
           </td>
@@ -92,7 +92,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: error -->
         <tr v-else-if="error">
-          <td colspan="4" class="celda-estado">
+          <td colspan="5" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">
               ↺ Reintentar
@@ -102,7 +102,7 @@ const estaOrdenandoPor = (clave: string): boolean => {
 
         <!-- Estado: lista vacía -->
         <tr v-else-if="clientes.length === 0">
-          <td colspan="4" class="celda-estado">
+          <td colspan="5" class="celda-estado">
             <p class="texto-vacio">No se encontraron clientes registrados.</p>
             <p class="texto-vacio-sub">Puedes agregar uno nuevo usando el botón "Agregar cliente".</p>
           </td>
@@ -119,6 +119,14 @@ const estaOrdenandoPor = (clave: string): boolean => {
           <td class="celda">{{ cliente.nombre_Usuario }}</td>
           <td class="celda">{{ cliente.correo }}</td>
           <td class="celda">{{ cliente.rut_Empresa }}</td>
+          <td class="celda">
+            <router-link
+              :to="{ path: '/ordenesAdmin', query: { usuario_ID: cliente.usuario_ID } }"
+              class="btn-ver-ordenes"
+            >
+              Ver órdenes
+            </router-link>
+          </td>
         </tr>
 
       </tbody>
@@ -186,6 +194,22 @@ const estaOrdenandoPor = (clave: string): boolean => {
   padding: 12px 16px;
   text-align: center;
   color: #333;
+}
+
+.btn-ver-ordenes {
+  display: inline-block;
+  padding: 6px 12px;
+  background-color: #156895;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+.btn-ver-ordenes:hover {
+  background-color: #0f5070;
 }
 
 /* ===== ESTADOS ESPECIALES ===== */

@@ -1,0 +1,321 @@
+<script setup lang="ts">
+import { ref, watch } from 'vue'
+import { facturasServicio, type Factura } from '@/services/facturasServicio'
+
+const props = defineProps<{
+  ordenId: number | null
+}>()
+
+const emit = defineEmits<{
+  (e: 'cerrar'): void
+}>()
+
+const factura = ref<Factura | null>(null)
+const cargando = ref(false)
+const error = ref<string | null>(null)
+
+watch(() => props.ordenId, async (newOrdenId) => {
+  if (newOrdenId !== null) {
+    cargando.value = true
+    error.value = null
+    factura.value = null
+    try {
+      const response = await facturasServicio.obtenerFacturaPorOrden(newOrdenId)
+      factura.value = response.data
+    } catch (err) {
+      console.error('Error al cargar factura:', err)
+      const axiosError = err as { response?: { data?: { message?: string } } }
+      error.value = axiosError.response?.data?.message || 'No se pudo cargar la factura. Es posible que aún no se haya emitido.'
+    } finally {
+      cargando.value = false
+    }
+  }
+}, { immediate: true })
+
+const formatearMoneda = (valor: number) => {
+  return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(valor)
+}
+
+const formatearFecha = (fecha: string) => {
+  return new Date(fecha).toLocaleDateString('es-CL', {
+    year: 'numeric', month: 'long', day: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+</script>
+
+<template>
+  <Teleport to="body">
+    <div v-if="ordenId !== null" class="modal-overlay" @click="emit('cerrar')">
+      <div class="modal-content" @click.stop>
+
+        <button class="btn-cerrar" @click="emit('cerrar')" aria-label="Cerrar modal">✕</button>
+
+        <div class="modal-header">
+          <h2>Detalle de Factura</h2>
+          <p v-if="factura" class="orden-badge">Orden N° {{ factura.ordenId }}</p>
+          <p v-else-if="ordenId" class="orden-badge">Orden N° {{ ordenId }}</p>
+        </div>
+
+        <div class="modal-body">
+          <div v-if="cargando" class="estado-contenedor">
+            <span class="spinner"></span>
+            <p>Cargando información de la factura...</p>
+          </div>
+
+          <div v-else-if="error" class="estado-contenedor error">
+            <p>{{ error }}</p>
+          </div>
+
+          <div v-else-if="factura" class="factura-detalles">
+
+            <div class="info-seccion">
+              <div class="info-item">
+                <span class="etiqueta">N° Factura:</span>
+                <span class="valor destacado">{{ factura.factura_ID }}</span>
+              </div>
+              <div class="info-item">
+                <span class="etiqueta">ID Cliente:</span>
+                <span class="valor">{{ factura.usuarioId }}</span>
+              </div>
+              <div class="info-item">
+                <span class="etiqueta">Fecha de Emisión:</span>
+                <span class="valor">{{ formatearFecha(factura.fecha_Emision) }}</span>
+              </div>
+            </div>
+
+            <div class="divider"></div>
+
+            <div class="resumen-seccion">
+              <div class="resumen-fila">
+                <span>Total Neto:</span>
+                <span>{{ formatearMoneda(factura.total_Neto) }}</span>
+              </div>
+              <div class="resumen-fila">
+                <span>IVA (19%):</span>
+                <span>{{ formatearMoneda(factura.iva) }}</span>
+              </div>
+              <div class="resumen-fila total-final">
+                <span>Total a Pagar:</span>
+                <span>{{ formatearMoneda(factura.precio_Total) }}</span>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+    </div>
+  </Teleport>
+</template>
+
+<style scoped>
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.6);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 9999;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.modal-content {
+  background: white;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  position: relative;
+  overflow: hidden;
+  animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  display: flex;
+  flex-direction: column;
+}
+
+.btn-cerrar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f1f5f9;
+  color: #64748b;
+  font-size: 1.2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  z-index: 10;
+}
+
+.btn-cerrar:hover {
+  background: #e2e8f0;
+  color: #0f172a;
+}
+
+.modal-header {
+  padding: 24px 24px 16px;
+  background: linear-gradient(135deg, #156895 0%, #0d4b6e 100%);
+  color: white;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.orden-badge {
+  display: inline-block;
+  margin-top: 8px;
+  padding: 4px 10px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+}
+
+.modal-body {
+  padding: 24px;
+}
+
+.estado-contenedor {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 0;
+  color: #64748b;
+  text-align: center;
+}
+
+.estado-contenedor.error {
+  color: #ef4444;
+}
+
+.spinner {
+  width: 30px;
+  height: 30px;
+  border: 3px solid #e2e8f0;
+  border-top-color: #156895;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin-bottom: 16px;
+}
+
+.factura-detalles {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.info-seccion {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.95rem;
+}
+
+.etiqueta {
+  color: #64748b;
+}
+
+.valor {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.valor.destacado {
+  color: #156895;
+  font-size: 1.1rem;
+}
+
+.divider {
+  height: 1px;
+  background-color: #e2e8f0;
+  margin: 8px 0;
+}
+
+.resumen-seccion {
+  background: #f8fafc;
+  padding: 16px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.resumen-fila {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.95rem;
+  color: #475569;
+}
+
+.total-final {
+  margin-top: 8px;
+  padding-top: 12px;
+  border-top: 1px dashed #cbd5e1;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.modal-footer {
+  padding: 0 24px 24px;
+}
+
+.btn-accion {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 8px;
+  background-color: #156895;
+  color: white;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-accion:hover:not(:disabled) {
+  background-color: #0d4b6e;
+  transform: translateY(-1px);
+}
+
+.btn-accion:disabled {
+  background-color: #94a3b8;
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+</style>

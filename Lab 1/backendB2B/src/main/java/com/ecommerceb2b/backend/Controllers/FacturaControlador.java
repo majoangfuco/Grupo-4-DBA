@@ -34,4 +34,9 @@ public class FacturaControlador {
             @PathVariable Long usuarioId) {
         return ResponseEntity.ok(servicio.obtenerPorUsuario(usuarioId));
     }
+
+    @GetMapping("/orden/{ordenId}")
+    public ResponseEntity<FacturaEntidad> obtenerPorOrden(@PathVariable Long ordenId) {
+        return ResponseEntity.ok(servicio.obtenerPorOrden(ordenId));
+    }
 }

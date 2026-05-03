@@ -47,4 +47,12 @@ public class FacturaRepositorio {
                 rowMapper, usuarioId
         );
     }
+
+    public Optional<FacturaEntidad> findByOrdenId(Long ordenId) {
+        List<FacturaEntidad> result = jdbc.query(
+                "SELECT * FROM factura_entidad WHERE orden_orden_id = ?",
+                rowMapper, ordenId
+        );
+        return result.stream().findFirst();
+    }
 }

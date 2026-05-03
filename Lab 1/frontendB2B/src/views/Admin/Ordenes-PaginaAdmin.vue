@@ -1,25 +1,33 @@
 <script setup lang="ts">
 // =====================================================
-// Ordenes-PaginaClientes.vue
-// Página de órdenes para el cliente autenticado.
-// Busca las órdenes filtrando por el usuario_ID
-// almacenado en localStorage al iniciar sesión.
+// Ordenes-PaginaAdmin.vue
+// Página de órdenes para el administrador.
+// Muestra TODAS las órdenes del sistema sin filtro
+// por usuario, siguiendo el patrón de Productos-PaginaAdmin.vue.
 // =====================================================
 
-import { ref, reactive, computed, onMounted } from 'vue'
-import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaCliente.vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
+import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
 import { ordenesServicio, type Orden } from '@/services/ordenesServicio'
 
 // ==================== ESTADO ========================
+const route = useRoute()
 const ordenes   = ref<Orden[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
 
-// ID del usuario en sesión (guardado en localStorage al hacer login)
-const usuarioId = Number(localStorage.getItem('userId') ?? 0)
-
 // ==================== FILTROS =======================
-const filtros = reactive({ orden_ID: '', estado: '' })
+const filtros = reactive({ orden_ID: '', usuario_ID: (route.query.usuario_ID as string) || '', estado: '' })
+
+watch(
+  () => route.query.usuario_ID,
+  (newVal) => {
+    if (newVal !== undefined) {
+      filtros.usuario_ID = newVal as string
+    }
+  }
+)
 
 const opcionesEstado = computed(() => {
   const set = new Set(ordenes.value.map(o => o.estado).filter(Boolean))
@@ -27,8 +35,9 @@ const opcionesEstado = computed(() => {
 })
 
 const limpiarFiltros = () => {
-  filtros.orden_ID = ''
-  filtros.estado   = ''
+  filtros.orden_ID   = ''
+  filtros.usuario_ID = ''
+  filtros.estado     = ''
   paginaActual.value = 1
 }
 
@@ -49,9 +58,10 @@ const cambiarOrden = (clave: string) => {
 // ==================== FILTRADO =====================
 const ordenesFiltradas = computed(() =>
   ordenes.value.filter(o => {
-    const coincideId     = !filtros.orden_ID || String(o.orden_ID).includes(filtros.orden_ID)
-    const coincideEstado = !filtros.estado   || o.estado === filtros.estado
-    return coincideId && coincideEstado
+    const coincideId      = !filtros.orden_ID   || String(o.orden_ID).includes(filtros.orden_ID)
+    const coincideUsuario = !filtros.usuario_ID || String(o.usuario_ID).includes(filtros.usuario_ID)
+    const coincideEstado  = !filtros.estado     || o.estado === filtros.estado
+    return coincideId && coincideUsuario && coincideEstado
   })
 )
 
@@ -89,7 +99,7 @@ const cargarOrdenes = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const respuesta = await ordenesServicio.obtenerPorUsuario(usuarioId)
+    const respuesta = await ordenesServicio.obtenerTodas()
     ordenes.value = respuesta.data
   } catch (err: unknown) {
     console.error('Error al obtener órdenes:', err)
@@ -109,7 +119,7 @@ onMounted(cargarOrdenes)
 
     <!-- ===== ENCABEZADO ===== -->
     <div class="encabezado">
-      <h1 class="titulo-pagina">Mis órdenes</h1>
+      <h1 class="titulo-pagina">Gestión de órdenes</h1>
     </div>
 
     <!-- ===== BARRA DE FILTROS ===== -->
@@ -120,6 +130,13 @@ onMounted(cargarOrdenes)
           class="filtro-entrada"
           type="text"
           placeholder="Buscar por N° Orden"
+          @input="paginaActual = 1"
+        />
+        <input
+          v-model="filtros.usuario_ID"
+          class="filtro-entrada"
+          type="text"
+          placeholder="Buscar por ID Usuario"
           @input="paginaActual = 1"
         />
         <select
@@ -156,8 +173,8 @@ onMounted(cargarOrdenes)
         <button class="btn-pagina" :disabled="paginaActual === totalPaginas" @click="cambiarPagina(paginaActual + 1)">›</button>
       </div>
       <div class="selector-filas">
-        <label for="filas-ord-cliente" class="selector-etiqueta">Filas:</label>
-        <select id="filas-ord-cliente" v-model="elementosPorPagina" class="filtro-entrada filtro-select" style="min-width:70px" @change="paginaActual = 1">
+        <label for="filas-ord-admin" class="selector-etiqueta">Filas:</label>
+        <select id="filas-ord-admin" v-model="elementosPorPagina" class="filtro-entrada filtro-select" style="min-width:70px" @change="paginaActual = 1">
           <option :value="5">5</option>
           <option :value="10">10</option>
           <option :value="15">15</option>

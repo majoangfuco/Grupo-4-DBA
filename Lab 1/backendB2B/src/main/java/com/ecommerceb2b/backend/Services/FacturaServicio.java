@@ -27,4 +27,9 @@ public class FacturaServicio {
     public List<FacturaEntidad> obtenerPorUsuario(Long usuarioId) {
         return repositorio.findByUsuarioId(usuarioId);
     }
+
+    public FacturaEntidad obtenerPorOrden(Long ordenId) {
+        return repositorio.findByOrdenId(ordenId)
+                .orElseThrow(() -> new RuntimeException("Factura no encontrada para la Orden ID: " + ordenId));
+    }
 }
