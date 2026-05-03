@@ -1,5 +1,15 @@
 import httpClient from '@/http-common'
 
+export interface ItemFactura {
+  carrito_Producto_ID: number
+  unidad_producto: number
+  producto: {
+    producto_ID: number
+    nombre_producto: string
+    precio: number
+  }
+}
+
 export interface Factura {
   factura_ID: number
   usuarioId: number
@@ -8,6 +18,7 @@ export interface Factura {
   fecha_Emision: string
   total_Neto: number
   iva: number
+  items: ItemFactura[]
 }
 
 const obtenerFacturaPorOrden = (ordenId: number) => 
