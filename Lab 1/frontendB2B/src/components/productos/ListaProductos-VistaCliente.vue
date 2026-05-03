@@ -14,6 +14,7 @@ interface Producto {
   precio: number
   stock: number
   sku: string
+  
 }
 
 interface ConfigOrden {

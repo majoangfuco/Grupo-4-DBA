@@ -53,6 +53,7 @@ async function handleRegister() {
       userEmail: usuario.correo,
       userName: usuario.nombre,
       userRole: usuario.rol,
+      userRut: usuario.rut_empresa || 'No disponible',
     })
 
     router.push({ name: 'Pagina-Principal' })

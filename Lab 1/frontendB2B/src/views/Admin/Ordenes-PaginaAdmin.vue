@@ -6,17 +6,28 @@
 // por usuario, siguiendo el patrón de Productos-PaginaAdmin.vue.
 // =====================================================
 
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
 import { ordenesServicio, type Orden } from '@/services/ordenesServicio'
 
 // ==================== ESTADO ========================
+const route = useRoute()
 const ordenes   = ref<Orden[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
 
 // ==================== FILTROS =======================
-const filtros = reactive({ orden_ID: '', usuario_ID: '', estado: '' })
+const filtros = reactive({ orden_ID: '', usuario_ID: (route.query.usuario_ID as string) || '', estado: '' })
+
+watch(
+  () => route.query.usuario_ID,
+  (newVal) => {
+    if (newVal !== undefined) {
+      filtros.usuario_ID = newVal as string
+    }
+  }
+)
 
 const opcionesEstado = computed(() => {
   const set = new Set(ordenes.value.map(o => o.estado).filter(Boolean))

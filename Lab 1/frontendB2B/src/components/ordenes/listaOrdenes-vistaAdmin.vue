@@ -7,6 +7,8 @@
 // =====================================================
 
 import type { Orden } from '@/services/ordenesServicio'
+import { ref } from 'vue'
+import ModalFactura from '@/components/ordenes/ModalFactura.vue'
 
 interface ConfigOrden {
   clave: string
@@ -33,14 +35,26 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
   props.configOrden?.clave === clave ? props.configOrden.direccion : 'asc'
 
 // --- Columnas de la tabla (incluye usuario_ID) ---
-const columnas: Array<{ clave: keyof Orden; etiqueta: string }> = [
+const columnas: Array<{ clave: string; etiqueta: string }> = [
   { clave: 'orden_ID',        etiqueta: 'N° Orden' },
   { clave: 'usuario_ID',      etiqueta: 'Usuario' },
   { clave: 'carrito_ID',      etiqueta: 'Carrito' },
   { clave: 'info_Entrega_ID', etiqueta: 'Entrega' },
   { clave: 'fecha_Orden',     etiqueta: 'Fecha' },
   { clave: 'estado',          etiqueta: 'Estado' },
+  { clave: 'factura',         etiqueta: 'Factura' },
 ]
+
+// --- Modal Factura ---
+const ordenSeleccionadaParaFactura = ref<number | null>(null)
+
+const abrirFactura = (ordenId: number) => {
+  ordenSeleccionadaParaFactura.value = ordenId
+}
+
+const cerrarFactura = () => {
+  ordenSeleccionadaParaFactura.value = null
+}
 
 // --- Helper para badge de estado ---
 function claseEstado(estado: string): string {
@@ -79,7 +93,7 @@ function claseEstado(estado: string): string {
 
         <!-- Cargando -->
         <tr v-if="cargando">
-          <td colspan="6" class="celda-estado">
+          <td colspan="7" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando órdenes...</span>
           </td>
@@ -87,7 +101,7 @@ function claseEstado(estado: string): string {
 
         <!-- Error -->
         <tr v-else-if="error">
-          <td colspan="6" class="celda-estado">
+          <td colspan="7" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">↺ Reintentar</button>
           </td>
@@ -95,7 +109,7 @@ function claseEstado(estado: string): string {
 
         <!-- Lista vacía -->
         <tr v-else-if="ordenes.length === 0">
-          <td colspan="6" class="celda-estado">
+          <td colspan="7" class="celda-estado">
             <p class="texto-vacio">No hay órdenes registradas en el sistema.</p>
           </td>
         </tr>
@@ -111,11 +125,19 @@ function claseEstado(estado: string): string {
             <td class="celda">
               <span :class="claseEstado(orden.estado)">{{ orden.estado }}</span>
             </td>
+            <td class="celda">
+              <button class="btn-ver-factura" @click="abrirFactura(orden.orden_ID)"> Ver factura</button>
+            </td>
           </tr>
         </template>
 
       </tbody>
     </table>
+
+    <ModalFactura
+      :ordenId="ordenSeleccionadaParaFactura"
+      @cerrar="cerrarFactura"
+    />
   </div>
 </template>
 
@@ -142,4 +164,6 @@ function claseEstado(estado: string): string {
 .badge-pendiente  { background: #fff3cd; color: #856404; }
 .badge-aprobada   { background: #d1e7dd; color: #0a5c36; }
 .badge-cancelada  { background: #f8d7da; color: #842029; }
+.btn-ver-factura { padding: 6px 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
+.btn-ver-factura:hover { background-color: #e2e8f0; border-color: #94a3b8; color: #0f172a; }
 </style>
