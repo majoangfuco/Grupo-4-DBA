@@ -11,8 +11,10 @@ import lombok.NoArgsConstructor;
 public class DatosDePagoEntidad {
 
     Long datos_Pago_ID;
+    Long usuario_ID;
 
     String metodo_Pago;
     String numero_Tarjeta;
     String fecha_Expiracion;
+    
 }

@@ -56,7 +56,7 @@ async function handleRegister() {
       userRut: usuario.rut_empresa || 'No disponible',
     })
 
-    router.push({ name: 'Pagina-Principal' })
+    router.push('/productosCliente')
   } catch (error: unknown) {
     const axiosError = error as { response?: { status: number; data?: { error?: string } }; code?: string }
 

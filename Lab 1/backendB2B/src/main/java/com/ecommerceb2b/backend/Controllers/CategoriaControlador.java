@@ -39,11 +39,8 @@ public class CategoriaControlador {
 	@GetMapping
 	public ResponseEntity<?> listar(@RequestParam(defaultValue = "false") boolean incluirInactivas,
 									@RequestHeader(value = "Authorization", required = false) String authHeader) {
-		if (incluirInactivas && !esAdmin(authHeader)) {
-			return ResponseEntity.status(HttpStatus.FORBIDDEN)
-					.body("No autorizado para ver categorias inactivas");
-		}
-		return ResponseEntity.ok(categoriaServicio.listarCategorias(incluirInactivas));
+		boolean incluirPermitidas = incluirInactivas && esAdmin(authHeader);
+		return ResponseEntity.ok(categoriaServicio.listarCategorias(incluirPermitidas));
 	}
 
 	// GET /api/categorias/{id}
@@ -87,11 +84,8 @@ public class CategoriaControlador {
 											 @RequestParam(defaultValue = "false") boolean incluirInactivas,
 											 @RequestHeader(value = "Authorization", required = false) String authHeader) {
 		try {
-			if (incluirInactivas && !esAdmin(authHeader)) {
-				return ResponseEntity.status(HttpStatus.FORBIDDEN)
-						.body("No autorizado para ver categorias inactivas");
-			}
-			return ResponseEntity.ok(categoriaServicio.buscarPorNombre(nombre, incluirInactivas));
+			boolean incluirPermitidas = incluirInactivas && esAdmin(authHeader);
+			return ResponseEntity.ok(categoriaServicio.buscarPorNombre(nombre, incluirPermitidas));
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(e.getMessage());
 		}

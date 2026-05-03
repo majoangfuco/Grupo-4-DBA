@@ -8,9 +8,20 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import ListaClientes from '@/components/clientes/ListaClientes.vue'
 import { usuarioServicio } from '@/services/usuarioServicio'
+import { ordenesServicio, type Orden } from '@/services/ordenesServicio'
 
 // ===================== TIPOS ========================
 interface Cliente {
+  usuario_ID: number
+  nombre_Usuario: string
+  correo: string
+  rut_Empresa: string
+  ordenes_EnRuta: number
+  ordenes_Preparando: number
+  ordenes_EnCurso: number
+}
+
+interface ClienteApi {
   usuario_ID: number
   nombre_Usuario: string
   correo: string
@@ -26,14 +37,12 @@ const error          = ref<string | null>(null)
 
 // ==================== FILTROS =======================
 const filtros = reactive({
-  usuario_ID: '',
   nombre_Usuario: '',
   correo: '',
   rut_Empresa: '',
 })
 
 const limpiarFiltros = () => {
-  filtros.usuario_ID = ''
   filtros.nombre_Usuario = ''
   filtros.correo = ''
   filtros.rut_Empresa = ''
@@ -60,9 +69,8 @@ const clientesFiltrados = computed(() => {
   return clientes.value.filter(c => {
     const coincideNombre   = !filtros.nombre_Usuario || c.nombre_Usuario.toLowerCase().includes(filtros.nombre_Usuario.toLowerCase())
     const coincideCorreo   = !filtros.correo         || c.correo.toLowerCase().includes(filtros.correo.toLowerCase())
-    const coincideId       = !filtros.usuario_ID     || String(c.usuario_ID).includes(filtros.usuario_ID)
     const coincideRut      = !filtros.rut_Empresa    || c.rut_Empresa.toLowerCase().includes(filtros.rut_Empresa.toLowerCase())
-    return coincideNombre && coincideCorreo && coincideId && coincideRut
+    return coincideNombre && coincideCorreo && coincideRut
   })
 })
 
@@ -107,8 +115,20 @@ const cargarClientes = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const respuesta = await usuarioServicio.obtenerClientes()
-    clientes.value = respuesta.data.clientes
+    const [respuesta, ordenesResp] = await Promise.all([
+      usuarioServicio.obtenerClientes(),
+      ordenesServicio.obtenerTodas(),
+    ])
+    const resumenPorCliente = construirResumenOrdenes(ordenesResp.data)
+    clientes.value = respuesta.data.clientes.map((cliente: ClienteApi) => {
+      const resumen = resumenPorCliente.get(cliente.usuario_ID) ?? { enRuta: 0, preparando: 0 }
+      return {
+        ...cliente,
+        ordenes_EnRuta: resumen.enRuta,
+        ordenes_Preparando: resumen.preparando,
+        ordenes_EnCurso: resumen.enRuta + resumen.preparando,
+      }
+    })
   } catch (err: unknown) {
     console.error('Error al obtener clientes:', err)
     clientes.value = []
@@ -117,6 +137,20 @@ const cargarClientes = async () => {
   } finally {
     cargando.value = false
   }
+}
+
+const construirResumenOrdenes = (ordenes: Orden[]) => {
+  const map = new Map<number, { enRuta: number; preparando: number }>()
+  ordenes.forEach((orden) => {
+    const usuarioId = Number(orden.usuario_ID)
+    if (!usuarioId || Number.isNaN(usuarioId)) return
+    const estado = String(orden.estado ?? '').trim().toUpperCase()
+    const actual = map.get(usuarioId) ?? { enRuta: 0, preparando: 0 }
+    if (estado === 'EN_RUTA') actual.enRuta += 1
+    if (estado === 'PREPARANDO') actual.preparando += 1
+    map.set(usuarioId, actual)
+  })
+  return map
 }
 
 // Carga inicial
@@ -134,13 +168,6 @@ onMounted(cargarClientes)
     <!-- ===== BARRA DE FILTROS ===== -->
     <div class="barra-filtros">
       <div class="filtros-grupo">
-        <input
-          v-model="filtros.usuario_ID"
-          class="filtro-entrada"
-          type="text"
-          placeholder="Buscar por ID Usuario"
-          @input="manejarCambioFiltro"
-        />
         <input
           v-model="filtros.nombre_Usuario"
           class="filtro-entrada"

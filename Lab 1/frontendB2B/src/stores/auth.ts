@@ -18,9 +18,10 @@ export const useAuthStore = defineStore('auth', () => {
   const userRut  = ref<string | null>(localStorage.getItem('userRut'))
 
   // ─── Getters ────────────────────────────────────────────────
+  const normalizedRole = computed(() => (userRole.value ?? '').trim().toUpperCase())
   const isAuthenticated = computed(() => !!token.value)
-  const isAdmin         = computed(() => userRole.value === 'ADMIN')
-  const isCliente       = computed(() => userRole.value === 'CLIENTE')
+  const isAdmin         = computed(() => normalizedRole.value === 'ADMIN')
+  const isCliente       = computed(() => normalizedRole.value === 'CLIENTE')
 
   // ─── Acciones ───────────────────────────────────────────────
 
@@ -37,7 +38,7 @@ export const useAuthStore = defineStore('auth', () => {
     userId.value    = payload.userId
     userEmail.value = payload.userEmail
     userName.value  = payload.userName
-    userRole.value  = payload.userRole
+    userRole.value  = payload.userRole.trim().toUpperCase()
     userRut.value   = payload.userRut
 
     // Persistir en localStorage
@@ -45,7 +46,7 @@ export const useAuthStore = defineStore('auth', () => {
     localStorage.setItem('userId',    payload.userId)
     localStorage.setItem('userEmail', payload.userEmail)
     localStorage.setItem('userName',  payload.userName)
-    localStorage.setItem('userRole',  payload.userRole)
+    localStorage.setItem('userRole',  userRole.value)
     localStorage.setItem('userRut',   payload.userRut)
   }
 
@@ -72,6 +73,7 @@ export const useAuthStore = defineStore('auth', () => {
     userEmail,
     userName,
     userRole,
+    normalizedRole,
     userRut,
     isAuthenticated,
     isAdmin,

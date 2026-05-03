@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
 import { reporteVentasServicio, type ReporteVentas } from '@/services/reporteVentasServicio'
+import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
 // ===================== ESTADO ========================
 const reportes       = ref<ReporteVentas[]>([])
@@ -8,11 +9,12 @@ const cargando       = ref(true)
 const refrescando    = ref(false)
 const error          = ref<string | null>(null)
 const totalConsolidado = ref<any>(null)
+const categoriasCatalogo = ref<CategoriaEntidad[]>([])
 
 // ===================== FILTROS ========================
-const filtroMesAno    = ref('')
-const filtroCategoria = ref('')
+const filtroMes       = ref('')
 const filtroAnio      = ref('')
+const filtroCategoria = ref('')
 
 // ===================== ORDENAMIENTO =================
 const ordenActual = reactive({ campo: 'mesAno', direccion: 'desc' as 'asc' | 'desc' })
@@ -38,13 +40,43 @@ const anios = computed(() => {
   return Array.from(set).sort((a, b) => b - a)
 })
 
+const meses = [
+  { valor: '01', nombre: 'Enero' },
+  { valor: '02', nombre: 'Febrero' },
+  { valor: '03', nombre: 'Marzo' },
+  { valor: '04', nombre: 'Abril' },
+  { valor: '05', nombre: 'Mayo' },
+  { valor: '06', nombre: 'Junio' },
+  { valor: '07', nombre: 'Julio' },
+  { valor: '08', nombre: 'Agosto' },
+  { valor: '09', nombre: 'Septiembre' },
+  { valor: '10', nombre: 'Octubre' },
+  { valor: '11', nombre: 'Noviembre' },
+  { valor: '12', nombre: 'Diciembre' },
+]
+
+const estadoPorCategoria = computed(() => {
+  const map = new Map<string, boolean>()
+  categoriasCatalogo.value.forEach(c => map.set(c.nombre_Categoria, c.estado_Categoria))
+  return map
+})
+
+const categoriaSeleccionadaActiva = computed(() => {
+  if (!filtroCategoria.value) return null
+  return estadoPorCategoria.value.get(filtroCategoria.value) === true
+})
+
+const categoriaEsActiva = (nombre: string): boolean =>
+  estadoPorCategoria.value.get(nombre) === true
+
+
 // ===================== FILTRADO ========================
 const reportesFiltrados = computed(() =>
   reportes.value.filter(r => {
-    const coincideMes      = !filtroMesAno.value    || r.mesAno          === filtroMesAno.value
+    const coincideMes      = !filtroMes.value  || r.mes  === Number(filtroMes.value)
+    const coincideAnio     = !filtroAnio.value || r.anio === Number(filtroAnio.value)
     const coincideCategoria = !filtroCategoria.value || r.nombreCategoria === filtroCategoria.value
-    const coincideAnio     = !filtroAnio.value      || r.anio            === parseInt(filtroAnio.value)
-    return coincideMes && coincideCategoria && coincideAnio
+    return coincideMes && coincideAnio && coincideCategoria
   })
 )
 
@@ -93,12 +125,14 @@ const cargarDatos = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const [reportesData, totalData] = await Promise.all([
+    const [reportesData, totalData, categoriasResp] = await Promise.all([
       reporteVentasServicio.obtenerTodosLosReportes(),
-      reporteVentasServicio.obtenerTotalConsolidado()
+      reporteVentasServicio.obtenerTotalConsolidado(),
+      categoriaServicio.listar(true),
     ])
     reportes.value         = reportesData
     totalConsolidado.value = totalData
+    categoriasCatalogo.value = categoriasResp.data
   } catch (err: any) {
     error.value = err.message || 'Error al cargar los reportes'
     console.error('Error al obtener reportes:', err)
@@ -108,9 +142,9 @@ const cargarDatos = async () => {
 }
 
 const limpiarFiltros = () => {
-  filtroMesAno.value    = ''
-  filtroCategoria.value = ''
+  filtroMes.value       = ''
   filtroAnio.value      = ''
+  filtroCategoria.value = ''
   paginaActual.value    = 1
 }
 
@@ -177,22 +211,15 @@ onMounted(cargarDatos)
       <div class="filtros-grupo">
         <div class="filtro-campo">
           <label class="filtro-label">Mes</label>
-          <input
-            v-model="filtroMesAno"
-            type="month"
-            class="filtro-entrada"
-            @change="paginaActual = 1"
-          />
-        </div>
-        <div class="filtro-campo">
-          <label class="filtro-label">Categoría</label>
           <select
-            v-model="filtroCategoria"
+            v-model="filtroMes"
             class="filtro-entrada filtro-select"
             @change="paginaActual = 1"
           >
-            <option value="">Todas las categorías</option>
-            <option v-for="cat in categorias" :key="cat" :value="cat">{{ cat }}</option>
+            <option value="">Todos los meses</option>
+            <option v-for="mes in meses" :key="mes.valor" :value="mes.valor">
+              {{ mes.nombre }}
+            </option>
           </select>
         </div>
         <div class="filtro-campo">
@@ -204,6 +231,25 @@ onMounted(cargarDatos)
           >
             <option value="">Todos los años</option>
             <option v-for="year in anios" :key="year" :value="year">{{ year }}</option>
+          </select>
+        </div>
+        <div class="filtro-campo">
+          <label class="filtro-label">
+            Categoría
+            <span
+              v-if="categoriaSeleccionadaActiva !== null"
+              class="estado-dot"
+              :class="categoriaSeleccionadaActiva ? 'estado-activo' : 'estado-inactivo'"
+              aria-hidden="true"
+            />
+          </label>
+          <select
+            v-model="filtroCategoria"
+            class="filtro-entrada filtro-select"
+            @change="paginaActual = 1"
+          >
+            <option value="">Todas las categorías</option>
+            <option v-for="cat in categorias" :key="cat" :value="cat">{{ cat }}</option>
           </select>
         </div>
       </div>
@@ -273,7 +319,16 @@ onMounted(cargarDatos)
               class="fila-datos"
             >
               <td><span class="badge-mes">{{ reporte.mesAno }}</span></td>
-              <td>{{ reporte.nombreCategoria }}</td>
+              <td>
+                <span class="categoria-celda">
+                  <span
+                    class="estado-dot"
+                    :class="categoriaEsActiva(reporte.nombreCategoria) ? 'estado-activo' : 'estado-inactivo'"
+                    aria-hidden="true"
+                  />
+                  {{ reporte.nombreCategoria }}
+                </span>
+              </td>
               <td class="texto-derecha numero">{{ reporte.cantidadOrdenes }}</td>
               <td class="texto-derecha numero">{{ reporte.cantidadProductos }}</td>
               <td class="texto-derecha monto">${{ formatearMoneda(reporte.totalVendido) }}</td>
@@ -448,6 +503,24 @@ onMounted(cargarDatos)
   cursor: pointer;
 }
 
+.estado-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-left: 6px;
+  border: 1px solid #c9d6df;
+  vertical-align: middle;
+}
+
+.estado-activo {
+  background-color: #1a9c5b;
+}
+
+.estado-inactivo {
+  background-color: #d14949;
+}
+
 .btn-limpiar {
   padding: 8px 12px;
   background: none;
@@ -565,6 +638,12 @@ onMounted(cargarDatos)
   text-align: center;
   border-bottom: 1px solid #f0f0f0;
   color: #333;
+}
+
+.categoria-celda {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .fila-datos:hover {

@@ -121,7 +121,7 @@ const cargarProductos = async () => {
   try {
     const [productosResp, categoriasResp] = await Promise.all([
       productoServicio.obtenerTodos(),
-      categoriaServicio.listar(true),
+      categoriaServicio.listar(false),
     ])
     productos.value = productosResp.data
     categorias.value = categoriasResp.data

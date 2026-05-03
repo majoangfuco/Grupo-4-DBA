@@ -105,7 +105,7 @@ router.beforeEach((to) => {
   }
 
   // ─── Verificación de rol ─────────────────────────────────────
-  if (to.meta.requiresRole && authStore.userRole !== to.meta.requiresRole) {
+  if (to.meta.requiresRole && authStore.normalizedRole !== to.meta.requiresRole) {
     if (authStore.isAdmin) {
       return '/productosAdmin'
     }

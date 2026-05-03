@@ -22,8 +22,6 @@ let toastTimer: number | null = null
 const modalAbierto = ref(false)
 const modalAccion = ref<'agregar' | 'eliminar'>('eliminar')
 const modalItem = ref<CarritoProductoEntidad | null>(null)
-const modalCompraAbierto = ref(false)
-const pagando = ref(false)
 
 const cargarItems = async (carritoId: number) => {
   const [itemsResp, subtotalResp] = await Promise.all([
@@ -78,34 +76,6 @@ const abrirConfirmacion = (accion: 'agregar' | 'eliminar', item: CarritoProducto
 const cerrarModal = () => {
   modalAbierto.value = false
   modalItem.value = null
-}
-
-const abrirCompra = () => {
-  if (!items.value.length) {
-    notificar('No hay productos para comprar', 'error')
-    return
-  }
-  modalCompraAbierto.value = true
-}
-
-const cerrarModalCompra = () => {
-  modalCompraAbierto.value = false
-}
-
-const confirmarCompra = async () => {
-  if (!carrito.value?.carrito_ID || pagando.value) return
-  pagando.value = true
-  try {
-    await carritoServicio.pagar(carrito.value.carrito_ID)
-    notificar('Compra generada correctamente', 'ok')
-    await cargarCarrito()
-  } catch (err: unknown) {
-    console.error('Error al pagar carrito:', err)
-    notificar('No se pudo generar la compra', 'error')
-  } finally {
-    pagando.value = false
-    cerrarModalCompra()
-  }
 }
 
 const confirmarModal = async () => {
@@ -183,27 +153,6 @@ onMounted(cargarCarrito)
     <div v-if="toastMensaje" class="toast" :class="toastTipo">
       {{ toastMensaje }}
     </div>
-    <div v-if="modalCompraAbierto" class="modal-overlay" @click.self="cerrarModalCompra">
-      <div class="modal-box" role="dialog" aria-modal="true">
-        <div class="modal-header">
-          <span class="modal-check">✓</span>
-          <h3 class="modal-title">Confirmar compra</h3>
-          <button class="modal-close" @click="cerrarModalCompra">×</button>
-        </div>
-        <div class="modal-body">
-          <div class="modal-info">
-            <div class="modal-nombre">Total a pagar</div>
-            <div class="modal-cantidad">{{ subtotal }}</div>
-          </div>
-        </div>
-        <div class="modal-actions">
-          <button class="btn-link" @click="cerrarModalCompra">Cancelar</button>
-          <button class="btn-solid" :disabled="pagando" @click="confirmarCompra">
-            {{ pagando ? 'Procesando...' : 'Confirmar' }}
-          </button>
-        </div>
-      </div>
-    </div>
     <div class="encabezado">
       <h1 class="titulo-pagina">Mi carrito</h1>
       <button class="btn-primario" @click="cargarCarrito">Actualizar</button>
@@ -244,11 +193,6 @@ onMounted(cargarCarrito)
       <div class="subtotal">
         <span>Subtotal</span>
         <strong>{{ subtotal }}</strong>
-      </div>
-      <div class="acciones-compra">
-        <button class="btn-primario" :disabled="pagando || items.length === 0" @click="abrirCompra">
-          Comprar
-        </button>
       </div>
     </div>
 

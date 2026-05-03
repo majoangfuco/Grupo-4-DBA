@@ -15,5 +15,6 @@ public class OrdenesEntidad {
     private Long usuario_ID;
     private Long info_Entrega_ID;
     private Date fecha_Orden;
+    //Estados: "PENDIENTE", "AUTORIZADO", "PREPARANDO", "EN_RUTA", "ENTREGADO"
     private String estado;
 }
