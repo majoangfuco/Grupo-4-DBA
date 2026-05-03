@@ -1,7 +1,9 @@
 package com.ecommerceb2b.backend.Controllers;
 
 import com.ecommerceb2b.backend.Entities.CarritoEntidad;
+import com.ecommerceb2b.backend.Entities.CheckoutPedidoDto;
 import com.ecommerceb2b.backend.Services.CarritoServicio;
+import com.ecommerceb2b.backend.Services.CheckoutServicio;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,9 +16,11 @@ import java.util.List;
 public class CarritoControlador {
 
 	private final CarritoServicio carritoServicio;
+	private final CheckoutServicio checkoutServicio;
 
-	public CarritoControlador(CarritoServicio carritoServicio) {
+	public CarritoControlador(CarritoServicio carritoServicio, CheckoutServicio checkoutServicio) {
 		this.carritoServicio = carritoServicio;
+		this.checkoutServicio = checkoutServicio;
 	}
 
 	// GET /api/carritos/cliente/{idCliente}/activo
@@ -83,6 +87,18 @@ public class CarritoControlador {
 			return ResponseEntity.ok("Carrito pagado correctamente");
 		} catch (Exception e) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+		}
+	}
+
+	// POST /api/carritos/{id}/checkout
+	@PostMapping("/{id}/checkout")
+	public ResponseEntity<?> checkout(@PathVariable Long id, @RequestBody CheckoutPedidoDto pedido) {
+		try {
+			return ResponseEntity.status(HttpStatus.CREATED).body(checkoutServicio.procesarCheckout(id, pedido));
+		} catch (IllegalArgumentException | IllegalStateException e) {
+			return ResponseEntity.badRequest().body(e.getMessage());
+		} catch (Exception e) {
+			return ResponseEntity.internalServerError().body("Error al procesar el checkout");
 		}
 	}
 }

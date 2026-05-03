@@ -41,6 +41,12 @@ public class OrdenesControlador {
         return ResponseEntity.ok(ordenesServicio.listarOrdenes());
     }
 
+    // GET /api/ordenes/vista/admin (retorna OrdenesEntidad con rut_empresa)
+    @GetMapping("/vista/admin")
+    public ResponseEntity<List<OrdenesEntidad>> listarVistaAdmin() {
+        return ResponseEntity.ok(ordenesServicio.listarOrdenesConRut());
+    }
+
     // GET /api/ordenes/{id}
     @GetMapping("/{id}")
     public ResponseEntity<?> obtenerPorId(@PathVariable Long id) {

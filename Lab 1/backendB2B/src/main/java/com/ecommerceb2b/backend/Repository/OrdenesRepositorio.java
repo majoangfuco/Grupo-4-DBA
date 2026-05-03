@@ -6,6 +6,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
+import java.sql.SQLException;
 import java.util.List;
 import java.util.Optional;
 
@@ -17,18 +18,27 @@ private final JdbcTemplate jdbcTemplate;
         this.jdbcTemplate = jdbcTemplate;
     }
 
-    // RowMapper reutilizable
+    // RowMapper para OrdenesEntidad
     private final RowMapper<OrdenesEntidad> rowMapper = (rs, rowNum) -> {
         OrdenesEntidad o = new OrdenesEntidad();
         o.setOrden_ID(rs.getLong("orden_id"));
         o.setCarrito_ID(rs.getLong("carrito_carrito_id"));
         long usuarioId = rs.getLong("usuario_id");
         o.setUsuario_ID(rs.wasNull() ? null : usuarioId);
+        o.setRut_Empresa(getStringOrNull(rs, "rut_empresa"));
         o.setInfo_Entrega_ID(rs.getLong("informacion_info_entrega_id"));
         o.setFecha_Orden(rs.getDate("fecha_orden"));
         o.setEstado(rs.getString("estado"));
         return o;
     };
+
+    private String getStringOrNull(java.sql.ResultSet rs, String columnName) {
+        try {
+            return rs.getString(columnName);
+        } catch (SQLException e) {
+            return null;
+        }
+    }
 
     // Crear
     public int crear(OrdenesEntidad o) {
@@ -120,5 +130,15 @@ private final JdbcTemplate jdbcTemplate;
                 WHERE o.fecha_orden > ?
                 """;
         return jdbcTemplate.query(sql, rowMapper, fecha);
+    }
+
+    public List<OrdenesEntidad> encontrarTodosConRut() {
+        String sql = """
+                SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa
+                FROM ordenes_entidad o
+                JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
+                JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
+                """;
+        return jdbcTemplate.query(sql, rowMapper);
     }
 }

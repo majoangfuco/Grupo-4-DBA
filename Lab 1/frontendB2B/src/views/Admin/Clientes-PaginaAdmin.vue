@@ -6,6 +6,7 @@
 // =====================================================
 
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import ListaClientes from '@/components/clientes/ListaClientes.vue'
 import { usuarioServicio } from '@/services/usuarioServicio'
 import { ordenesServicio, type Orden } from '@/services/ordenesServicio'
@@ -16,9 +17,9 @@ interface Cliente {
   nombre_Usuario: string
   correo: string
   rut_Empresa: string
-  ordenes_EnRuta: number
-  ordenes_Preparando: number
-  ordenes_EnCurso: number
+  ordenes_Pendiente: number
+  ordenes_Aprobada: number
+  ordenes_Cancelada: number
 }
 
 interface ClienteApi {
@@ -42,11 +43,27 @@ const filtros = reactive({
   rut_Empresa: '',
 })
 
+const router = useRouter()
+
 const limpiarFiltros = () => {
   filtros.nombre_Usuario = ''
   filtros.correo = ''
   filtros.rut_Empresa = ''
   paginaActual.value = 1
+}
+
+const verTodasOrdenes = () => {
+  router.push({ path: '/ordenesAdmin' })
+}
+
+const verOrdenesCliente = (cliente: Cliente) => {
+  router.push({
+    path: '/ordenesAdmin',
+    query: {
+      usuario_ID: cliente.usuario_ID,
+      correo: cliente.correo,
+    },
+  })
 }
 
 // =================== ORDENAMIENTO ==================
@@ -121,12 +138,12 @@ const cargarClientes = async () => {
     ])
     const resumenPorCliente = construirResumenOrdenes(ordenesResp.data)
     clientes.value = respuesta.data.clientes.map((cliente: ClienteApi) => {
-      const resumen = resumenPorCliente.get(cliente.usuario_ID) ?? { enRuta: 0, preparando: 0 }
+      const resumen = resumenPorCliente.get(cliente.usuario_ID) ?? { pendiente: 0, aprobada: 0, cancelada: 0 }
       return {
         ...cliente,
-        ordenes_EnRuta: resumen.enRuta,
-        ordenes_Preparando: resumen.preparando,
-        ordenes_EnCurso: resumen.enRuta + resumen.preparando,
+        ordenes_Pendiente: resumen.pendiente,
+        ordenes_Aprobada: resumen.aprobada,
+        ordenes_Cancelada: resumen.cancelada,
       }
     })
   } catch (err: unknown) {
@@ -140,14 +157,15 @@ const cargarClientes = async () => {
 }
 
 const construirResumenOrdenes = (ordenes: Orden[]) => {
-  const map = new Map<number, { enRuta: number; preparando: number }>()
+  const map = new Map<number, { pendiente: number; aprobada: number; cancelada: number }>()
   ordenes.forEach((orden) => {
     const usuarioId = Number(orden.usuario_ID)
     if (!usuarioId || Number.isNaN(usuarioId)) return
     const estado = String(orden.estado ?? '').trim().toUpperCase()
-    const actual = map.get(usuarioId) ?? { enRuta: 0, preparando: 0 }
-    if (estado === 'EN_RUTA') actual.enRuta += 1
-    if (estado === 'PREPARANDO') actual.preparando += 1
+    const actual = map.get(usuarioId) ?? { pendiente: 0, aprobada: 0, cancelada: 0 }
+    if (estado === 'PENDIENTE') actual.pendiente += 1
+    if (estado === 'APROBADA') actual.aprobada += 1
+    if (estado === 'CANCELADA') actual.cancelada += 1
     map.set(usuarioId, actual)
   })
   return map
@@ -163,6 +181,7 @@ onMounted(cargarClientes)
     <!-- ===== ENCABEZADO ===== -->
     <div class="encabezado">
       <h1 class="titulo-pagina">Gestión de Clientes</h1>
+      <button class="btn-ver-todas" @click="verTodasOrdenes">Ver todas las órdenes</button>
     </div>
 
     <!-- ===== BARRA DE FILTROS ===== -->
@@ -204,6 +223,7 @@ onMounted(cargarClientes)
       :config-orden="configOrden"
       @ordenar="cambiarOrden"
       @reintentar="cargarClientes"
+      @seleccionar="verOrdenesCliente"
     />
 
     <!-- ===== PAGINACIÓN ===== -->
@@ -294,6 +314,23 @@ onMounted(cargarClientes)
 
 .btn-agregar-cliente:hover {
   background-color: #0f5070;
+}
+
+.btn-ver-todas {
+  padding: 10px 18px;
+  background-color: #156895;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s, transform 0.2s;
+}
+
+.btn-ver-todas:hover {
+  background-color: #0f5070;
+  transform: translateY(-1px);
 }
 
 /* ===== MODAL ===== */

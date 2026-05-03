@@ -32,6 +32,14 @@ CREATE TABLE usuario_entidad (
     rol           VARCHAR(255)
 );
 
+CREATE TABLE datos_pago_entidad (
+    datos_pago_id   BIGSERIAL PRIMARY KEY,
+    usuario_usuario BIGINT REFERENCES usuario_entidad(usuario_id),
+    metodo_pago     VARCHAR(255),
+    numero_tarjeta  VARCHAR(255),
+    fecha_expiracion VARCHAR(255)
+);
+
 CREATE TABLE categoria_entidad (
     categoria_id      SERIAL PRIMARY KEY,
     nombre_categoria  VARCHAR(255),
@@ -98,6 +106,7 @@ ALTER TABLE informacion_entrega_entidad
 CREATE TABLE factura_entidad (
     factura_id      BIGSERIAL PRIMARY KEY,
     usuario_usuario BIGINT REFERENCES usuario_entidad(usuario_id),
+    datos_pago_id   BIGINT REFERENCES datos_pago_entidad(datos_pago_id),
     orden_orden_id  INT REFERENCES ordenes_entidad(orden_id),
     precio_total    REAL,
     fecha_emision   TIMESTAMP,
@@ -387,6 +396,19 @@ FROM (
 ) s
 WHERE p.producto_id = s.producto_producto_id;
 
+-- Datos de pago de clientes
+INSERT INTO datos_pago_entidad (usuario_usuario, metodo_pago, numero_tarjeta, fecha_expiracion) VALUES
+(1, 'Tarjeta Crédito', '1234567812345678', '10/26'),
+(2, 'Transferencia Bancaria', 'N/A', 'N/A'),
+(4, 'Tarjeta Débito', '8765432187654321', '08/25'),
+(6, 'Tarjeta Crédito', '4444333322221111', '12/26'),
+(7, 'Tarjeta Débito', '5555444433332222', '07/25'),
+(5, 'Transferencia Bancaria', 'N/A', 'N/A'),
+(8, 'Tarjeta Crédito', '9999888877776666', '09/26'),
+(3, 'Tarjeta Crédito', '1111222233334444', '11/25'),
+(1, 'Tarjeta Débito', '2222333344445555', '05/27'),
+(4, 'Tarjeta Crédito', '3333444455556666', '03/27');
+
 -- Información de entrega (carritos completados)
 INSERT INTO informacion_entrega_entidad (usuario_usuario, direccion, numero, rut_recibe_entrega, rut_empresa, estado_entrega, activa) VALUES
 (1, 'Av. Las Condes',    '5430', '15.555.666-K', '76.123.456-7', 'ENTREGADO',  TRUE),
@@ -403,17 +425,17 @@ INSERT INTO informacion_entrega_entidad (usuario_usuario, direccion, numero, rut
 
 -- Órdenes generadas desde los carritos completados
 INSERT INTO ordenes_entidad (carrito_carrito_id, informacion_info_entrega_id, fecha_orden, estado) VALUES
-(1, 1, '2023-10-01 10:05:00', 'ENTREGADO'),
-(3, 2, '2024-01-20 16:50:00', 'EN_RUTA'),
-(4, 3, '2024-03-10 11:35:00', 'PREPARANDO'),
-(5, 4, '2024-02-28 09:20:00', 'ENTREGADO'),
-(9, 5, '2024-05-15 12:10:00', 'ENTREGADO'),
-(10, 6, '2025-01-10 15:30:00', 'ENTREGADO'),
-(11, 7, '2025-11-22 10:20:00', 'ENTREGADO'),
-(12, 8, '2024-07-02 14:05:00', 'ENTREGADO'),
-(13, 9, '2024-09-18 11:45:00', 'ENTREGADO'),
-(14, 10, '2025-03-07 10:15:00', 'ENTREGADO'),
-(15, 11, '2025-06-21 18:25:00', 'ENTREGADO');
+(1, 1, '2023-10-01 10:05:00', 'APROBADA'),
+(3, 2, '2024-01-20 16:50:00', 'PENDIENTE'),
+(4, 3, '2024-03-10 11:35:00', 'PENDIENTE'),
+(5, 4, '2024-02-28 09:20:00', 'APROBADA'),
+(9, 5, '2024-05-15 12:10:00', 'APROBADA'),
+(10, 6, '2025-01-10 15:30:00', 'APROBADA'),
+(11, 7, '2025-11-22 10:20:00', 'APROBADA'),
+(12, 8, '2024-07-02 14:05:00', 'CANCELADA'),
+(13, 9, '2024-09-18 11:45:00', 'APROBADA'),
+(14, 10, '2025-03-07 10:15:00', 'PENDIENTE'),
+(15, 11, '2025-06-21 18:25:00', 'CANCELADA');
 
 -- Vincular orden_id a informacion_entrega
 UPDATE informacion_entrega_entidad SET orden_orden_id = 1 WHERE info_entrega_id = 1;
@@ -437,18 +459,18 @@ JOIN informacion_entrega_entidad ie ON ie.info_entrega_id = o.informacion_info_e
 WHERE c.carrito_usuario_id <> ie.usuario_usuario;
 
 -- Facturas con IVA del 19%
-INSERT INTO factura_entidad (usuario_usuario, orden_orden_id, precio_total, fecha_emision, total_neto, iva) VALUES
-(1, 1, 3350000.0, '2023-10-01 10:30:00', 2815126.0,  534874.0),
-(4, 2, 1260000.0, '2024-01-20 17:15:00', 1058824.0,  201176.0),
-(6, 3, 3610000.0, '2024-03-10 12:00:00', 3033613.0,  576387.0),
-(7, 4,  255000.0, '2024-02-28 09:45:00',  214286.0,   40714.0),
-(2, 5,  840000.0, '2024-05-15 12:30:00',  705882.0,  134118.0),
-(5, 6,  520000.0, '2025-01-10 16:00:00',  436975.0,   83025.0),
-(8, 7, 3310000.0, '2025-11-22 10:45:00', 2781513.0,  528487.0),
-(1, 8,  710000.0, '2024-07-02 14:20:00',  596639.0,  113361.0),
-(3, 9,  855000.0, '2024-09-18 12:10:00',  718487.0,  136513.0),
-(4, 10, 1405000.0,'2025-03-07 10:40:00', 1180672.0,  224328.0),
-(7, 11,  620000.0,'2025-06-21 18:40:00',  521008.0,   98992.0);
+INSERT INTO factura_entidad (usuario_usuario, datos_pago_id, orden_orden_id, precio_total, fecha_emision, total_neto, iva) VALUES
+(1, 1, 1, 3350000.0, '2023-10-01 10:30:00', 2815126.0,  534874.0),
+(4, 3, 2, 1260000.0, '2024-01-20 17:15:00', 1058824.0,  201176.0),
+(6, 4, 3, 3610000.0, '2024-03-10 12:00:00', 3033613.0,  576387.0),
+(7, 5, 4,  255000.0, '2024-02-28 09:45:00',  214286.0,   40714.0),
+(2, 2, 5,  840000.0, '2024-05-15 12:30:00',  705882.0,  134118.0),
+(5, 7, 6,  520000.0, '2025-01-10 16:00:00',  436975.0,   83025.0),
+(8, 8, 7, 3310000.0, '2025-11-22 10:45:00', 2781513.0,  528487.0),
+(1, 9, 8,  710000.0, '2024-07-02 14:20:00',  596639.0,  113361.0),
+(3, 10, 9,  855000.0, '2024-09-18 12:10:00',  718487.0,  136513.0),
+(4, 11, 10, 1405000.0,'2025-03-07 10:40:00', 1180672.0,  224328.0),
+(7, 5, 11,  620000.0,'2025-06-21 18:40:00',  521008.0,   98992.0);
 
 -- ─── 6. VISTA MATERIALIZADA (Req. 7) ───────────────────────
 
@@ -467,7 +489,7 @@ JOIN carrito_entidad         cart ON o.carrito_carrito_id   = cart.carrito_id
 JOIN carrito_producto_entidad cp  ON cart.carrito_id        = cp.carrito_carrito_id
 JOIN producto_entidad         p   ON cp.producto_producto_id = p.producto_id
 JOIN categoria_entidad        c   ON p.categoria_categoria_id = c.categoria_id
-WHERE o.estado IN ('ENTREGADO', 'EN_RUTA', 'PREPARANDO', 'PAGADO')
+WHERE o.estado IN ('PENDIENTE', 'APROBADA', 'CANCELADA')
   AND o.fecha_orden IS NOT NULL
 GROUP BY
     TO_CHAR(o.fecha_orden, 'YYYY-MM'),

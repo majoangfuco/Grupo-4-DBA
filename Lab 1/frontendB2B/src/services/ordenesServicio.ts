@@ -1,5 +1,14 @@
 import httpClient from '@/http-common'
 
+// ── Tipo para vista de admin (con rut_empresa) ──
+export interface OrdenAdmin {
+  orden_ID: number
+  rut_Empresa: string
+  fecha_Orden: string
+  estado: string
+  usuario_ID: number
+}
+
 // ── Tipo compartido entre todos los componentes de órdenes ──
 export interface Orden {
   orden_ID: number
@@ -20,6 +29,8 @@ export interface OrdenRequest {
 
 const obtenerTodas = () => httpClient.get<Orden[]>('/api/ordenes')
 
+const obtenerVistaAdmin = () => httpClient.get<OrdenAdmin[]>('/api/ordenes/vista/admin')
+
 const obtenerPorId = (id: number) => httpClient.get<Orden>(`/api/ordenes/${id}`)
 
 const obtenerPorUsuario = (usuarioId: number) =>
@@ -35,6 +46,7 @@ const eliminar = (id: number) => httpClient.delete(`/api/ordenes/${id}`)
 
 export const ordenesServicio = {
   obtenerTodas,
+  obtenerVistaAdmin,
   obtenerPorId,
   obtenerPorUsuario,
   crear,

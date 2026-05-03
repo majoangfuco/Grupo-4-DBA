@@ -13,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/facturas")
-@CrossOrigin(origins = "http://localhost:5173")
+@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8090", "http://127.0.0.1:8090"})
 public class FacturaControlador {
 
     private final FacturaServicio servicio;
@@ -44,6 +44,18 @@ public class FacturaControlador {
     @GetMapping("/orden/{ordenId}")
     public ResponseEntity<FacturaEntidad> obtenerPorOrden(@PathVariable Long ordenId) {
         return ResponseEntity.ok(servicio.obtenerPorOrden(ordenId));
+    }
+
+    @GetMapping("/orden/{ordenId}/descargar")
+    public ResponseEntity<byte[]> descargarPorOrden(@PathVariable Long ordenId) throws DocumentException {
+        FacturaEntidad factura = servicio.obtenerPorOrden(ordenId);
+        byte[] pdf = pdfServicio.generarPdf(factura);
+
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(MediaType.APPLICATION_PDF);
+        headers.setContentDispositionFormData("attachment", "factura-" + factura.getFactura_ID() + ".pdf");
+
+        return ResponseEntity.ok().headers(headers).body(pdf);
     }
 
     @GetMapping("/{id}/descargar")

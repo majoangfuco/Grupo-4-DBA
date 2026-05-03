@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { useRouter } from 'vue-router'
 // =====================================================
 // ListaClientes.vue
 // Muestra la tabla de clientes con ordenamiento,
@@ -12,9 +11,9 @@ interface Cliente {
   nombre_Usuario: string
   correo: string
   rut_Empresa: string
-  ordenes_EnRuta: number
-  ordenes_Preparando: number
-  ordenes_EnCurso: number
+  ordenes_Pendiente: number
+  ordenes_Aprobada: number
+  ordenes_Cancelada: number
 }
 
 interface ConfigOrden {
@@ -34,9 +33,8 @@ const props = defineProps<{
 const emit = defineEmits<{
   (e: 'ordenar', clave: string): void
   (e: 'reintentar'): void
+  (e: 'seleccionar', cliente: Cliente): void
 }>()
-
-const router = useRouter()
 
 // --- Métodos ---
 const manejarOrden = (clave: string) => {
@@ -52,8 +50,8 @@ const estaOrdenandoPor = (clave: string): boolean => {
   return props.configOrden?.clave === clave
 }
 
-const navegarOrdenes = (usuarioId: number) => {
-  router.push({ path: '/ordenesAdmin', query: { usuario_ID: usuarioId } })
+const navegarOrdenes = (cliente: Cliente) => {
+  emit('seleccionar', cliente)
 }
 </script>
 
@@ -69,7 +67,7 @@ const navegarOrdenes = (usuarioId: number) => {
               { clave: 'nombre_Usuario', etiqueta: 'Nombre' },
               { clave: 'correo',         etiqueta: 'Correo' },
               { clave: 'rut_Empresa',    etiqueta: 'RUT Empresa' },
-              { clave: 'ordenes_EnCurso', etiqueta: 'Ordenes (En ruta / Preparando)' },
+              { clave: 'ordenes_Pendiente', etiqueta: 'Ordenes (Pendiente / Aprobada / Cancelada)' },
             ]"
             :key="col.clave"
             class="celda-encabezado"
@@ -125,17 +123,19 @@ const navegarOrdenes = (usuarioId: number) => {
           class="fila-cliente fila-clickable"
           role="button"
           tabindex="0"
-          @click="navegarOrdenes(cliente.usuario_ID)"
-          @keydown.enter="navegarOrdenes(cliente.usuario_ID)"
+          @click="navegarOrdenes(cliente)"
+          @keydown.enter="navegarOrdenes(cliente)"
         >
           <td class="celda">{{ cliente.nombre_Usuario }}</td>
           <td class="celda">{{ cliente.correo }}</td>
           <td class="celda">{{ cliente.rut_Empresa }}</td>
           <td class="celda">
             <div class="ordenes-resumen">
-              <span class="estado-chip estado-enruta">EN_RUTA: {{ cliente.ordenes_EnRuta }}</span>
+              <span class="estado-chip estado-pendiente">PENDIENTE: {{ cliente.ordenes_Pendiente }}</span>
               <span class="estado-sep">|</span>
-              <span class="estado-chip estado-preparando">PREPARANDO: {{ cliente.ordenes_Preparando }}</span>
+              <span class="estado-chip estado-aprobada">APROBADA: {{ cliente.ordenes_Aprobada }}</span>
+              <span class="estado-sep">|</span>
+              <span class="estado-chip estado-cancelada">CANCELADA: {{ cliente.ordenes_Cancelada }}</span>
             </div>
           </td>
         </tr>
@@ -159,6 +159,19 @@ const navegarOrdenes = (usuarioId: number) => {
   border-collapse: collapse;
   font-size: 0.9rem;
   min-width: 700px;
+}
+
+.tabla-encabezado {
+  background-color: #156895;
+  color: white;
+}
+
+.celda-encabezado {
+  padding: 14px 16px;
+  text-align: center;
+  font-weight: 600;
+  user-select: none;
+  white-space: nowrap;
 }
 
 .celda-encabezado:hover {
@@ -216,16 +229,22 @@ const navegarOrdenes = (usuarioId: number) => {
   font-weight: 600;
 }
 
-.estado-enruta {
-  background: #e8f4fd;
-  color: #156895;
-  border: 1px solid #b8d8ee;
+.estado-pendiente {
+  background: #fff3cd;
+  color: #856404;
+  border: 1px solid #f1d28a;
 }
 
-.estado-preparando {
-  background: #fff2e5;
-  color: #b45309;
-  border: 1px solid #f2c39c;
+.estado-aprobada {
+  background: #d1e7dd;
+  color: #0a5c36;
+  border: 1px solid #a8d5b6;
+}
+
+.estado-cancelada {
+  background: #f8d7da;
+  color: #842029;
+  border: 1px solid #f1b8bf;
 }
 
 .estado-sep {

@@ -151,4 +151,9 @@ public class OrdenesServicio {
             );
         }
     }
+
+    @Transactional(readOnly = true)
+    public List<OrdenesEntidad> listarOrdenesConRut() {
+        return ordenesRepositorio.encontrarTodosConRut();
+    }
 }
