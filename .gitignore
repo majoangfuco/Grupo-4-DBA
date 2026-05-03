@@ -1,3 +1,5 @@
 
 Control 1/
 target/
+
+*.class
