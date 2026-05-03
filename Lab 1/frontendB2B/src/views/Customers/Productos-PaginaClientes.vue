@@ -7,6 +7,10 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import ListaProductos from '@/components/productos/ListaProductos-VistaCliente.vue'
 import { productoServicio } from '@/services/productoServicio'
+import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
+import { carritoServicio } from '@/services/carritoServicio'
+import { carritoProductoServicio } from '@/services/carritoProductoServicio'
+import { useAuthStore } from '@/stores/auth'
 
 // ===================== TIPOS ========================
 interface Producto {
@@ -23,14 +27,31 @@ interface Producto {
 const productos  = ref<Producto[]>([])
 const cargando   = ref(true)
 const error      = ref<string | null>(null)
+const categorias = ref<CategoriaEntidad[]>([])
+const authStore = useAuthStore()
+const carritoId = ref<number | null>(null)
+const toastMensaje = ref<string | null>(null)
+const toastTipo = ref<'ok' | 'error'>('ok')
+let toastTimer: number | null = null
+const modalAbierto = ref(false)
+const modalProducto = ref<Producto | null>(null)
+const modalCantidad = ref(1)
 
 // ==================== FILTROS =======================
 const filtros = reactive({ producto_ID: '', nombre_producto: '', categoria_ID: '' })
 
 // Categorías disponibles (se calculan desde los datos)
-const opcionesCategorias = computed(() => {
-  const set = new Set(productos.value.map(p => p.categoria_ID).filter(Boolean))
-  return Array.from(set).sort((a, b) => a - b)
+const opcionesCategorias = computed(() =>
+  categorias.value.map(c => ({
+    id: c.categoria_ID,
+    nombre: c.nombre_Categoria,
+  }))
+)
+
+const categoriasMap = computed(() => {
+  const map = new Map<number, string>()
+  categorias.value.forEach(c => map.set(c.categoria_ID, c.nombre_Categoria))
+  return map
 })
 
 const limpiarFiltros = () => {
@@ -98,8 +119,12 @@ const cargarProductos = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const respuesta = await productoServicio.obtenerTodos()
-    productos.value = respuesta.data
+    const [productosResp, categoriasResp] = await Promise.all([
+      productoServicio.obtenerTodos(),
+      categoriaServicio.listar(true),
+    ])
+    productos.value = productosResp.data
+    categorias.value = categoriasResp.data
   } catch (err: unknown) {
     console.error('Error al obtener productos:', err)
     productos.value = []
@@ -115,10 +140,85 @@ const cargarProductos = async () => {
 
 // Carga inicial
 onMounted(cargarProductos)
+
+const obtenerCarritoId = async () => {
+  if (carritoId.value) return carritoId.value
+  const userId = Number(authStore.userId)
+  if (!userId || Number.isNaN(userId)) {
+    throw new Error('Usuario no valido')
+  }
+  const respuesta = await carritoServicio.obtenerOCrearPorCliente(userId)
+  carritoId.value = respuesta.data.carrito_ID
+  return carritoId.value
+}
+
+const agregarAlCarrito = async (producto: Producto, cantidad: number) => {
+  try {
+    const idCarrito = await obtenerCarritoId()
+    await carritoProductoServicio.agregarProducto({
+      carritoId: idCarrito,
+      productoId: producto.producto_ID,
+      cantidad,
+    })
+    toastTipo.value = 'ok'
+    toastMensaje.value = `Agregado: ${cantidad} x ${producto.nombre_producto}`
+  } catch (err: unknown) {
+    console.error('Error al agregar al carrito:', err)
+    toastTipo.value = 'error'
+    toastMensaje.value = 'No se pudo agregar al carrito'
+  } finally {
+    if (toastTimer) window.clearTimeout(toastTimer)
+    toastTimer = window.setTimeout(() => {
+      toastMensaje.value = null
+    }, 1800)
+  }
+}
+
+const abrirConfirmacionAgregar = (producto: Producto, cantidad: number) => {
+  modalProducto.value = producto
+  modalCantidad.value = cantidad
+  modalAbierto.value = true
+}
+
+const cerrarModal = () => {
+  modalAbierto.value = false
+  modalProducto.value = null
+}
+
+const confirmarAgregar = async () => {
+  if (!modalProducto.value) return
+  const producto = modalProducto.value
+  const cantidad = modalCantidad.value
+  cerrarModal()
+  await agregarAlCarrito(producto, cantidad)
+}
 </script>
 
 <template>
   <div class="pagina">
+    <div v-if="modalAbierto" class="modal-overlay" @click.self="cerrarModal">
+      <div class="modal-box" role="dialog" aria-modal="true">
+        <div class="modal-header">
+          <span class="modal-check">✓</span>
+          <h3 class="modal-title">Producto agregado a tu Carro</h3>
+          <button class="modal-close" @click="cerrarModal">×</button>
+        </div>
+        <div class="modal-body">
+          <div class="modal-info">
+            <div class="modal-nombre">{{ modalProducto?.nombre_producto }}</div>
+            <div class="modal-cantidad">Cantidad: {{ modalCantidad }}</div>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-link" @click="cerrarModal">Seguir comprando</button>
+          <button class="btn-solid" @click="confirmarAgregar">Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="toastMensaje" class="toast" :class="toastTipo">
+      {{ toastMensaje }}
+    </div>
 
     <!-- ===== ENCABEZADO ===== -->
     <div class="encabezado">
@@ -149,7 +249,7 @@ onMounted(cargarProductos)
           @change="paginaActual = 1"
         >
           <option value="">Todas las categorías</option>
-          <option v-for="cat in opcionesCategorias" :key="cat" :value="cat">{{ cat }}</option>
+          <option v-for="cat in opcionesCategorias" :key="cat.id" :value="cat.id">{{ cat.nombre }}</option>
         </select>
       </div>
       <button class="btn-limpiar" @click="limpiarFiltros" title="Limpiar filtros">✕</button>
@@ -161,9 +261,11 @@ onMounted(cargarProductos)
       :cargando="cargando"
       :error="error"
       :config-orden="configOrden"
+      :categorias-map="categoriasMap"
       @ordenar="cambiarOrden"
       @reintentar="cargarProductos"
       @actualizar="cargarProductos"
+      @agregar="abrirConfirmacionAgregar"
     />
 
     <!-- ===== PAGINACIÓN ===== -->
@@ -193,6 +295,26 @@ onMounted(cargarProductos)
 
 <style scoped>
 .pagina { display: flex; flex-direction: column; gap: 20px; }
+.toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 300;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  animation: fadeout 1.8s ease-in-out;
+}
+.toast.ok { background: #156895; }
+.toast.error { background: #b00020; }
+@keyframes fadeout {
+  0% { opacity: 0; transform: translateY(-6px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
+}
 .encabezado { display: flex; justify-content: space-between; align-items: center; }
 .titulo-pagina { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
@@ -214,4 +336,19 @@ onMounted(cargarProductos)
 .pagina-activa { background-color: #156895; border-color: #156895; color: white; font-weight: 600; }
 .selector-filas { display: flex; align-items: center; gap: 8px; }
 .selector-etiqueta { font-size: 0.875rem; color: #555; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 300; }
+.modal-box { background: #fff; border-radius: 14px; padding: 18px 20px; width: 520px; max-width: 92vw; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+.modal-header { display: flex; align-items: center; gap: 10px; position: relative; }
+.modal-check { display: inline-flex; width: 22px; height: 22px; align-items: center; justify-content: center; border: 2px solid #2e7d32; color: #2e7d32; border-radius: 50%; font-size: 0.85rem; }
+.modal-title { font-size: 1rem; font-weight: 700; color: #1a1a2e; margin: 0; }
+.modal-close { position: absolute; right: 0; top: -4px; background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #777; }
+.modal-body { margin-top: 12px; }
+.modal-info { display: flex; flex-direction: column; gap: 4px; color: #333; }
+.modal-nombre { font-weight: 600; }
+.modal-cantidad { color: #666; font-size: 0.9rem; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 16px; }
+.btn-link { background: none; border: none; color: #156895; cursor: pointer; }
+.btn-solid { background: #156895; color: #fff; border: none; border-radius: 22px; padding: 8px 16px; cursor: pointer; }
+.btn-solid:hover { background: #1b76a5; }
 </style>

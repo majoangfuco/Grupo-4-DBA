@@ -63,6 +63,12 @@ const router = createRouter({
           meta: { requiresRole: 'CLIENTE' },
         },
         {
+          path: 'carritoCliente',
+          name: 'Cliente-Carrito',
+          component: () => import('@/views/Customers/Carrito-PaginaClientes.vue'),
+          meta: { requiresRole: 'CLIENTE' },
+        },
+        {
           path: 'perfil',
           name: 'Perfil',
           component: () => import('@/views/PerfilPagina.vue'),
@@ -80,36 +86,30 @@ const router = createRouter({
 })
 
 // ─── Guard global de navegación ──────────────────────────────
-router.beforeEach((to, _from, next) => {
+router.beforeEach((to) => {
   const autenticado = estaAutenticado()
   const authStore = useAuthStore()
 
   if (to.meta.requiresAuth && !autenticado) {
-    // Ruta protegida sin sesión → ir al login
-    next('/login')
-    return
-  } else if ((to.path === '/login' || to.path === '/register') && autenticado) {
-    // Ya está logueado → no dejar entrar al login o register de nuevo
-    next('/')
-    return
+    return '/login'
+  }
+
+  if ((to.path === '/login' || to.path === '/register') && autenticado) {
+    return '/'
   }
 
   // ─── Verificación de rol ─────────────────────────────────────
-  if (to.meta.requiresRole) {
-    if (authStore.userRole !== to.meta.requiresRole) {
-      // Usuario no tiene el rol requerido → redirige según su rol
-      if (authStore.isAdmin) {
-        next('/productosAdmin')
-      } else if (authStore.isCliente) {
-        next('/productosCliente')
-      } else {
-        next('/login')
-      }
-      return
+  if (to.meta.requiresRole && authStore.userRole !== to.meta.requiresRole) {
+    if (authStore.isAdmin) {
+      return '/productosAdmin'
     }
+    if (authStore.isCliente) {
+      return '/productosCliente'
+    }
+    return '/login'
   }
 
-  next()
+  return true
 })
 
 export default router

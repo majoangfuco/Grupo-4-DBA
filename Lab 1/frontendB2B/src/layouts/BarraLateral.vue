@@ -28,6 +28,10 @@ const handleProfile = () => {
   router.push('/perfil')
 }
 
+const handleCart = () => {
+  router.push('/carritoCliente')
+}
+
 
 // --- Breadcrumbs ---
 const routeLabels: Record<string, string> = {
@@ -149,6 +153,9 @@ const navItems = computed(() => {
 
           <!-- Usuario + menú -->
           <div class="user-menu-wrapper">
+            <button v-if="authStore.isCliente" class="btn-cart" @click="handleCart">
+              🛒
+            </button>
             <button class="btn-user" @click="toggleMenu">
               <span class="user-name">{{ userName }}</span>
               <span class="user-icon">👤</span>
@@ -337,7 +344,22 @@ const navItems = computed(() => {
 /* ===== MENÚ DE USUARIO ===== */
 .user-menu-wrapper {
   position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
+
+.btn-cart {
+  background: #befeff;
+  color: #fff;
+  border: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.btn-cart:hover { background: #bec9ff; }
 
 .btn-user {
   display: flex;

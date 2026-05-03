@@ -38,9 +38,46 @@ public class CarritoProductoRepositorio {
         return cp;
     };
 
+    private final RowMapper<CarritoProductoEntidad> rowMapperDetalle = (rs, rowNum) -> {
+        CarritoProductoEntidad cp = new CarritoProductoEntidad();
+        cp.setCarrito_Producto_ID(rs.getLong("carrito_producto_id"));
+
+        CarritoEntidad carrito = new CarritoEntidad();
+        carrito.setCarrito_ID(rs.getLong("carrito_carrito_id"));
+        cp.setCarrito(carrito);
+
+        ProductoEntidad producto = new ProductoEntidad();
+        producto.setProducto_ID(rs.getLong("producto_id"));
+        producto.setNombre_producto(rs.getString("nombre_producto"));
+        producto.setDescripcion(rs.getString("descripcion"));
+        producto.setPrecio(rs.getFloat("precio"));
+        producto.setStock(rs.getInt("stock"));
+        producto.setSku(rs.getString("sku"));
+        producto.setActivo(rs.getBoolean("activo"));
+        cp.setProducto(producto);
+
+        cp.setUnidad_producto(rs.getLong("unidad_producto"));
+        return cp;
+    };
+
     public Optional<CarritoProductoEntidad> encontrarPorId(Long id) {
-        String sql = "SELECT * FROM carrito_producto_entidad WHERE carrito_producto_id = ?";
-        List<CarritoProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, id);
+        String sql = """
+            SELECT cp.carrito_producto_id,
+                   cp.carrito_carrito_id,
+                   cp.producto_producto_id,
+                   cp.unidad_producto,
+                   p.producto_id,
+                   p.nombre_producto,
+                   p.descripcion,
+                   p.precio,
+                   p.stock,
+                   p.sku,
+                   p.activo
+            FROM carrito_producto_entidad cp
+            JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
+            WHERE cp.carrito_producto_id = ?
+            """;
+        List<CarritoProductoEntidad> result = jdbcTemplate.query(sql, rowMapperDetalle, id);
         return result.stream().findFirst();
     }
 
@@ -54,8 +91,23 @@ public class CarritoProductoRepositorio {
     }
 
     public List<CarritoProductoEntidad> listarPorCarrito(Long carritoId) {
-        String sql = "SELECT * FROM carrito_producto_entidad WHERE carrito_carrito_id = ?";
-        return jdbcTemplate.query(sql, rowMapper, carritoId);
+        String sql = """
+            SELECT cp.carrito_producto_id,
+                   cp.carrito_carrito_id,
+                   cp.producto_producto_id,
+                   cp.unidad_producto,
+                   p.producto_id,
+                   p.nombre_producto,
+                   p.descripcion,
+                   p.precio,
+                   p.stock,
+                   p.sku,
+                   p.activo
+            FROM carrito_producto_entidad cp
+            JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
+            WHERE cp.carrito_carrito_id = ?
+            """;
+        return jdbcTemplate.query(sql, rowMapperDetalle, carritoId);
     }
 
     public int crear(Long carritoId, Long productoId, Long cantidad) {
