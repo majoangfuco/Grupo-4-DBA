@@ -55,15 +55,20 @@ const cerrarFactura = () => {
 }
 
 // --- Helper para badge de estado ---
+function formatearEstado(estado: string): string {
+  if (!estado) return 'Desconocido'
+  if (estado.toUpperCase() === 'EN_RUTA') return 'En Ruta'
+  return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase()
+}
+
 function claseEstado(estado: string): string {
   const e = (estado ?? '').toUpperCase()
-  if (e === 'APROBADA')  return 'badge badge-aprobada'
-  if (e === 'CANCELADA') return 'badge badge-cancelada'
-  if (e === 'PENDIENTE') return 'badge badge-pendiente'
-  if (e === 'PAGADO')    return 'badge badge-pagado'
-  if (e === 'PREPARANDO') return 'badge badge-preparando'
-  if (e === 'EN_RUTA')   return 'badge badge-en-ruta'
   if (e === 'ENTREGADO') return 'badge badge-entregado'
+  if (e === 'EN_RUTA')   return 'badge badge-en-ruta'
+  if (e === 'PREPARANDO') return 'badge badge-preparando'
+  if (e === 'APROBADO' || e === 'APROBADA')  return 'badge badge-aprobada'
+  if (e === 'CANCELADO' || e === 'CANCELADA') return 'badge badge-cancelada'
+  if (e === 'PENDIENTE') return 'badge badge-pendiente'
   return 'badge badge-default'
 }
 </script>

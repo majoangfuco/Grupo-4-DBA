@@ -164,6 +164,19 @@ const formatearFecha = (fecha: string) => {
 
           </div>
         </div>
+
+        <div v-if="factura" class="modal-footer">
+          <button
+            class="btn-accion"
+            :disabled="descargando"
+            @click="descargarFactura"
+            aria-label="Descargar factura PDF"
+          >
+            <span v-if="descargando" class="spinner-mini"></span>
+            <span v-else>⬇ Descargar PDF</span>
+          </button>
+        </div>
+
       </div>
     </div>
   </Teleport>

@@ -57,9 +57,10 @@ private final JdbcTemplate jdbcTemplate;
     // todos
     public List<OrdenesEntidad> encontrarTodos() {
         String sql = """
-                SELECT o.*, c.carrito_usuario_id AS usuario_id
+                SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
+                JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 """;
         return jdbcTemplate.query(sql, rowMapper);
     }
@@ -67,9 +68,10 @@ private final JdbcTemplate jdbcTemplate;
     // encontrar por ID
     public Optional<OrdenesEntidad> encontrarPorId(Long id) {
         String sql = """
-                SELECT o.*, c.carrito_usuario_id AS usuario_id
+                SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
+                JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 WHERE o.orden_id = ?
                 """;
         List<OrdenesEntidad> result = jdbcTemplate.query(sql, rowMapper, id);

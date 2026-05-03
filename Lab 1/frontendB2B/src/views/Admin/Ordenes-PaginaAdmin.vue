@@ -6,13 +6,15 @@
 // por usuario, siguiendo el patrón de Productos-PaginaAdmin.vue.
 // =====================================================
 
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
 import { ordenesServicio, type OrdenAdmin } from '@/services/ordenesServicio'
 
 // ==================== ESTADO ========================
-const ordenes   = ref<OrdenAdmin[]>([])
+const route = useRoute()
+const router = useRouter()
+const ordenes   = ref<Orden[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
 
@@ -174,7 +176,7 @@ onMounted(cargarOrdenes)
           @change="paginaActual = 1"
         >
           <option value="">Todos los estados</option>
-          <option v-for="est in opcionesEstado" :key="est" :value="est">{{ est }}</option>
+          <option v-for="est in opcionesEstado" :key="est" :value="est">{{ formatearEstado(est) }}</option>
         </select>
       </div>
       <button class="btn-limpiar" @click="limpiarFiltros" title="Limpiar filtros">✕</button>
