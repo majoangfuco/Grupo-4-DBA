@@ -1,14 +1,3 @@
--- ============================================================
--- init.sql - Inicialización completa de la base de datos b2b
--- Proyecto: E-Commerce B2B - Grupo 4 DBA
--- ============================================================
--- INSTRUCCIONES PARA EJECUTAR:
---   1. Abre pgAdmin y conéctate a tu servidor PostgreSQL
---   2. Selecciona la base de datos 'b2b' (créala si no existe)
---   3. Abre Query Tool (Ctrl+Shift+Q o ícono de play)
---   4. Abre este archivo y ejecuta con F5
--- ============================================================
-
 -- ─── 1. LIMPIEZA DEL ESQUEMA ANTERIOR ─────────────────────
 DROP MATERIALIZED VIEW IF EXISTS vw_ventas_mensuales_por_categoria CASCADE;
 DROP TABLE IF EXISTS factura_entidad;
@@ -382,6 +371,72 @@ INSERT INTO factura_entidad (usuario_usuario, orden_orden_id, precio_total, fech
 (6, 3, 3610000.0, '2024-03-10 12:00:00', 3033613.0,  576387.0),
 (7, 4,  255000.0, '2024-02-28 09:45:00',  214286.0,   40714.0);
 
+
+-- ─── 5.1 DATOS ADICIONALES: MÁS CLIENTES CON ÓRDENES Y FACTURAS ─────
+-- Estos registros agregan compras pagadas para clientes que antes no tenían
+-- orden ni factura asociada. Así, al consultar clientes se podrán visualizar
+-- sus órdenes, entregas y facturas mediante JOIN.
+
+INSERT INTO carrito_entidad (carrito_usuario_id, estado, costo_carrito) VALUES
+(2,  'PAGADO',  735000),   -- Carrito 9  - Maria Lopez
+(5,  'PAGADO',  850000),   -- Carrito 10 - Luis Fernandez
+(9,  'PAGADO',  535000),   -- Carrito 11 - Camila Rojas
+(10, 'PAGADO', 2500000);   -- Carrito 12 - Javier Tello
+
+INSERT INTO carrito_producto_entidad (carrito_carrito_id, producto_producto_id, unidad_producto) VALUES
+-- Carrito 9 (PAGADO) - User 2 / Maria Lopez
+(9,  7, 2),   -- 2 * 150,000 = 300,000
+(9, 20, 1),   -- 1 * 135,000 = 135,000
+(9,  9, 1),   -- 1 * 300,000 = 300,000
+-- Total carrito 9 = 735,000
+
+-- Carrito 10 (PAGADO) - User 5 / Luis Fernandez
+(10, 18, 2),  -- 2 * 220,000 = 440,000
+(10, 14, 4),  -- 4 *  85,000 = 340,000
+(10, 15, 2),  -- 2 *  35,000 =  70,000
+-- Total carrito 10 = 850,000
+
+-- Carrito 11 (PAGADO) - User 9 / Camila Rojas
+(11, 16, 1),  -- 1 * 380,000 = 380,000
+(11, 17, 1),  -- 1 * 120,000 = 120,000
+(11, 15, 1),  -- 1 *  35,000 =  35,000
+-- Total carrito 11 = 535,000
+
+-- Carrito 12 (PAGADO) - User 10 / Javier Tello
+(12,  1, 1),  -- 1 * 1,200,000 = 1,200,000
+(12,  2, 2),  -- 2 *   350,000 =   700,000
+(12, 10, 5);  -- 5 *   120,000 =   600,000
+-- Total carrito 12 = 2,500,000
+
+INSERT INTO informacion_entrega_entidad (usuario_usuario, direccion, numero, rut_recibe_entrega, rut_empresa, estado_entrega, activa) VALUES
+(2,  'Av. Apoquindo',        '3200', '13.444.555-6', '76.123.456-7', 'ENTREGADO',  TRUE),
+(5,  'Ruta 5 Sur',           '8800', '17.111.222-3', '90.222.333-1', 'EN CAMINO',  TRUE),
+(9,  'Camino Industrial',    '1500', '18.333.444-5', '88.999.000-4', 'PREPARANDO', TRUE),
+(10, 'Av. Libertador Norte', '245',  '19.666.777-8', '70.888.777-6', 'ENTREGADO',  TRUE);
+
+INSERT INTO ordenes_entidad (carrito_carrito_id, informacion_info_entrega_id, fecha_orden, estado) VALUES
+(9,  5, '2024-04-18 10:10:00', 'ENTREGADO'),
+(10, 6, '2024-04-22 12:25:00', 'EN_RUTA'),
+(11, 7, '2024-05-03 09:40:00', 'PREPARANDO'),
+(12, 8, '2024-05-08 15:05:00', 'ENTREGADO');
+
+UPDATE informacion_entrega_entidad SET orden_orden_id = 5 WHERE info_entrega_id = 5;
+UPDATE informacion_entrega_entidad SET orden_orden_id = 6 WHERE info_entrega_id = 6;
+UPDATE informacion_entrega_entidad SET orden_orden_id = 7 WHERE info_entrega_id = 7;
+UPDATE informacion_entrega_entidad SET orden_orden_id = 8 WHERE info_entrega_id = 8;
+
+INSERT INTO factura_entidad (usuario_usuario, orden_orden_id, precio_total, fecha_emision, total_neto, iva) VALUES
+(2,  5,  735000.0, '2024-04-18 10:35:00',  617647.0, 117353.0),
+(5,  6,  850000.0, '2024-04-22 12:50:00',  714286.0, 135714.0),
+(9,  7,  535000.0, '2024-05-03 10:05:00',  449580.0,  85420.0),
+(10, 8, 2500000.0, '2024-05-08 15:30:00', 2100840.0, 399160.0);
+
+-- Actualizar la última compra de los clientes que recibieron nuevas órdenes
+UPDATE usuario_entidad SET ultima_compra = '2024-04-18 10:10:00' WHERE usuario_id = 2;
+UPDATE usuario_entidad SET ultima_compra = '2024-04-22 12:25:00' WHERE usuario_id = 5;
+UPDATE usuario_entidad SET ultima_compra = '2024-05-03 09:40:00' WHERE usuario_id = 9;
+UPDATE usuario_entidad SET ultima_compra = '2024-05-08 15:05:00' WHERE usuario_id = 10;
+
 -- ─── 6. VISTA MATERIALIZADA (Req. 7) ───────────────────────
 
 CREATE MATERIALIZED VIEW vw_ventas_mensuales_por_categoria AS
@@ -413,14 +468,4 @@ CREATE INDEX idx_vw_ventas_mes_ano   ON vw_ventas_mensuales_por_categoria (mes_a
 CREATE INDEX idx_vw_ventas_categoria ON vw_ventas_mensuales_por_categoria (nombre_categoria);
 CREATE INDEX idx_vw_ventas_anio      ON vw_ventas_mensuales_por_categoria (anio);
 
--- ─── 7. VERIFICACIÓN FINAL ─────────────────────────────────
--- Si ves filas aquí, el script se ejecutó correctamente ✅
-SELECT
-    mes_ano,
-    nombre_categoria,
-    cantidad_ordenes,
-    cantidad_productos,
-    total_vendido
-FROM vw_ventas_mensuales_por_categoria
-ORDER BY anio DESC, mes DESC
-LIMIT 10;
+
