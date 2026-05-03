@@ -23,8 +23,10 @@ const descargarFactura = async () => {
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = `factura-${factura.value.factura_ID}.pdf`
+    link.setAttribute('download', `factura-${factura.value.factura_ID}.pdf`)
+    document.body.appendChild(link)
     link.click()
+    document.body.removeChild(link)
     URL.revokeObjectURL(url)
   } catch {
     alert('No se pudo descargar la factura. Intente nuevamente.')
@@ -69,16 +71,6 @@ const formatearFecha = (fecha: string) => {
       <div class="modal-content" @click.stop>
 
         <button class="btn-cerrar" @click="emit('cerrar')" aria-label="Cerrar modal">✕</button>
-        <button
-          v-if="factura"
-          class="btn-descargar"
-          :disabled="descargando"
-          @click="descargarFactura"
-          aria-label="Descargar factura PDF"
-        >
-          <span v-if="descargando" class="spinner-mini"></span>
-          <span v-else>⬇ Descargar PDF</span>
-        </button>
 
         <div class="modal-header">
           <h2>Detalle de Factura</h2>
@@ -156,6 +148,19 @@ const formatearFecha = (fecha: string) => {
 
           </div>
         </div>
+
+        <div v-if="factura" class="modal-footer">
+          <button
+            class="btn-accion"
+            :disabled="descargando"
+            @click="descargarFactura"
+            aria-label="Descargar factura PDF"
+          >
+            <span v-if="descargando" class="spinner-mini"></span>
+            <span v-else>⬇ Descargar PDF</span>
+          </button>
+        </div>
+
       </div>
     </div>
   </Teleport>
@@ -212,34 +217,6 @@ const formatearFecha = (fecha: string) => {
 .btn-cerrar:hover {
   background: #e2e8f0;
   color: #0f172a;
-}
-
-.btn-descargar {
-  position: absolute;
-  bottom: 16px;
-  right: 16px;
-  padding: 8px 16px;
-  border: none;
-  border-radius: 8px;
-  background-color: rgba(255, 255, 255, 0.2);
-  color: white;
-  font-size: 0.85rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  z-index: 10;
-}
-
-.btn-descargar:hover:not(:disabled) {
-  background-color: rgba(255, 255, 255, 0.35);
-}
-
-.btn-descargar:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 .spinner-mini {

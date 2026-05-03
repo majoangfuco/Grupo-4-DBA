@@ -7,12 +7,13 @@
 // =====================================================
 
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
 import { ordenesServicio, type Orden } from '@/services/ordenesServicio'
 
 // ==================== ESTADO ========================
 const route = useRoute()
+const router = useRouter()
 const ordenes   = ref<Orden[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
@@ -39,6 +40,13 @@ const limpiarFiltros = () => {
   filtros.usuario_ID = ''
   filtros.estado     = ''
   paginaActual.value = 1
+  router.replace({ query: {} })
+}
+
+const formatearEstado = (estado: string) => {
+  if (!estado) return ''
+  if (estado.toUpperCase() === 'EN_RUTA') return 'En Ruta'
+  return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase()
 }
 
 // =================== ORDENAMIENTO ==================
@@ -145,7 +153,7 @@ onMounted(cargarOrdenes)
           @change="paginaActual = 1"
         >
           <option value="">Todos los estados</option>
-          <option v-for="est in opcionesEstado" :key="est" :value="est">{{ est }}</option>
+          <option v-for="est in opcionesEstado" :key="est" :value="est">{{ formatearEstado(est) }}</option>
         </select>
       </div>
       <button class="btn-limpiar" @click="limpiarFiltros" title="Limpiar filtros">✕</button>

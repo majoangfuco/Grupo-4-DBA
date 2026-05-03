@@ -37,7 +37,6 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
 
 const columnas: Array<{ clave: string; etiqueta: string }> = [
   { clave: 'orden_ID',    etiqueta: 'N° Orden' },
-  { clave: 'carrito_ID',  etiqueta: 'Carrito' },
   { clave: 'fecha_Orden', etiqueta: 'Fecha' },
   { clave: 'estado',      etiqueta: 'Estado' },
   { clave: 'factura',     etiqueta: 'Factura' },
@@ -55,11 +54,21 @@ const cerrarFactura = () => {
 }
 
 // --- Helper para badge de estado ---
+function formatearEstado(estado: string): string {
+  if (!estado) return 'Desconocido'
+  if (estado.toUpperCase() === 'EN_RUTA') return 'En Ruta'
+  return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase()
+}
+
 function claseEstado(estado: string): string {
   const e = (estado ?? '').toUpperCase()
-  if (e === 'APROBADA')  return 'badge badge-aprobada'
-  if (e === 'CANCELADA') return 'badge badge-cancelada'
-  return 'badge badge-pendiente'
+  if (e === 'ENTREGADO') return 'badge badge-entregado'
+  if (e === 'EN_RUTA')   return 'badge badge-en-ruta'
+  if (e === 'PREPARANDO') return 'badge badge-preparando'
+  if (e === 'APROBADO' || e === 'APROBADA')  return 'badge badge-aprobada'
+  if (e === 'CANCELADO' || e === 'CANCELADA') return 'badge badge-cancelada'
+  if (e === 'PENDIENTE') return 'badge badge-pendiente'
+  return 'badge badge-default'
 }
 </script>
 
@@ -116,10 +125,9 @@ function claseEstado(estado: string): string {
         <template v-else>
           <tr v-for="orden in ordenes" :key="orden.orden_ID" class="fila-orden">
             <td class="celda">{{ orden.orden_ID }}</td>
-            <td class="celda">{{ orden.carrito_ID }}</td>
             <td class="celda">{{ orden.fecha_Orden ? new Date(orden.fecha_Orden).toLocaleDateString('es-CL') : '—' }}</td>
             <td class="celda">
-              <span :class="claseEstado(orden.estado)">{{ orden.estado }}</span>
+              <span :class="claseEstado(orden.estado)">{{ formatearEstado(orden.estado) }}</span>
             </td>
             <td class="celda">
               <button class="btn-ver-factura" @click="abrirFactura(orden.orden_ID)"> Ver factura</button>
@@ -158,8 +166,12 @@ function claseEstado(estado: string): string {
 .texto-vacio { color: #555; margin-bottom: 6px; }
 .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
 .badge-pendiente  { background: #fff3cd; color: #856404; }
-.badge-aprobada   { background: #d1e7dd; color: #0a5c36; }
+.badge-aprobada   { background: #cfe2ff; color: #084298; }
 .badge-cancelada  { background: #f8d7da; color: #842029; }
+.badge-entregado  { background: #d1e7dd; color: #0a5c36; }
+.badge-en-ruta    { background: #cff4fc; color: #055160; }
+.badge-preparando { background: #e2e3e5; color: #41464b; }
+.badge-default    { background: #e2e8f0; color: #475569; }
 .btn-ver-factura { padding: 6px 12px; background-color: #f1f5f9; border: 1px solid #cbd5e1; border-radius: 6px; color: #334155; font-size: 0.85rem; font-weight: 500; cursor: pointer; transition: all 0.2s; }
 .btn-ver-factura:hover { background-color: #e2e8f0; border-color: #94a3b8; color: #0f172a; }
 </style>

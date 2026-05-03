@@ -72,29 +72,8 @@ async function handleLogin() {
     <!-- Panel izquierdo: branding -->
     <div class="branding-panel">
       <div class="branding-content">
-        <div class="brand-logo">B2B</div>
-        <h1 class="brand-title">Plataforma B2B</h1>
-        <p class="brand-subtitle">
-          Gestiona clientes, productos y órdenes desde un solo lugar.
-        </p>
-        <ul class="brand-features">
-          <li>
-            <span class="feat-icon">📦</span>
-            <span>Control de inventario en tiempo real</span>
-          </li>
-          <li>
-            <span class="feat-icon">👥</span>
-            <span>Gestión de clientes y pedidos</span>
-          </li>
-          <li>
-            <span class="feat-icon">📊</span>
-            <span>Reportes y métricas de negocio</span>
-          </li>
-        </ul>
+        <h1 class="brand-title">Portal de ventas</h1>
       </div>
-      <!-- Decoración de fondo -->
-      <div class="blob blob-1" />
-      <div class="blob blob-2" />
     </div>
 
     <!-- Panel derecho: formulario -->
@@ -102,7 +81,7 @@ async function handleLogin() {
       <div class="form-card">
         <!-- Cabecera -->
         <div class="form-header">
-          <div class="form-logo">B2B</div>
+          <div class="form-logo"><img src="/icon.png" alt="Logo" width="130" height="100"></div>
           <h2 class="form-title">Bienvenido de vuelta</h2>
           <p class="form-subtitle">Inicia sesión para continuar</p>
         </div>
@@ -195,7 +174,7 @@ async function handleLogin() {
 .branding-panel {
   flex: 1;
   position: relative;
-  background: linear-gradient(135deg, #156895 0%, #0d4a6b 60%, #092e43 100%);
+  background: linear-gradient(135deg, rgba(21, 104, 149, 0.8) 0%, rgba(13, 74, 107, 0.85) 60%, rgba(9, 46, 67, 0.9) 100%), url('/portada.png') center/cover no-repeat;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -254,29 +233,7 @@ async function handleLogin() {
   border-radius: 10px;
 }
 
-/* Blobs decorativos */
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.15;
-  filter: blur(60px);
-}
 
-.blob-1 {
-  width: 400px;
-  height: 400px;
-  background: #5ab7e0;
-  top: -100px;
-  right: -100px;
-}
-
-.blob-2 {
-  width: 300px;
-  height: 300px;
-  background: #a8d8f0;
-  bottom: -80px;
-  left: -60px;
-}
 
 /* ===== PANEL DERECHO — FORMULARIO ===== */
 .form-panel {
@@ -313,9 +270,7 @@ async function handleLogin() {
   font-weight: 900;
   letter-spacing: 3px;
   color: white;
-  background: linear-gradient(135deg, #156895, #0d4a6b);
   padding: 10px 18px;
-  border-radius: 12px;
   margin-bottom: 18px;
 }
 
