@@ -3,7 +3,7 @@ package com.ecommerceb2b.backend.Services;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ecommerceb2b.backend.Entities.CarritoEntidad;
+
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
 import com.ecommerceb2b.backend.Repository.CarritoRepositorio;
 

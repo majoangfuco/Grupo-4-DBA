@@ -227,6 +227,128 @@ BEGIN
 END;
 $$;
 
+-- Procedimiento: Procesar checkout (Req. 3)
+-- Transacción atómica que valida carrito, reserva stock, crea orden y factura
+CREATE OR REPLACE PROCEDURE procesar_checkout(
+    p_carrito_id BIGINT,
+    p_info_entrega_id BIGINT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_usuario_id        BIGINT;
+    v_total_neto        REAL;
+    v_iva               REAL;
+    v_precio_total      REAL;
+    v_orden_id          INT;
+    v_factura_id        BIGINT;
+    v_datos_pago_id     BIGINT;
+    v_producto_id       BIGINT;
+    v_cantidad          INT;
+    v_precio            REAL;
+    v_stock_disponible  INT;
+BEGIN
+    -- 1. Validar que el carrito existe y está ACTIVO
+    SELECT carrito_usuario_id INTO v_usuario_id
+    FROM carrito_entidad
+    WHERE carrito_id = p_carrito_id AND estado = 'ACTIVO';
+
+    IF v_usuario_id IS NULL THEN
+        RAISE EXCEPTION 'Carrito % no existe o no está activo', p_carrito_id;
+    END IF;
+
+    -- 2. Verificar que el usuario existe
+    IF NOT EXISTS (SELECT 1 FROM usuario_entidad WHERE usuario_id = v_usuario_id) THEN
+        RAISE EXCEPTION 'Usuario % no existe', v_usuario_id;
+    END IF;
+
+    -- 3. Validar que el carrito tiene productos
+    IF NOT EXISTS (SELECT 1 FROM carrito_producto_entidad WHERE carrito_carrito_id = p_carrito_id) THEN
+        RAISE EXCEPTION 'Carrito % vacío', p_carrito_id;
+    END IF;
+
+    -- 4. Verificar stock suficiente para todos los productos
+    FOR v_producto_id, v_cantidad IN
+        SELECT producto_producto_id, unidad_producto
+        FROM carrito_producto_entidad
+        WHERE carrito_carrito_id = p_carrito_id
+    LOOP
+        SELECT (stock - stock_reservado) INTO v_stock_disponible
+        FROM producto_entidad
+        WHERE producto_id = v_producto_id;
+
+        IF v_stock_disponible < v_cantidad THEN
+            RAISE EXCEPTION 'Stock insuficiente para producto %. Disponible: %, Solicitado: %',
+                v_producto_id, v_stock_disponible, v_cantidad;
+        END IF;
+    END LOOP;
+
+    -- 5. Calcular total del carrito (sin IVA)
+    SELECT COALESCE(SUM(cp.unidad_producto * p.precio), 0)
+    INTO v_total_neto
+    FROM carrito_producto_entidad cp
+    JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
+    WHERE cp.carrito_carrito_id = p_carrito_id;
+
+    -- 6. Descontar stock y stock_reservado
+    UPDATE producto_entidad p
+    SET stock         = stock - cp.unidad_producto,
+        stock_reservado = stock_reservado - cp.unidad_producto
+    FROM carrito_producto_entidad cp
+    WHERE cp.carrito_carrito_id = p_carrito_id
+      AND p.producto_id = cp.producto_producto_id;
+
+    -- 7. Crear orden en estado PAGADO
+    INSERT INTO ordenes_entidad (carrito_carrito_id, informacion_info_entrega_id, fecha_orden, estado)
+    VALUES (p_carrito_id, p_info_entrega_id, NOW(), 'PAGADO')
+    RETURNING orden_id INTO v_orden_id;
+
+    -- 8. Calcular IVA (19%)
+    v_iva := v_total_neto * 0.19;
+    v_precio_total := v_total_neto + v_iva;
+
+    -- 9. Obtener datos de pago del usuario (primer registro disponible)
+    SELECT datos_pago_id INTO v_datos_pago_id
+    FROM datos_pago_entidad
+    WHERE usuario_usuario = v_usuario_id
+    LIMIT 1;
+
+    -- 10. Crear factura
+    INSERT INTO factura_entidad (
+        usuario_usuario,
+        datos_pago_id,
+        orden_orden_id,
+        precio_total,
+        fecha_emision,
+        total_neto,
+        iva
+    )
+    VALUES (
+        v_usuario_id,
+        v_datos_pago_id,
+        v_orden_id,
+        v_precio_total,
+        NOW(),
+        v_total_neto,
+        v_iva
+    )
+    RETURNING factura_id INTO v_factura_id;
+
+    -- 11. Actualizar estado del carrito a PAGADO
+    UPDATE carrito_entidad
+    SET estado = 'PAGADO'
+    WHERE carrito_id = p_carrito_id;
+
+    -- 12. Actualizar última_compra del usuario
+    UPDATE usuario_entidad
+    SET ultima_compra = NOW()
+    WHERE usuario_id = v_usuario_id;
+
+    RAISE NOTICE 'Checkout exitoso: Orden % Factura % Total: %',
+        v_orden_id, v_factura_id, v_precio_total;
+END;
+$$;
+
 -- ─── 4. TRIGGERS ──────────────────────────────────────────
 
 -- Trigger function: Gestionar stock al cambiar estado del carrito
@@ -256,6 +378,117 @@ CREATE TRIGGER carrito_estado_cambio
     AFTER UPDATE OF estado ON carrito_entidad
     FOR EACH ROW
     EXECUTE FUNCTION trg_carrito_estado_cambio();
+
+-- Tabla de auditoría para rastrear cambios en órdenes
+DROP TABLE IF EXISTS audit_ordenes;
+CREATE TABLE audit_ordenes (
+    audit_id        BIGSERIAL PRIMARY KEY,
+    orden_id        INT NOT NULL,
+    estado_anterior VARCHAR(255),
+    estado_nuevo    VARCHAR(255),
+    usuario_id      BIGINT,
+    fecha_cambio    TIMESTAMP DEFAULT NOW(),
+    descripcion     TEXT
+);
+
+-- Trigger function: Prevenir sobreventa (Req. 5)
+CREATE OR REPLACE FUNCTION trg_prevenir_sobreventa()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_stock_disponible INT;
+    v_nombre_producto  VARCHAR(255);
+BEGIN
+    SELECT p.stock - p.stock_reservado, p.nombre_producto
+    INTO v_stock_disponible, v_nombre_producto
+    FROM ordenes_entidad o
+    JOIN carrito_entidad c ON c.carrito_id = o.carrito_carrito_id
+    JOIN carrito_producto_entidad cp ON cp.carrito_carrito_id = c.carrito_id
+    JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
+    WHERE o.orden_id = NEW.orden_id
+    LIMIT 1;
+
+    IF v_stock_disponible IS NOT NULL AND NEW.estado IN ('PAGADO', 'APROBADA') THEN
+        IF v_stock_disponible < 1 THEN
+            RAISE EXCEPTION 'Error: Stock insuficiente para producto: % - Solo hay % disponibles',
+                v_nombre_producto, v_stock_disponible;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS prevenir_sobreventa ON ordenes_entidad;
+CREATE TRIGGER prevenir_sobreventa
+    BEFORE INSERT OR UPDATE ON ordenes_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_prevenir_sobreventa();
+
+-- Trigger function: Actualizar última compra (Req. 6)
+CREATE OR REPLACE FUNCTION trg_actualizar_ultima_compra()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_usuario_id BIGINT;
+BEGIN
+    IF NEW.estado IN ('PAGADO', 'APROBADA', 'ENTREGADO', 'EN_RUTA', 'PREPARANDO') THEN
+        SELECT c.carrito_usuario_id
+        INTO v_usuario_id
+        FROM carrito_entidad c
+        WHERE c.carrito_id = NEW.carrito_carrito_id;
+
+        IF v_usuario_id IS NOT NULL THEN
+            UPDATE usuario_entidad
+            SET ultima_compra = NOW()
+            WHERE usuario_id = v_usuario_id;
+        END IF;
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS actualizar_ultima_compra ON ordenes_entidad;
+CREATE TRIGGER actualizar_ultima_compra
+    AFTER INSERT OR UPDATE ON ordenes_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_actualizar_ultima_compra();
+
+-- Trigger function: Auditar cambios en órdenes (Bonus)
+CREATE OR REPLACE FUNCTION trg_auditar_cambios_orden()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_usuario_id     BIGINT;
+    v_descripcion    TEXT;
+BEGIN
+    SELECT c.carrito_usuario_id
+    INTO v_usuario_id
+    FROM carrito_entidad c
+    WHERE c.carrito_id = NEW.carrito_carrito_id;
+
+    IF TG_OP = 'INSERT' THEN
+        v_descripcion := 'Orden creada - Estado inicial: ' || NEW.estado;
+    ELSIF TG_OP = 'UPDATE' THEN
+        v_descripcion := 'Cambio de estado: ' || COALESCE(OLD.estado, 'NULL') || ' -> ' || NEW.estado;
+    END IF;
+
+    INSERT INTO audit_ordenes (orden_id, estado_anterior, estado_nuevo, usuario_id, fecha_cambio, descripcion)
+    VALUES (NEW.orden_id, OLD.estado, NEW.estado, v_usuario_id, NOW(), v_descripcion);
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS auditar_cambios_orden ON ordenes_entidad;
+CREATE TRIGGER auditar_cambios_orden
+    AFTER INSERT OR UPDATE ON ordenes_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_auditar_cambios_orden();
 
 -- ─── 5. DATOS DE PRUEBA ────────────────────────────────────
 
@@ -557,5 +790,21 @@ ORDER BY anio DESC, mes DESC, c.nombre_categoria;
 CREATE INDEX idx_vw_ventas_mes_ano   ON vw_ventas_mensuales_por_categoria (mes_ano);
 CREATE INDEX idx_vw_ventas_categoria ON vw_ventas_mensuales_por_categoria (nombre_categoria);
 CREATE INDEX idx_vw_ventas_anio      ON vw_ventas_mensuales_por_categoria (anio);
+
+-- ─── 7. ÍNDICES PARA OPTIMIZACIÓN (Req. 8) ──────────────────
+
+-- Índices en tablas principales para acelerar búsquedas frecuentes
+CREATE INDEX idx_producto_sku ON producto_entidad(sku);
+CREATE INDEX idx_usuario_id ON usuario_entidad(usuario_id);
+CREATE INDEX idx_carrito_usuario ON carrito_entidad(carrito_usuario_id);
+CREATE INDEX idx_carrito_producto_carrito ON carrito_producto_entidad(carrito_carrito_id);
+CREATE INDEX idx_carrito_producto_producto ON carrito_producto_entidad(producto_producto_id);
+CREATE INDEX idx_orden_carrito ON ordenes_entidad(carrito_carrito_id);
+CREATE INDEX idx_orden_usuario ON ordenes_entidad(informacion_info_entrega_id);
+CREATE INDEX idx_factura_usuario ON factura_entidad(usuario_usuario);
+CREATE INDEX idx_factura_orden ON factura_entidad(orden_orden_id);
+CREATE INDEX idx_producto_categoria ON producto_entidad(categoria_categoria_id);
+CREATE INDEX idx_informacion_entrega_usuario ON informacion_entrega_entidad(usuario_usuario);
+CREATE INDEX idx_informacion_entrega_orden ON informacion_entrega_entidad(orden_orden_id);
 
 
