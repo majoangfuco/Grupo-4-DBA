@@ -12,7 +12,7 @@ export const reporteVentasServicio = {
    */
   async obtenerTodosLosReportes() {
     try {
-      const response = await api.get('/reportes/ventas')
+      const response = await api.get('/api/reportes/ventas')
       return response.data
     } catch (error) {
       console.error('Error al obtener reportes:', error)
@@ -27,7 +27,7 @@ export const reporteVentasServicio = {
    */
   async obtenerPorMesAno(mesAno: string) {
     try {
-      const response = await api.get('/reportes/ventas/mes', {
+      const response = await api.get('/api/reportes/ventas/mes', {
         params: { mesAno }
       })
       return response.data
@@ -44,7 +44,7 @@ export const reporteVentasServicio = {
    */
   async obtenerPorCategoria(nombre: string) {
     try {
-      const response = await api.get('/reportes/ventas/categoria', {
+      const response = await api.get('/api/reportes/ventas/categoria', {
         params: { nombre }
       })
       return response.data
@@ -61,7 +61,7 @@ export const reporteVentasServicio = {
    */
   async obtenerPorAnio(anio: number) {
     try {
-      const response = await api.get('/reportes/ventas/anio', {
+      const response = await api.get('/api/reportes/ventas/anio', {
         params: { anio }
       })
       return response.data
@@ -78,7 +78,7 @@ export const reporteVentasServicio = {
    */
   async obtenerTotalConsolidado() {
     try {
-      const response = await api.get('/reportes/ventas/total')
+      const response = await api.get('/api/reportes/ventas/total')
       return response.data
     } catch (error) {
       console.error('Error al obtener total consolidado:', error)
@@ -92,7 +92,7 @@ export const reporteVentasServicio = {
    */
   async refrescarReportes() {
     try {
-      const response = await api.post('/reportes/refrescar')
+      const response = await api.post('/api/reportes/refrescar')
       return response.data
     } catch (error) {
       console.error('Error al refrescar reportes:', error)

@@ -26,14 +26,14 @@ public class ReporteVentasRepositorio {
         reporte.setNombreCategoria(rs.getString("nombre_categoria"));
         reporte.setCantidadOrdenes(rs.getInt("cantidad_ordenes"));
         reporte.setCantidadProductos(rs.getInt("cantidad_productos"));
-        
+
         // Manejo de valores nulos para BigDecimal
         BigDecimal totalVendido = rs.getBigDecimal("total_vendido");
         reporte.setTotalVendido(totalVendido != null ? totalVendido : BigDecimal.ZERO);
-        
+
         BigDecimal precioPromedio = rs.getBigDecimal("precio_promedio");
         reporte.setPrecioPromedio(precioPromedio != null ? precioPromedio : BigDecimal.ZERO);
-        
+
         return reporte;
     };
 
@@ -43,7 +43,7 @@ public class ReporteVentasRepositorio {
      */
     public List<ReporteVentasEntidad> obtenerTodosLosReportes() {
         String sql = """
-                SELECT mes_ano, anio, mes, nombre_categoria, cantidad_ordenes, 
+                SELECT mes_ano, anio, mes, nombre_categoria, cantidad_ordenes,
                        cantidad_productos, total_vendido, precio_promedio
                 FROM vw_ventas_mensuales_por_categoria
                 ORDER BY anio DESC, mes DESC, nombre_categoria ASC
@@ -53,6 +53,7 @@ public class ReporteVentasRepositorio {
 
     /**
      * Obtiene reportes filtrados por mes y año específico
+     * 
      * @param mesAno Formato: YYYY-MM
      */
     public List<ReporteVentasEntidad> obtenerPorMesAno(String mesAno) {
@@ -99,7 +100,7 @@ public class ReporteVentasRepositorio {
      */
     public ReporteVentasEntidad obtenerTotalConsolidado() {
         String sql = """
-                SELECT 
+                SELECT
                     'TOTAL' AS mes_ano,
                     0 AS anio,
                     0 AS mes,
@@ -118,7 +119,7 @@ public class ReporteVentasRepositorio {
      * Refresca la vista materializada (útil después de cambios en datos)
      */
     public void refrescarVistaMatrializada() {
-        String sql = "REFRESH MATERIALIZED VIEW CONCURRENTLY vw_ventas_mensuales_por_categoria";
+        String sql = "REFRESH MATERIALIZED VIEW vw_ventas_mensuales_por_categoria";
         jdbcTemplate.execute(sql);
     }
 }
