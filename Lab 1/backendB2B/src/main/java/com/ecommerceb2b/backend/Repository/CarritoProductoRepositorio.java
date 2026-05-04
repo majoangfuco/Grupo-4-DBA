@@ -7,9 +7,6 @@ import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
 import com.ecommerceb2b.backend.Entities.ProductoEntidad;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.simple.SimpleJdbcCall;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -149,30 +146,20 @@ public class CarritoProductoRepositorio {
 
     public void reservarStock(Long productoId, int cantidad) {
         try {
-            SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
-                    .withProcedureName("reservar_stock");
-            
-            SqlParameterSource in = new MapSqlParameterSource()
-                    .addValue("p_producto_id", productoId)
-                    .addValue("p_cantidad", cantidad);
-            
-            call.execute(in);
+            String sql = "CALL reservar_stock(?, ?)";
+            jdbcTemplate.update(sql, productoId, cantidad);
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Error al reservar stock: " + e.getMessage(), e);
         }
     }
 
     public void liberarStock(Long productoId, int cantidad) {
         try {
-            SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
-                    .withProcedureName("liberar_stock");
-            
-            SqlParameterSource in = new MapSqlParameterSource()
-                    .addValue("p_producto_id", productoId)
-                    .addValue("p_cantidad", cantidad);
-            
-            call.execute(in);
+            String sql = "CALL liberar_stock(?, ?)";
+            jdbcTemplate.update(sql, productoId, cantidad);
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Error al liberar stock: " + e.getMessage(), e);
         }
     }

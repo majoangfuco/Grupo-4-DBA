@@ -5,9 +5,6 @@ import com.ecommerceb2b.backend.Entities.ProductoEntidad;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
-import org.springframework.jdbc.core.simple.SimpleJdbcCall;
-import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
-import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -139,15 +136,10 @@ public class ProductoRepositorio {
 
     public void aplicarDescuentoPorCategoria(int categoriaId, Float porcentaje) {
         try {
-            SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
-                    .withProcedureName("aplicar_descuento_categoria");
-            
-            SqlParameterSource in = new MapSqlParameterSource()
-                    .addValue("p_categoria_id", categoriaId)
-                    .addValue("p_porcentaje", porcentaje);
-            
-            call.execute(in);
+            String sql = "CALL aplicar_descuento_categoria(?, ?)";
+            jdbcTemplate.update(sql, categoriaId, porcentaje);
         } catch (Exception e) {
+            e.printStackTrace();
             throw new RuntimeException("Error al aplicar descuento: " + e.getMessage(), e);
         }
     }
