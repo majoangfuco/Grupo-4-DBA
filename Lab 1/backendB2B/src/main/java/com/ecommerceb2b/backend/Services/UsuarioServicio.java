@@ -78,4 +78,11 @@ public class UsuarioServicio {
     public List<UsuarioEntidad> obtenerUsuariosPorRol(String rol) {
         return usuarioRepositorio.findByRol(rol);
     }
+
+    public void actualizarUltimaCompra(Long usuarioId) {
+        if (usuarioId == null || usuarioId <= 0) {
+            throw new IllegalArgumentException("El usuario es obligatorio");
+        }
+        usuarioRepositorio.actualizarUltimaCompra(usuarioId);
+    }
 }

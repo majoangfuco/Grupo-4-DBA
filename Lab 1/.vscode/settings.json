@@ -3,6 +3,7 @@
     "java.compile.nullAnalysis.mode": "automatic",
     "chat.tools.terminal.autoApprove": {
         "mvn compile": true,
-        "./mvnw": true
+        "./mvnw": true,
+        "docker compose": true
     }
 }

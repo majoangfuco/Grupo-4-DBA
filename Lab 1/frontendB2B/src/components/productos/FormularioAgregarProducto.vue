@@ -83,6 +83,7 @@ const manejarEnvio = async () => {
     precio: Number(precio.value),
     stock: Number(stock.value),
     sku: sku.value.trim(),
+    activo: true,
   }
 
   try {

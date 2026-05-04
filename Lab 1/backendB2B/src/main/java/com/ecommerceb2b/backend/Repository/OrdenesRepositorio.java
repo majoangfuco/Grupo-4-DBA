@@ -27,7 +27,8 @@ private final JdbcTemplate jdbcTemplate;
         o.setUsuario_ID(rs.wasNull() ? null : usuarioId);
         o.setRut_Empresa(getStringOrNull(rs, "rut_empresa"));
         o.setInfo_Entrega_ID(rs.getLong("informacion_info_entrega_id"));
-        o.setFecha_Orden(rs.getDate("fecha_orden"));
+        java.sql.Timestamp ts = rs.getTimestamp("fecha_orden");
+        o.setFecha_Orden(ts != null ? new java.util.Date(ts.getTime()) : null);
         o.setEstado(rs.getString("estado"));
         return o;
     };
@@ -92,11 +93,11 @@ private final JdbcTemplate jdbcTemplate;
                 WHERE orden_id = ?
                 """;
         return jdbcTemplate.update(sql,
-                o.getCarrito_ID(),
-                o.getInfo_Entrega_ID(),
-                o.getFecha_Orden(),
-                o.getEstado(),
-                o.getOrden_ID());
+            o.getCarrito_ID(),
+            o.getInfo_Entrega_ID(),
+            new java.sql.Timestamp(o.getFecha_Orden().getTime()),
+            o.getEstado(),
+            o.getOrden_ID());
     }
 
     // eliminar

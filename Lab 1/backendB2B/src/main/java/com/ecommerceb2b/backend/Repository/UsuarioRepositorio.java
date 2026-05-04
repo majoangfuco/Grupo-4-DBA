@@ -27,7 +27,7 @@ public class UsuarioRepositorio {
             usuario.setNombre_Usuario(rs.getString("nombre_usuario"));
             usuario.setCorreo(rs.getString("correo"));
             usuario.setContrasena(rs.getString("contrasena"));
-            usuario.setUltima_Compra(rs.getDate("ultima_compra"));
+            usuario.setUltima_Compra(rs.getTimestamp("ultima_compra"));
             usuario.setRut_Empresa(rs.getString("rut_empresa"));
             usuario.setRol(rs.getString("rol"));
             return usuario;
@@ -68,5 +68,10 @@ public class UsuarioRepositorio {
     public List<UsuarioEntidad> findByRol(String rol) {
         String sql = "SELECT * FROM usuario_entidad WHERE rol = ?";
         return jdbcTemplate.query(sql, rowMapper, rol);
+    }
+
+    public void actualizarUltimaCompra(Long usuarioId) {
+        String sql = "UPDATE usuario_entidad SET ultima_compra = NOW() WHERE usuario_id = ?";
+        jdbcTemplate.update(sql, usuarioId);
     }
 }

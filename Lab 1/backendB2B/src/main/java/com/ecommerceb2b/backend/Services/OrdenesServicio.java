@@ -26,19 +26,22 @@ public class OrdenesServicio {
     private final DatosDePagoServicio datosDePagoServicio;
     private final InformacionEntregaServicio informacionEntregaServicio;
     private final FacturaServicio facturaServicio;
+    private final UsuarioServicio usuarioServicio;
 
     public OrdenesServicio(OrdenesRepositorio ordenesRepositorio,
                            CarritoServicio carritoServicio,
                            CarritoProductoServicio carritoProductoServicio,
                            DatosDePagoServicio datosDePagoServicio,
                            InformacionEntregaServicio informacionEntregaServicio,
-                           FacturaServicio facturaServicio) {
+                           FacturaServicio facturaServicio,
+                           UsuarioServicio usuarioServicio) {
         this.ordenesRepositorio = ordenesRepositorio;
         this.carritoServicio = carritoServicio;
         this.carritoProductoServicio = carritoProductoServicio;
         this.datosDePagoServicio = datosDePagoServicio;
         this.informacionEntregaServicio = informacionEntregaServicio;
         this.facturaServicio = facturaServicio;
+        this.usuarioServicio = usuarioServicio;
     }
 
 
@@ -115,6 +118,9 @@ public class OrdenesServicio {
         // Mantener los productos del carrito para que la factura pueda recuperar
         // los items más tarde, mientras el carrito se marca como pagado.
         carritoServicio.ordenarCarrito(carritoId);
+
+        // Actualizar la fecha de última compra del usuario
+        usuarioServicio.actualizarUltimaCompra(usuarioId);
 
         return facturaCreada;
     }

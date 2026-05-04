@@ -7,6 +7,7 @@ export interface ProductoRequest {
   precio: number
   stock: number
   sku: string
+  activo?: boolean
 }
 
 const crearProducto = (producto: ProductoRequest) =>

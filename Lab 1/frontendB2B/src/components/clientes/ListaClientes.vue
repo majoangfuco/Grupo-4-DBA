@@ -11,6 +11,7 @@ interface Cliente {
   nombre_Usuario: string
   correo: string
   rut_Empresa: string
+  ultima_Compra: string | null
   ordenes_Pendiente: number
   ordenes_Aprobada: number
   ordenes_Cancelada: number
@@ -41,6 +42,16 @@ const manejarOrden = (clave: string) => {
   emit('ordenar', clave)
 }
 
+const formatearFecha = (fecha: string | number | null): string => {
+  if (fecha === null || fecha === undefined) return 'Sin compras'
+  try {
+    const date = new Date(fecha as any)
+    return date.toLocaleDateString('es-ES', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  } catch {
+    return 'Sin compras'
+  }
+}
+
 const obtenerDireccionOrden = (clave: string): 'asc' | 'desc' => {
   if (props.configOrden?.clave === clave) return props.configOrden.direccion
   return 'asc'
@@ -67,6 +78,7 @@ const navegarOrdenes = (cliente: Cliente) => {
               { clave: 'nombre_Usuario', etiqueta: 'Nombre' },
               { clave: 'correo',         etiqueta: 'Correo' },
               { clave: 'rut_Empresa',    etiqueta: 'RUT Empresa' },
+              { clave: 'ultima_Compra',  etiqueta: 'Última Compra' },
               { clave: 'ordenes_Pendiente', etiqueta: 'Ordenes (Pendiente / Aprobada / Cancelada)' },
             ]"
             :key="col.clave"
@@ -91,7 +103,7 @@ const navegarOrdenes = (cliente: Cliente) => {
 
         <!-- Estado: cargando -->
         <tr v-if="cargando">
-          <td colspan="4" class="celda-estado">
+          <td colspan="5" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando datos...</span>
           </td>
@@ -99,7 +111,7 @@ const navegarOrdenes = (cliente: Cliente) => {
 
         <!-- Estado: error -->
         <tr v-else-if="error">
-          <td colspan="4" class="celda-estado">
+          <td colspan="5" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">
               ↺ Reintentar
@@ -109,7 +121,7 @@ const navegarOrdenes = (cliente: Cliente) => {
 
         <!-- Estado: lista vacía -->
         <tr v-else-if="clientes.length === 0">
-          <td colspan="4" class="celda-estado">
+          <td colspan="5" class="celda-estado">
             <p class="texto-vacio">No se encontraron clientes registrados.</p>
             <p class="texto-vacio-sub">Puedes agregar uno nuevo usando el botón "Agregar cliente".</p>
           </td>
@@ -129,6 +141,7 @@ const navegarOrdenes = (cliente: Cliente) => {
           <td class="celda">{{ cliente.nombre_Usuario }}</td>
           <td class="celda">{{ cliente.correo }}</td>
           <td class="celda">{{ cliente.rut_Empresa }}</td>
+          <td class="celda">{{ cliente.ultima_Compra ? formatearFecha(cliente.ultima_Compra) : 'Sin compras' }}</td>
           <td class="celda">
             <div class="ordenes-resumen">
               <span class="estado-chip estado-pendiente">PENDIENTE: {{ cliente.ordenes_Pendiente }}</span>

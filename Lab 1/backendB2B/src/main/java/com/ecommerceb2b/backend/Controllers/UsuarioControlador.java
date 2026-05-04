@@ -126,12 +126,16 @@ public class UsuarioControlador {
 
         try {
             List<UsuarioEntidad> clientes = usuarioServicio.obtenerUsuariosPorRol("CLIENTE");
-            response.put("clientes", clientes.stream().map(u -> Map.of(
-                "usuario_ID", u.getUsuario_ID(),
-                "nombre_Usuario", u.getNombre_Usuario(),
-                "correo", u.getCorreo(),
-                "rut_Empresa", u.getRut_Empresa()
-            )).toList());
+            response.put("clientes", clientes.stream().map(u -> {
+                Long ultimaCompraMillis = u.getUltima_Compra() != null ? u.getUltima_Compra().getTime() : null;
+                return Map.of(
+                    "usuario_ID", u.getUsuario_ID(),
+                    "nombre_Usuario", u.getNombre_Usuario(),
+                    "correo", u.getCorreo(),
+                    "rut_Empresa", u.getRut_Empresa(),
+                    "ultima_Compra", ultimaCompraMillis
+                );
+            }).toList());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
             response.put("error", "Error al obtener clientes");

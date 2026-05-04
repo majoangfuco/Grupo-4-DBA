@@ -28,6 +28,7 @@ const producto = reactive({
   precio: 0,
   stock: 0,
   sku: '',
+  activo: true,
 })
 
 const categorias = ref<CategoriaEntidad[]>([])
@@ -47,6 +48,7 @@ const cargarProducto = async () => {
     producto.precio = data.precio
     producto.stock = data.stock
     producto.sku = data.sku
+    producto.activo = data.activo
   } catch (error: unknown) {
     const axiosErr = error as { response?: { data?: string | { error?: string; message?: string } } }
     const data = axiosErr.response?.data
