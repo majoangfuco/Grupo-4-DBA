@@ -33,24 +33,32 @@
       </div>
 
 
-      <!-- Top Right: Payment Data -->
-      <div class="card payment-card">
+      <!-- Top Right: Payment Data (solo para clientes) -->
+      <div v-if="!isAdmin" class="card payment-card">
         <h3 class="card-title">Datos de pago</h3>
-        <div class="payment-content">
-          <p class="payment-label">Número de tarjeta:</p>
-          <div class="card-number">236 *** *** 265</div>
-          <div class="payment-methods">
-            <div class="method method-wu">WESTERN UNION</div>
-            <div class="method method-gpay"><span class="g">G</span> Pay</div>
-            <div class="method method-mc"><div class="mc-circles"><div class="red-circle"></div><div class="yellow-circle"></div></div></div>
-            <div class="method method-visa">VISA</div>
+
+        <div v-if="cargandoPago" class="loading-state">
+          <p>Cargando métodos de pago...</p>
+        </div>
+
+        <div v-else-if="datosPago.length === 0" class="empty-state">
+          <p>No tienes métodos de pago registrados.</p>
+        </div>
+
+        <div v-else class="payment-list">
+          <div v-for="pago in datosPago" :key="pago.datos_Pago_ID" class="payment-item">
+            <div class="payment-item-header">
+              <span class="payment-method-badge">{{ pago.metodo_Pago }}</span>
+              <span class="payment-expiry">Vence: {{ pago.fecha_Expiracion }}</span>
+            </div>
+            <div class="card-number">{{ maskCardNumber(pago.numero_Tarjeta) }}</div>
           </div>
         </div>
       </div>
 
 
-      <!-- Bottom Left: Delivery Addresses -->
-      <div class="card delivery-card">
+      <!-- Bottom Left: Delivery Addresses (solo para clientes) -->
+      <div v-if="!isAdmin" class="card delivery-card">
         <h3 class="card-title">Mis Direcciones de Entrega</h3>
 
         <div v-if="cargandoEntregas" class="loading-state">
@@ -81,6 +89,7 @@
 import { ref, computed, onMounted } from 'vue';
 import { useAuthStore } from '@/stores/auth';
 import { obtenerEntregasPorUsuario, type InformacionEntregaEntidad } from '@/services/entregaServicio';
+import { obtenerDatosPagoPorUsuario, type DatosDePagoEntidad } from '@/services/datosPagoServicio';
 
 const authStore = useAuthStore();
 
@@ -89,6 +98,11 @@ const userEmail = computed(() => authStore.userEmail || 'No disponible');
 const userRole = computed(() => authStore.userRole || 'Sin Rol');
 const userRut = computed(() => authStore.userRut || 'No disponible');
 
+const isAdmin = computed(() => {
+  const role = (authStore.userRole || '').toLowerCase();
+  return role === 'admin' || role === 'administrador' || role === 'role_admin';
+});
+
 const userInitial = computed(() => {
   return userName.value.charAt(0).toUpperCase();
 });
@@ -96,8 +110,21 @@ const userInitial = computed(() => {
 const entregas = ref<InformacionEntregaEntidad[]>([]);
 const cargandoEntregas = ref(false);
 
+const datosPago = ref<DatosDePagoEntidad[]>([]);
+const cargandoPago = ref(false);
+
+const maskCardNumber = (numero: string): string => {
+  if (!numero) return '---- ---- ---- ----';
+  const clean = numero.replace(/\s/g, '');
+  const last4 = clean.slice(-4);
+  const masked = clean.slice(0, -4).replace(/./g, '*');
+  const full = masked + last4;
+  return full.match(/.{1,4}/g)?.join(' ') ?? full;
+};
+
 onMounted(async () => {
   if (authStore.userId) {
+    // Cargar direcciones de entrega
     cargandoEntregas.value = true;
     try {
       const response = await obtenerEntregasPorUsuario(authStore.userId);
@@ -106,6 +133,19 @@ onMounted(async () => {
       console.error('Error cargando direcciones de entrega:', error);
     } finally {
       cargandoEntregas.value = false;
+    }
+
+    // Cargar métodos de pago
+    if (!isAdmin.value) {
+      cargandoPago.value = true;
+      try {
+        const responsePago = await obtenerDatosPagoPorUsuario(authStore.userId);
+        datosPago.value = responsePago.data;
+      } catch (error) {
+        console.error('Error cargando datos de pago:', error);
+      } finally {
+        cargandoPago.value = false;
+      }
     }
   }
 });
@@ -255,10 +295,46 @@ onMounted(async () => {
   flex-direction: column;
 }
 
-.payment-label {
-  font-size: 0.85rem;
+.payment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.payment-item {
+  border: 1px solid #f0f0f5;
+  border-radius: 12px;
+  padding: 14px 16px;
+  background: #fdfdfd;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.payment-item:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+  transform: translateY(-2px);
+}
+
+.payment-item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.payment-method-badge {
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: linear-gradient(135deg, #136692, #61b1dc);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+.payment-expiry {
+  font-size: 0.8rem;
   color: #8a8a9d;
-  margin: 0 0 8px 0;
 }
 
 .card-number {
@@ -268,35 +344,8 @@ onMounted(async () => {
   font-family: monospace;
   font-size: 1rem;
   color: #555;
-  letter-spacing: 1px;
-  margin-bottom: 16px;
+  letter-spacing: 2px;
 }
-
-.payment-methods {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-}
-
-.method {
-  border: 1px solid #f0f0f5;
-  border-radius: 10px;
-  height: 42px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  font-weight: 700;
-  font-size: 0.8rem;
-  color: #333;
-  background: #ffffff;
-}
-
-.method-wu { background: #000; color: #ffcc00; }
-.method-gpay .g { color: #4285f4; font-size: 1.1rem; margin-right: 2px;}
-.mc-circles { display: flex; align-items: center; }
-.red-circle { width: 20px; height: 20px; border-radius: 50%; background: #eb001b; position: relative; z-index: 2; mix-blend-mode: multiply; }
-.yellow-circle { width: 20px; height: 20px; border-radius: 50%; background: #f79e1b; margin-left: -8px; position: relative; z-index: 1; mix-blend-mode: multiply; }
-.method-visa { color: #1a1f71; font-style: italic; font-size: 1.2rem; }
 
 
 /* ===== Bottom Left: Delivery Card ===== */
