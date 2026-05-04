@@ -15,3 +15,7 @@ export interface InformacionEntregaEntidad {
 export const obtenerEntregasPorUsuario = (usuarioId: string | number) => {
     return httpClient.get<InformacionEntregaEntidad[]>(`/api/entregas/usuario/${usuarioId}`)
 }
+
+export const crearEntrega = (entrega: Partial<InformacionEntregaEntidad>) => {
+    return httpClient.post(`/api/entregas`, entrega)
+}

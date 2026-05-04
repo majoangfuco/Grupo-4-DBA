@@ -17,7 +17,7 @@ public class CarritoEntidad {
 
     private UsuarioEntidad usuario;
 
-    // "PAGADO", "ACTIVO", "ABANDO"
+    // "ACTIVO", "ABANDONADO", "PAGADO"
     private String estado;
 
     private Timestamp ultima_Actualizacion;

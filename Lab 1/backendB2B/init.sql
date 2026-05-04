@@ -104,6 +104,16 @@ CREATE TABLE factura_entidad (
     iva             REAL
 );
 
+CREATE TABLE factura_item_entidad (
+    factura_item_id   BIGSERIAL PRIMARY KEY,
+    factura_id        BIGINT NOT NULL REFERENCES factura_entidad(factura_id) ON DELETE CASCADE,
+    producto_id       BIGINT NOT NULL REFERENCES producto_entidad(producto_id),
+    cantidad          INT NOT NULL,
+    precio_unitario   REAL NOT NULL,
+    CONSTRAINT ck_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_precio CHECK (precio_unitario > 0)
+);
+
 -- ─── 3. PROCEDIMIENTOS ALMACENADOS ────────────────────────
 
 -- Procedimiento: Reservar stock de un producto
@@ -364,7 +374,7 @@ BEGIN
 
     IF NEW.estado = 'ABANDONADO' THEN
         PERFORM ajustar_reserva_por_carrito(NEW.carrito_id, 'LIBERAR');
-    ELSIF NEW.estado = 'PAGADO' THEN
+    ELSIF NEW.estado IN ('PAGADO', 'ORDENADO') THEN
         PERFORM ajustar_reserva_por_carrito(NEW.carrito_id, 'CONSUMIR');
     ELSIF NEW.estado = 'ACTIVO' AND OLD.estado = 'ABANDONADO' THEN
         PERFORM ajustar_reserva_por_carrito(NEW.carrito_id, 'RESERVAR');
@@ -693,7 +703,7 @@ INSERT INTO factura_entidad (usuario_usuario, datos_pago_id, orden_orden_id, pre
 (1, 9,  8,  710000.0, '2024-07-02 14:20:00',  596639.0,  113361.0),
 (3, 10, 9,  855000.0, '2024-09-18 12:10:00',  718487.0,  136513.0),
 (4, 10, 10, 1405000.0,'2025-03-07 10:40:00', 1180672.0,  224328.0), -- ← cambiado de 11 a 10
-(7, 5,  11,  620000.0,'2025-06-21 18:40:00',  521008.0,   98992.0);
+(7, 5,   5,  620000.0,'2025-06-21 18:40:00',  521008.0,   98992.0);
 
 
 -- ─── 5.1 DATOS ADICIONALES: MÁS CLIENTES CON ÓRDENES Y FACTURAS ─────
