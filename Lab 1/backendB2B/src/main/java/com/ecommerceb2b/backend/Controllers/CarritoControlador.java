@@ -3,7 +3,7 @@ package com.ecommerceb2b.backend.Controllers;
 import com.ecommerceb2b.backend.Entities.CarritoEntidad;
 import com.ecommerceb2b.backend.Entities.CheckoutPedidoDto;
 import com.ecommerceb2b.backend.Services.CarritoServicio;
-import com.ecommerceb2b.backend.Services.CheckoutServicio;
+import com.ecommerceb2b.backend.Services.OrdenesServicio;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -16,11 +16,11 @@ import java.util.List;
 public class CarritoControlador {
 
 	private final CarritoServicio carritoServicio;
-	private final CheckoutServicio checkoutServicio;
+	private final OrdenesServicio ordenesServicio;
 
-	public CarritoControlador(CarritoServicio carritoServicio, CheckoutServicio checkoutServicio) {
+	public CarritoControlador(CarritoServicio carritoServicio, OrdenesServicio ordenesServicio) {
 		this.carritoServicio = carritoServicio;
-		this.checkoutServicio = checkoutServicio;
+		this.ordenesServicio = ordenesServicio;
 	}
 
 	// GET /api/carritos/cliente/{idCliente}/activo
@@ -94,7 +94,7 @@ public class CarritoControlador {
 	@PostMapping("/{id}/checkout")
 	public ResponseEntity<?> checkout(@PathVariable Long id, @RequestBody CheckoutPedidoDto pedido) {
 		try {
-			return ResponseEntity.status(HttpStatus.CREATED).body(checkoutServicio.procesarCheckout(id, pedido));
+			return ResponseEntity.status(HttpStatus.CREATED).body(ordenesServicio.solicitarOrdenAtomica(id, pedido));
 		} catch (IllegalArgumentException | IllegalStateException e) {
 			return ResponseEntity.badRequest().body(e.getMessage());
 		} catch (Exception e) {

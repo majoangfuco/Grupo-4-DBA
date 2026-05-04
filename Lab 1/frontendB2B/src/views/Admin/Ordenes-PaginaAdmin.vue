@@ -6,7 +6,7 @@
 // por usuario, siguiendo el patrón de Productos-PaginaAdmin.vue.
 // =====================================================
 
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
 import { ordenesServicio, type OrdenAdmin } from '@/services/ordenesServicio'
@@ -14,14 +14,13 @@ import { ordenesServicio, type OrdenAdmin } from '@/services/ordenesServicio'
 // ==================== ESTADO ========================
 const route = useRoute()
 const router = useRouter()
-const ordenes   = ref<Orden[]>([])
+const ordenes   = ref<OrdenAdmin[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
+const ordenParaFactura = ref<number | null>(null)
 
 // ==================== FILTROS =======================
 const filtros = reactive({ rut_Empresa: '', estado: '' })
-const route  = useRoute()
-const router = useRouter()
 
 const usuarioSeleccionado = computed<number | null>(() => {
   const valor = route.query.usuario_ID
@@ -37,7 +36,7 @@ const correoClienteSeleccionado = computed<string | null>(() => {
 })
 
 const opcionesEstado = computed(() => {
-  const set = new Set(ordenes.value.map(o => o.estado).filter(Boolean))
+  const set = new Set(ordenes.value.map((o: OrdenAdmin) => o.estado).filter(Boolean))
   return Array.from(set).sort()
 })
 
@@ -65,7 +64,7 @@ const cambiarOrden = (clave: string) => {
 
 // ==================== FILTRADO =====================
 const ordenesFiltradas = computed(() =>
-  ordenes.value.filter(o => {
+  ordenes.value.filter((o: OrdenAdmin) => {
     const coincideRut     = !filtros.rut_Empresa || o.rut_Empresa.includes(filtros.rut_Empresa)
     const coincideEstado  = !filtros.estado     || o.estado === filtros.estado
     const coincideUsuario = !usuarioSeleccionado.value || o.usuario_ID === usuarioSeleccionado.value
@@ -125,6 +124,8 @@ const aprobarOrden = async (ordenId: number) => {
   try {
     await ordenesServicio.aprobar(ordenId)
     await cargarOrdenes()
+    ordenParaFactura.value = ordenId
+    setTimeout(() => { ordenParaFactura.value = null }, 0)
   } catch (err: unknown) {
     console.error('Error al aprobar orden:', err)
     const axiosErr = err as { response?: { data?: { message?: string } } }
@@ -147,6 +148,13 @@ const cancelarOrden = async (ordenId: number) => {
   } finally {
     cargando.value = false
   }
+}
+
+// =============== HELPERS =========================
+const formatearEstado = (estado: string): string => {
+  if (!estado) return 'Desconocido'
+  if (estado.toUpperCase() === 'EN_RUTA') return 'En Ruta'
+  return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase()
 }
 
 onMounted(cargarOrdenes)
@@ -191,6 +199,7 @@ onMounted(cargarOrdenes)
       :cargando="cargando"
       :error="error"
       :config-orden="configOrden"
+      :orden-para-factura="ordenParaFactura"
       @ordenar="cambiarOrden"
       @reintentar="cargarOrdenes"
       @aprobar="aprobarOrden"

@@ -3,7 +3,7 @@ package com.ecommerceb2b.backend.Services;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ecommerceb2b.backend.Entities.CarritoEntidad;
+
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
 import com.ecommerceb2b.backend.Repository.CarritoRepositorio;
 
@@ -81,12 +81,18 @@ public class CarritoServicio {
 
 	// Entradas: idCarrito
 	// Salida: void
-	// Descripcion: paga el carrito y deja el estado en PAGADO.
+	// Descripcion: marca el carrito como pagado, lo cual consume el stock reservado.
 	@Transactional
-	public void pagarCarrito(Long idCarrito) {
+	public void ordenarCarrito(Long idCarrito) {
 		int filasAfectadas = carritoRepositorio.actualizarEstado(idCarrito, "PAGADO");
 		if (filasAfectadas == 0) {
-			throw new IllegalStateException("No se pudo pagar el carrito: " + idCarrito);
+			throw new IllegalStateException("No se pudo marcar el carrito como pagado: " + idCarrito);
 		}
+	}
+
+	// Alias mantenido por compatibilidad con endpoints existentes.
+	@Transactional
+	public void pagarCarrito(Long idCarrito) {
+		ordenarCarrito(idCarrito);
 	}
 }

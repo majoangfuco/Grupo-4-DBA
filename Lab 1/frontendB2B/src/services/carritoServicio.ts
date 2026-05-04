@@ -23,7 +23,7 @@ const cerrar = (id: number) => httpClient.patch(`/api/carritos/${id}/cerrar`)
 const pagar = (id: number) => httpClient.patch(`/api/carritos/${id}/pagar`)
 
 const checkout = (id: number, payload: { infoEntregaId: number, datosPagoId?: number, datosPago?: unknown }) =>
-  httpClient.post(`/api/carritos/${id}/checkout`, payload)
+  httpClient.post(`/api/ordenes/solicitar/${id}`, payload)
 
 export const carritoServicio = {
   obtenerOCrearPorCliente,

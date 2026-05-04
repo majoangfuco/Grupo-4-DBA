@@ -1,5 +1,6 @@
 package com.ecommerceb2b.backend.Controllers;
 
+import com.ecommerceb2b.backend.Entities.CheckoutPedidoDto;
 import com.ecommerceb2b.backend.Entities.OrdenesEntidad;
 import com.ecommerceb2b.backend.Services.OrdenesServicio;
 import org.springframework.http.HttpStatus;
@@ -32,6 +33,19 @@ public class OrdenesControlador {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body("Error al crear la orden");
+        }
+    }
+
+    // POST /api/ordenes/solicitar/{carritoId}
+    @PostMapping("/solicitar/{carritoId}")
+    public ResponseEntity<?> solicitarOrden(@PathVariable Long carritoId, @RequestBody CheckoutPedidoDto pedido) {
+        try {
+            return ResponseEntity.status(HttpStatus.CREATED)
+                    .body(ordenesServicio.solicitarOrdenAtomica(carritoId, pedido));
+        } catch (IllegalArgumentException | IllegalStateException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().body("Error al procesar la solicitud de orden: " + e.getMessage());
         }
     }
 

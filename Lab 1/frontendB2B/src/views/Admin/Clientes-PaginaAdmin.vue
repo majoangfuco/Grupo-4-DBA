@@ -53,12 +53,12 @@ const limpiarFiltros = () => {
 }
 
 const verTodasOrdenes = () => {
-  router.push({ path: '/ordenesAdmin' })
+  router.push({ name: 'Admin-Ordenes' })
 }
 
 const verOrdenesCliente = (cliente: Cliente) => {
   router.push({
-    path: '/ordenesAdmin',
+    name: 'Admin-Ordenes',
     query: {
       usuario_ID: cliente.usuario_ID,
       correo: cliente.correo,
