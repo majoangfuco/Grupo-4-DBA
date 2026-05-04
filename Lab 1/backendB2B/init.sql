@@ -1,5 +1,6 @@
 -- ─── 1. LIMPIEZA DEL ESQUEMA ANTERIOR ─────────────────────
 DROP MATERIALIZED VIEW IF EXISTS vw_ventas_mensuales_por_categoria CASCADE;
+DROP TABLE IF EXISTS factura_item_entidad CASCADE;
 DROP TABLE IF EXISTS factura_entidad;
 DROP TABLE IF EXISTS carrito_producto_entidad;
 DROP TABLE IF EXISTS informacion_entrega_entidad CASCADE;
