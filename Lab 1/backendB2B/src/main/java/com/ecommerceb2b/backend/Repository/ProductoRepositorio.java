@@ -23,7 +23,7 @@ public class ProductoRepositorio {
     private final RowMapper<ProductoEntidad> rowMapper = (rs, rowNum) -> {
         ProductoEntidad p = new ProductoEntidad();
         p.setProducto_ID(rs.getLong("producto_id"));
-        p.setCategoria_ID(rs.getLong("categoria_categoria_id"));
+        p.setCategoria_ID(rs.getInt("categoria_categoria_id"));
         p.setNombre_producto(rs.getString("nombre_producto"));
         p.setDescripcion(rs.getString("descripcion"));
         p.setPrecio(rs.getFloat("precio"));
@@ -134,9 +134,14 @@ public class ProductoRepositorio {
         return jdbcTemplate.query(sql, rowMapper, categoriaId);
     }
 
-    public void aplicarDescuentoPorCategoria(Long categoriaId, Float porcentaje) {
-        String sql = "CALL aplicar_descuento_categoria(?, ?)";
-        jdbcTemplate.update(sql, categoriaId, porcentaje);
+    public void aplicarDescuentoPorCategoria(int categoriaId, Float porcentaje) {
+        try {
+            String sql = "CALL aplicar_descuento_categoria(?, ?)";
+            jdbcTemplate.update(sql, categoriaId, porcentaje);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error al aplicar descuento: " + e.getMessage(), e);
+        }
     }
 
 

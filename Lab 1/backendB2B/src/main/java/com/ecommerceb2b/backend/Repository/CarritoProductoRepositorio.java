@@ -145,13 +145,23 @@ public class CarritoProductoRepositorio {
     }
 
     public void reservarStock(Long productoId, int cantidad) {
-        String sql = "CALL reservar_stock(?, ?)";
-        jdbcTemplate.update(sql, productoId, cantidad);
+        try {
+            String sql = "CALL reservar_stock(?, ?)";
+            jdbcTemplate.update(sql, productoId, cantidad);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error al reservar stock: " + e.getMessage(), e);
+        }
     }
 
     public void liberarStock(Long productoId, int cantidad) {
-        String sql = "CALL liberar_stock(?, ?)";
-        jdbcTemplate.update(sql, productoId, cantidad);
+        try {
+            String sql = "CALL liberar_stock(?, ?)";
+            jdbcTemplate.update(sql, productoId, cantidad);
+        } catch (Exception e) {
+            e.printStackTrace();
+            throw new RuntimeException("Error al liberar stock: " + e.getMessage(), e);
+        }
     }
 
     public BigDecimal calcularSubtotal(Long carritoId) {

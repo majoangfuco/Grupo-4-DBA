@@ -138,7 +138,7 @@ public class ProductoControlador {
 
     // POST /api/productos/descuento?categoriaId=1&porcentaje=20   ← Req. 4
     @PostMapping("/descuento")
-    public ResponseEntity<?> aplicarDescuento(@RequestParam Long categoriaId,
+    public ResponseEntity<?> aplicarDescuento(@RequestParam int categoriaId,
                                                @RequestParam float porcentaje) {
         try {
             productoServicio.aplicarDescuentoMasivoPorCategoria(categoriaId, porcentaje);
@@ -146,7 +146,10 @@ public class ProductoControlador {
         } catch (IllegalArgumentException e) {
             return ResponseEntity.badRequest().body(e.getMessage());
         } catch (Exception e) {
-            return ResponseEntity.internalServerError().body("Error al aplicar descuento");
+            e.printStackTrace();
+            return ResponseEntity.internalServerError().body(
+                "Error al aplicar descuento: " + e.getMessage()
+            );
         }
     }
 }

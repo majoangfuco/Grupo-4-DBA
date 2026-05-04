@@ -200,7 +200,7 @@ const confirmarAgregar = async () => {
       <div class="modal-box" role="dialog" aria-modal="true">
         <div class="modal-header">
           <span class="modal-check">✓</span>
-          <h3 class="modal-title">Producto agregado a tu Carro</h3>
+          <h3 class="modal-title">Confirmar selección de producto</h3>
           <button class="modal-close" @click="cerrarModal">×</button>
         </div>
         <div class="modal-body">

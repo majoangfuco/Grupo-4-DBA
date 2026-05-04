@@ -9,7 +9,7 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class ProductoEntidad {
     private Long producto_ID;
-    private Long categoria_ID;      // Solo el ID, no el objeto
+    private int categoria_ID;      // Solo el ID, no el objeto (int para coincidir con PostgreSQL)
     private String nombre_producto;
     private String descripcion;
     private Float precio;

@@ -8,6 +8,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import ListaProductos from '@/components/productos/ListaProductos.vue'
 import FormularioAgregarProducto from '@/components/productos/FormularioAgregarProducto.vue'
+import FormularioDescuentoCategoria from '@/components/productos/FormularioDescuentoCategoria.vue'
 import { productoServicio } from '@/services/productoServicio'
 import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
@@ -29,6 +30,7 @@ const productos  = ref<Producto[]>([])
 const cargando   = ref(true)
 const error      = ref<string | null>(null)
 const modalAbierto = ref(false)
+const modalDescuentoAbierto = ref(false)
 const categorias = ref<CategoriaEntidad[]>([])
 
 // ==================== FILTROS =======================
@@ -141,6 +143,11 @@ const manejarProductoAgregado = () => {
   modalAbierto.value = false
 }
 
+const manejarDescuentoAplicado = () => {
+  cargarProductos()
+  modalDescuentoAbierto.value = false
+}
+
 // Carga inicial
 onMounted(cargarProductos)
 </script>
@@ -151,10 +158,28 @@ onMounted(cargarProductos)
     <!-- ===== ENCABEZADO ===== -->
     <div class="encabezado">
       <h1 class="titulo-pagina">Gestión de productos</h1>
-      <button class="btn-agregar" @click="modalAbierto = true">
-        + Agregar Nuevo Producto
-      </button>
+      <div class="botones-acciones">
+        <button class="btn-descuentos" @click="modalDescuentoAbierto = true">
+          💰 Aplicar Descuento
+        </button>
+        <button class="btn-agregar" @click="modalAbierto = true">
+          + Agregar Nuevo Producto
+        </button>
+      </div>
     </div>
+
+    <!-- ===== MODAL: DESCUENTOS ===== -->
+    <Teleport to="body">
+      <div v-if="modalDescuentoAbierto" class="modal-overlay" @click.self="modalDescuentoAbierto = false">
+        <div class="modal-contenido">
+          <FormularioDescuentoCategoria 
+            :categorias="categorias"
+            @descuentoAplicado="manejarDescuentoAplicado" 
+            @cancelado="modalDescuentoAbierto = false" 
+          />
+        </div>
+      </div>
+    </Teleport>
 
     <!-- ===== MODAL: AGREGAR HERRAMIENTA ===== -->
     <Teleport to="body">
@@ -230,10 +255,13 @@ onMounted(cargarProductos)
 
 <style scoped>
 .pagina { display: flex; flex-direction: column; gap: 20px; }
-.encabezado { display: flex; justify-content: space-between; align-items: center; }
+.encabezado { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .titulo-pagina { font-size: 1.4rem; font-weight: 700; color: #1a1a2e; }
+.botones-acciones { display: flex; gap: 10px; align-items: center; }
 .btn-agregar { padding: 10px 20px; background-color: #156895; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
 .btn-agregar:hover { background-color: #0f5070; }
+.btn-descuentos { padding: 10px 18px; background-color: #f57c00; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+.btn-descuentos:hover { background-color: #e65100; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal-contenido { background: white; border-radius: 12px; padding: 28px; min-width: 380px; max-width: 90vw; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
 .modal-cerrar { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #666; }
