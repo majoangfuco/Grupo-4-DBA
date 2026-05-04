@@ -6,7 +6,7 @@
 // =====================================================
 
 import type { OrdenAdmin } from '@/services/ordenesServicio'
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import ModalFactura from '@/components/ordenes/ModalFactura.vue'
 
 interface ConfigOrden {
@@ -20,6 +20,7 @@ const props = defineProps<{
   cargando: boolean
   error: string | null
   configOrden?: ConfigOrden
+  ordenParaFactura?: number | null
 }>()
 
 // --- Eventos ---
@@ -53,6 +54,12 @@ const abrirFactura = (ordenId: number) => {
 const cerrarFactura = () => {
   ordenSeleccionadaParaFactura.value = null
 }
+
+watch(() => props.ordenParaFactura, (nuevoId) => {
+  if (nuevoId !== null && nuevoId !== undefined) {
+    ordenSeleccionadaParaFactura.value = nuevoId
+  }
+})
 
 // --- Helper para badge de estado ---
 function formatearEstado(estado: string): string {

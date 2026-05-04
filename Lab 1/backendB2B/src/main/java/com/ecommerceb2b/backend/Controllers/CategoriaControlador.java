@@ -94,7 +94,7 @@ public class CategoriaControlador {
 	private boolean esAdmin(String authHeader) {
 		if (authHeader == null || !authHeader.startsWith("Bearer ")) {
 			return false;
-		}
+		} 
 		String token = authHeader.substring(7);
 		if (!jwtMiddlewareService.validateToken(token)) {
 			return false;
