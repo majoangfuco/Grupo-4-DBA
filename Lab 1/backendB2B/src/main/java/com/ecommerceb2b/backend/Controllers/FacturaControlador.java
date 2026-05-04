@@ -13,7 +13,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/facturas")
-@CrossOrigin(origins = {"http://localhost:5173", "http://127.0.0.1:5173", "http://localhost:8090", "http://127.0.0.1:8090"})
+@CrossOrigin(origins = "*")
 public class FacturaControlador {
 
     private final FacturaServicio servicio;

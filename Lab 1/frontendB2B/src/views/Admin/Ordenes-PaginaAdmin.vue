@@ -14,14 +14,12 @@ import { ordenesServicio, type OrdenAdmin } from '@/services/ordenesServicio'
 // ==================== ESTADO ========================
 const route = useRoute()
 const router = useRouter()
-const ordenes   = ref<Orden[]>([])
+const ordenes   = ref<OrdenAdmin[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
 
 // ==================== FILTROS =======================
 const filtros = reactive({ rut_Empresa: '', estado: '' })
-const route  = useRoute()
-const router = useRouter()
 
 const usuarioSeleccionado = computed<number | null>(() => {
   const valor = route.query.usuario_ID
@@ -37,7 +35,7 @@ const correoClienteSeleccionado = computed<string | null>(() => {
 })
 
 const opcionesEstado = computed(() => {
-  const set = new Set(ordenes.value.map(o => o.estado).filter(Boolean))
+  const set = new Set(ordenes.value.map((o: OrdenAdmin) => o.estado).filter(Boolean))
   return Array.from(set).sort()
 })
 
@@ -65,7 +63,7 @@ const cambiarOrden = (clave: string) => {
 
 // ==================== FILTRADO =====================
 const ordenesFiltradas = computed(() =>
-  ordenes.value.filter(o => {
+  ordenes.value.filter((o: OrdenAdmin) => {
     const coincideRut     = !filtros.rut_Empresa || o.rut_Empresa.includes(filtros.rut_Empresa)
     const coincideEstado  = !filtros.estado     || o.estado === filtros.estado
     const coincideUsuario = !usuarioSeleccionado.value || o.usuario_ID === usuarioSeleccionado.value
@@ -147,6 +145,13 @@ const cancelarOrden = async (ordenId: number) => {
   } finally {
     cargando.value = false
   }
+}
+
+// =============== HELPERS =========================
+const formatearEstado = (estado: string): string => {
+  if (!estado) return 'Desconocido'
+  if (estado.toUpperCase() === 'EN_RUTA') return 'En Ruta'
+  return estado.charAt(0).toUpperCase() + estado.slice(1).toLowerCase()
 }
 
 onMounted(cargarOrdenes)
