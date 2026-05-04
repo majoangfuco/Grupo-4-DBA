@@ -41,17 +41,23 @@ private final JdbcTemplate jdbcTemplate;
     }
 
     // Crear
-    public int crear(OrdenesEntidad o) {
+    public Long crear(OrdenesEntidad o) {
         String sql = """
                 INSERT INTO ordenes_entidad
                 (carrito_carrito_id, informacion_info_entrega_id, fecha_orden, estado)
                 VALUES (?, ?, ?, ?)
+                RETURNING orden_id
                 """;
-        return jdbcTemplate.update(sql,
+        Long ordenId = jdbcTemplate.queryForObject(sql, Long.class,
                 o.getCarrito_ID(),
                 o.getInfo_Entrega_ID(),
-                o.getFecha_Orden(),
+                new java.sql.Timestamp(o.getFecha_Orden().getTime()),
                 o.getEstado());
+
+        if (ordenId == null) {
+            throw new IllegalStateException("No se pudo crear la orden");
+        }
+        return ordenId;
     }
 
     // todos

@@ -25,7 +25,7 @@ const descargarFactura = async () => {
     const url = URL.createObjectURL(new Blob([response.data], { type: 'application/pdf' }))
     const link = document.createElement('a')
     link.href = url
-    link.download = `factura-${factura.value.fecha_Emision}${factura.value.fecha_Emision}.pdf`
+    link.download = `factura-${factura.value.factura_ID}.pdf`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
@@ -143,6 +143,10 @@ const formatearFecha = (fecha: string) => {
                   </tr>
                 </tbody>
               </table>
+            </div>
+
+            <div v-else class="items-seccion vacio">
+              <p>No hay productos asociados a esta factura.</p>
             </div>
 
             <div class="divider"></div>

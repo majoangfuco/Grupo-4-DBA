@@ -10,6 +10,7 @@ import java.math.BigDecimal;
  */
 public class ReporteVentasEntidad {
 
+    private Long reporte_ID;          // ID del reporte 
     private String mesAno;              // Formato: YYYY-MM
     private Integer anio;               // Año de la orden
     private Integer mes;                // Mes de la orden (1-12)
@@ -24,10 +25,11 @@ public class ReporteVentasEntidad {
     }
 
     // Constructor con todos los parámetros
-    public ReporteVentasEntidad(String mesAno, Integer anio, Integer mes, 
+    public ReporteVentasEntidad(Long reporte_ID, String mesAno, Integer anio, Integer mes, 
                                 String nombreCategoria, Integer cantidadOrdenes,
                                 Integer cantidadProductos, BigDecimal totalVendido,
                                 BigDecimal precioPromedio) {
+        this.reporte_ID = reporte_ID;
         this.mesAno = mesAno;
         this.anio = anio;
         this.mes = mes;

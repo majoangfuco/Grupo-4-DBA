@@ -9,8 +9,8 @@ import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { carritoServicio, type CarritoEntidad } from '@/services/carritoServicio'
 import { carritoProductoServicio, type CarritoProductoEntidad } from '@/services/carritoProductoServicio'
-import { obtenerEntregasPorUsuario, type InformacionEntregaEntidad } from '@/services/entregaServicio'
-import { obtenerDatosPagoPorUsuario, type DatosDePagoEntidad } from '@/services/datosPagoServicio'
+import { obtenerEntregasPorUsuario, crearEntrega, type InformacionEntregaEntidad } from '@/services/entregaServicio'
+import { obtenerDatosPagoPorUsuario, crearDatosPago, type DatosDePagoEntidad } from '@/services/datosPagoServicio'
 
 type SelectOptionId = number | 'new' | null
 
@@ -32,6 +32,51 @@ let toastTimer: number | null = null
 const modalAbierto = ref(false)
 const modalAccion = ref<'agregar' | 'eliminar'>('eliminar')
 const modalItem = ref<CarritoProductoEntidad | null>(null)
+
+// New: modals for crear entrega / datos de pago
+const showAddressModal = ref(false)
+const showPaymentModal = ref(false)
+
+const newAddress = ref<Partial<InformacionEntregaEntidad>>({ direccion: '', numero: '', rut_Recibe_Entrega: '', rut_Empresa: '' })
+const newPayment = ref<Partial<DatosDePagoEntidad>>({ metodo_Pago: '', numero_Tarjeta: '', fecha_Expiracion: '' })
+const newPaymentMonth = ref<string>('')
+const newPaymentYear = ref<string>('')
+
+const crearNuevaEntrega = async () => {
+  try {
+    if (!authStore.userId) throw new Error('Usuario no validado')
+    const payload = { ...newAddress.value, usuarioId: Number(authStore.userId) }
+    await crearEntrega(payload)
+    showAddressModal.value = false
+    await cargarCarrito()
+    notificar('Dirección guardada', 'ok')
+  } catch (err) {
+    console.error('Error creando entrega:', err)
+    notificar('No se pudo guardar la dirección', 'error')
+  }
+}
+
+const crearNuevoPago = async () => {
+  try {
+    if (!authStore.userId) throw new Error('Usuario no validado')
+    // build fecha_Expiracion from selects as MM/YYYY
+    if (newPaymentMonth.value && newPaymentYear.value) {
+      newPayment.value.fecha_Expiracion = `${newPaymentMonth.value}/${newPaymentYear.value}`
+    }
+    const payload = { ...newPayment.value, usuario_ID: Number(authStore.userId) }
+    await crearDatosPago(payload)
+    showPaymentModal.value = false
+    // reset selects
+    newPaymentMonth.value = ''
+    newPaymentYear.value = ''
+    newPayment.value = { metodo_Pago: '', numero_Tarjeta: '', fecha_Expiracion: '' }
+    await cargarCarrito()
+    notificar('Método de pago guardado', 'ok')
+  } catch (err) {
+    console.error('Error creando pago:', err)
+    notificar('No se pudo guardar el método de pago', 'error')
+  }
+}
 
 const cargarItems = async (carritoId: number) => {
   const [itemsResp, subtotalResp] = await Promise.all([
@@ -125,8 +170,8 @@ const cargarCarrito = async () => {
     carrito.value = carritoResp.data
     entregas.value = entregasResp.data
     datosPago.value = pagoResp.data
-    selectedEntregaId.value = entregas.value.length ? entregas.value[0].info_Entrega_ID : null
-    selectedPagoId.value = datosPago.value.length ? datosPago.value[0].datos_Pago_ID : null
+    selectedEntregaId.value = (entregas.value && entregas.value.length) ? entregas.value[0]!.info_Entrega_ID : null
+    selectedPagoId.value = (datosPago.value && datosPago.value.length) ? datosPago.value[0]!.datos_Pago_ID : null
 
     if (carrito.value?.carrito_ID) {
       await cargarItems(carrito.value.carrito_ID)
@@ -155,14 +200,14 @@ const navigateToPerfil = () => {
 const handleEntregaChange = () => {
   if (selectedEntregaId.value === 'new') {
     selectedEntregaId.value = null
-    navigateToPerfil()
+    showAddressModal.value = true
   }
 }
 
 const handlePagoChange = () => {
   if (selectedPagoId.value === 'new') {
     selectedPagoId.value = null
-    navigateToPerfil()
+    showPaymentModal.value = true
   }
 }
 
@@ -276,7 +321,6 @@ onMounted(cargarCarrito)
             <option value="new">+ Añadir nueva dirección</option>
             <option v-if="entregas.length === 0" disabled>No hay direcciones registradas</option>
           </select>
-          <button type="button" class="btn-link-minor" @click="navigateToPerfil">Agregar / editar direcciones</button>
         </div>
 
         <div class="campo">
@@ -289,7 +333,6 @@ onMounted(cargarCarrito)
             <option value="new">+ Añadir nuevo método</option>
             <option v-if="datosPago.length === 0" disabled>No hay datos de pago guardados</option>
           </select>
-          <button type="button" class="btn-link-minor" @click="navigateToPerfil">Agregar / editar pagos</button>
         </div>
 
         <div class="resumen-info">
@@ -310,6 +353,77 @@ onMounted(cargarCarrito)
     </div>
 
     <div v-else class="estado">No hay carrito activo.</div>
+  </div>
+
+  <!-- Modal: Crear dirección -->
+  <div v-if="showAddressModal" class="modal-overlay" @click.self="showAddressModal = false">
+    <div class="modal-box" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar nueva dirección</h3>
+        <button class="modal-close" @click="showAddressModal = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <label>Dirección</label>
+          <input type="text" v-model="newAddress.direccion" />
+          <label>Número</label>
+          <input type="text" v-model="newAddress.numero" />
+          <label>RUT quien recibe</label>
+          <input type="text" v-model="newAddress.rut_Recibe_Entrega" />
+          <label>RUT empresa</label>
+          <input type="text" v-model="newAddress.rut_Empresa" />
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-link" @click="showAddressModal = false">Cancelar</button>
+        <button class="btn-solid" @click="crearNuevaEntrega">Guardar dirección</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Crear método de pago -->
+  <div v-if="showPaymentModal" class="modal-overlay" @click.self="showPaymentModal = false">
+    <div class="modal-box" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 class="modal-title">Agregar método de pago</h3>
+        <button class="modal-close" @click="showPaymentModal = false">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <label>Método</label>
+          <input type="text" v-model="newPayment.metodo_Pago" placeholder="Tarjeta Crédito / Débito" />
+          <label>Número de tarjeta</label>
+          <input type="text" v-model="newPayment.numero_Tarjeta" placeholder="1234 5678 9012 3456" />
+          <label>Fecha expiración</label>
+          <div style="display:flex;gap:8px;align-items:center">
+            <select v-model="newPaymentMonth">
+              <option value="" disabled>Mes</option>
+              <option value="01">01 - Ene</option>
+              <option value="02">02 - Feb</option>
+              <option value="03">03 - Mar</option>
+              <option value="04">04 - Abr</option>
+              <option value="05">05 - May</option>
+              <option value="06">06 - Jun</option>
+              <option value="07">07 - Jul</option>
+              <option value="08">08 - Ago</option>
+              <option value="09">09 - Sep</option>
+              <option value="10">10 - Oct</option>
+              <option value="11">11 - Nov</option>
+              <option value="12">12 - Dic</option>
+            </select>
+            <select v-model="newPaymentYear">
+              <option value="" disabled>Año</option>
+              <!-- generate years from current to +10 -->
+              <option v-for="y in (new Array(11).fill(0).map((_,i)=> new Date().getFullYear()+i))" :key="y" :value="String(y)">{{ y }}</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn-link" @click="showPaymentModal = false">Cancelar</button>
+        <button class="btn-solid" @click="crearNuevoPago">Guardar método</button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -378,4 +492,15 @@ onMounted(cargarCarrito)
 .btn-link { background: none; border: none; color: #156895; cursor: pointer; }
 .btn-solid { background: #156895; color: #fff; border: none; border-radius: 22px; padding: 8px 16px; cursor: pointer; }
 .btn-solid:hover { background: #1b76a5; }
+
+/* Forms inside modals */
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.form-grid label { font-size: 0.85rem; color: #444; }
+.form-grid input, .form-grid select { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+.form-grid input[type="month"] { padding: 8px 10px; }
+.modal-box .modal-title { font-size: 1.05rem; }
+
+@media (max-width: 600px) {
+  .form-grid { grid-template-columns: 1fr; }
+}
 </style>

@@ -104,6 +104,16 @@ CREATE TABLE factura_entidad (
     iva             REAL
 );
 
+CREATE TABLE factura_item_entidad (
+    factura_item_id   BIGSERIAL PRIMARY KEY,
+    factura_id        BIGINT NOT NULL REFERENCES factura_entidad(factura_id) ON DELETE CASCADE,
+    producto_id       BIGINT NOT NULL REFERENCES producto_entidad(producto_id),
+    cantidad          INT NOT NULL,
+    precio_unitario   REAL NOT NULL,
+    CONSTRAINT ck_cantidad CHECK (cantidad > 0),
+    CONSTRAINT ck_precio CHECK (precio_unitario > 0)
+);
+
 -- ─── 3. PROCEDIMIENTOS ALMACENADOS ────────────────────────
 
 -- Procedimiento: Reservar stock de un producto
@@ -364,7 +374,7 @@ BEGIN
 
     IF NEW.estado = 'ABANDONADO' THEN
         PERFORM ajustar_reserva_por_carrito(NEW.carrito_id, 'LIBERAR');
-    ELSIF NEW.estado = 'PAGADO' THEN
+    ELSIF NEW.estado IN ('PAGADO', 'ORDENADO') THEN
         PERFORM ajustar_reserva_por_carrito(NEW.carrito_id, 'CONSUMIR');
     ELSIF NEW.estado = 'ACTIVO' AND OLD.estado = 'ABANDONADO' THEN
         PERFORM ajustar_reserva_por_carrito(NEW.carrito_id, 'RESERVAR');

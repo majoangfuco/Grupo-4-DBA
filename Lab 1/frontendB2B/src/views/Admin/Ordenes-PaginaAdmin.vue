@@ -6,7 +6,7 @@
 // por usuario, siguiendo el patrón de Productos-PaginaAdmin.vue.
 // =====================================================
 
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import ListaOrdenes from '@/components/ordenes/listaOrdenes-vistaAdmin.vue'
 import { ordenesServicio, type OrdenAdmin } from '@/services/ordenesServicio'
@@ -17,6 +17,7 @@ const router = useRouter()
 const ordenes   = ref<OrdenAdmin[]>([])
 const cargando  = ref(true)
 const error     = ref<string | null>(null)
+const ordenParaFactura = ref<number | null>(null)
 
 // ==================== FILTROS =======================
 const filtros = reactive({ rut_Empresa: '', estado: '' })
@@ -123,6 +124,8 @@ const aprobarOrden = async (ordenId: number) => {
   try {
     await ordenesServicio.aprobar(ordenId)
     await cargarOrdenes()
+    ordenParaFactura.value = ordenId
+    setTimeout(() => { ordenParaFactura.value = null }, 0)
   } catch (err: unknown) {
     console.error('Error al aprobar orden:', err)
     const axiosErr = err as { response?: { data?: { message?: string } } }
@@ -196,6 +199,7 @@ onMounted(cargarOrdenes)
       :cargando="cargando"
       :error="error"
       :config-orden="configOrden"
+      :orden-para-factura="ordenParaFactura"
       @ordenar="cambiarOrden"
       @reintentar="cargarOrdenes"
       @aprobar="aprobarOrden"
