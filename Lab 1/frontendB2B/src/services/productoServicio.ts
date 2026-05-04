@@ -22,6 +22,9 @@ const actualizarStock = (id: number, nuevoStock: number) => httpClient.patch(`/a
 
 const eliminar = (id: number) => httpClient.delete(`/api/productos/${id}`)
 
+const aplicarDescuentoPorCategoria = (categoriaId: number, porcentaje: number) =>
+  httpClient.post(`/api/productos/descuento?categoriaId=${categoriaId}&porcentaje=${porcentaje}`)
+
 export const productoServicio = {
   crearProducto,
   crearLote: crearProducto,
@@ -30,4 +33,5 @@ export const productoServicio = {
   actualizar,
   actualizarStock,
   eliminar,
+  aplicarDescuentoPorCategoria,
 }

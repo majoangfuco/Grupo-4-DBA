@@ -5,6 +5,9 @@ import com.ecommerceb2b.backend.Entities.ProductoEntidad;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.simple.SimpleJdbcCall;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -23,7 +26,7 @@ public class ProductoRepositorio {
     private final RowMapper<ProductoEntidad> rowMapper = (rs, rowNum) -> {
         ProductoEntidad p = new ProductoEntidad();
         p.setProducto_ID(rs.getLong("producto_id"));
-        p.setCategoria_ID(rs.getLong("categoria_categoria_id"));
+        p.setCategoria_ID(rs.getInt("categoria_categoria_id"));
         p.setNombre_producto(rs.getString("nombre_producto"));
         p.setDescripcion(rs.getString("descripcion"));
         p.setPrecio(rs.getFloat("precio"));
@@ -134,9 +137,19 @@ public class ProductoRepositorio {
         return jdbcTemplate.query(sql, rowMapper, categoriaId);
     }
 
-    public void aplicarDescuentoPorCategoria(Long categoriaId, Float porcentaje) {
-        String sql = "CALL aplicar_descuento_categoria(?, ?)";
-        jdbcTemplate.update(sql, categoriaId, porcentaje);
+    public void aplicarDescuentoPorCategoria(int categoriaId, Float porcentaje) {
+        try {
+            SimpleJdbcCall call = new SimpleJdbcCall(jdbcTemplate)
+                    .withProcedureName("aplicar_descuento_categoria");
+            
+            SqlParameterSource in = new MapSqlParameterSource()
+                    .addValue("p_categoria_id", categoriaId)
+                    .addValue("p_porcentaje", porcentaje);
+            
+            call.execute(in);
+        } catch (Exception e) {
+            throw new RuntimeException("Error al aplicar descuento: " + e.getMessage(), e);
+        }
     }
 
 

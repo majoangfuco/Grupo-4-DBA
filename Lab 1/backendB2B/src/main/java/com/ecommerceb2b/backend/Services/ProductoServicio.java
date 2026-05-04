@@ -142,7 +142,7 @@ public class ProductoServicio {
 	}
 
 	@Transactional
-	public void aplicarDescuentoMasivoPorCategoria(Long categoriaId, float porcentaje) {
+	public void aplicarDescuentoMasivoPorCategoria(int categoriaId, float porcentaje) {
 		productoRepositorio.aplicarDescuentoPorCategoria(categoriaId, porcentaje);
 	}
 
@@ -150,7 +150,7 @@ public class ProductoServicio {
 		if (producto == null) {
 			throw new IllegalArgumentException("El producto es obligatorio");
 		}
-		if (producto.getCategoria_ID() == null || producto.getCategoria_ID() <= 0) {
+		if (producto.getCategoria_ID() <= 0) {
 			throw new IllegalArgumentException("La categoria es obligatoria");
 		}
 		if (producto.getNombre_producto() == null || producto.getNombre_producto().trim().isEmpty()) {
