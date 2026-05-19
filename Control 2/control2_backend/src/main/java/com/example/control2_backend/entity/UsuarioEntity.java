@@ -1,10 +1,15 @@
 package com.example.control2_backend.entity;
 
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 import org.locationtech.jts.geom.Point;
 import jakarta.persistence.*;
 import java.util.List;
 
-
+@Getter
+@Setter
+@NoArgsConstructor
 @Entity
 @Table(name = "usuarios")
 public class UsuarioEntity {
@@ -18,11 +23,9 @@ public class UsuarioEntity {
     @Column(nullable = false)
     private String password;
 
-    // SRID 4326 es el estándar para coordenadas GPS (WGS 84)
     @Column(columnDefinition = "geometry(Point, 4326)", nullable = false)
     private Point ubicacionGeografica;
 
     @OneToMany(mappedBy = "usuario", cascade = CascadeType.ALL)
     private List<TareaEntity> tareas;
-
 }

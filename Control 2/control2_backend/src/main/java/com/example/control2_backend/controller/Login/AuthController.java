@@ -2,6 +2,7 @@ package com.example.control2_backend.controller.Login;
 
 import com.example.control2_backend.dtos.Login.AuthResponseDto;
 import com.example.control2_backend.dtos.Login.LoginRequestDto;
+import com.example.control2_backend.security.JwtUtil;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -16,14 +17,15 @@ import org.springframework.web.bind.annotation.*;
 public class AuthController {
 
     private final AuthenticationManager authenticationManager;
+    private final JwtUtil jwtUtil;
 
-    public AuthController(AuthenticationManager authenticationManager) {
+    public AuthController(AuthenticationManager authenticationManager, JwtUtil jwtUtil) {
         this.authenticationManager = authenticationManager;
+        this.jwtUtil = jwtUtil;
     }
 
     @PostMapping("/login")
     public ResponseEntity<AuthResponseDto> login(@Valid @RequestBody LoginRequestDto loginRequest) {
-        // Spring Security verifica las credenciales
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         loginRequest.getUsername(),
@@ -31,11 +33,9 @@ public class AuthController {
                 )
         );
 
-        //Se guarda la autenticación en el contexto
         SecurityContextHolder.getContext().setAuthentication(authentication);
 
-        // Generar el JWT
-        String token = "aqui_va_el_token_jwt_generado";
+        String token = jwtUtil.generateToken(loginRequest.getUsername());
 
         return ResponseEntity.ok(new AuthResponseDto(token));
     }
