@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +18,8 @@ import java.util.Optional;
 @Service
 @Transactional
 public class TareaService {
+
+    private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ISO_LOCAL_DATE_TIME;
 
     private final TareaRepository tareaRepository;
     private final UsuarioService usuarioService;
@@ -60,7 +63,7 @@ public class TareaService {
         TareaEntity tarea = new TareaEntity();
         tarea.setTitulo(dto.getTitulo());
         tarea.setDescripcion(dto.getDescripcion());
-        tarea.setFechaVencimiento(dto.getFechaVencimiento());
+        tarea.setFechaVencimiento(LocalDateTime.parse(dto.getFechaVencimiento(), FORMATTER));
         tarea.setEstadoCompletada(false);
         tarea.setUsuario(usuario);
         tarea.setSector(sector);
@@ -74,7 +77,7 @@ public class TareaService {
 
         tarea.setTitulo(dto.getTitulo());
         tarea.setDescripcion(dto.getDescripcion());
-        tarea.setFechaVencimiento(dto.getFechaVencimiento());
+        tarea.setFechaVencimiento(LocalDateTime.parse(dto.getFechaVencimiento(), FORMATTER));
         tarea.setSector(sector);
 
         return toDto(tareaRepository.save(tarea));
@@ -180,7 +183,8 @@ public class TareaService {
         dto.setId(entity.getId());
         dto.setTitulo(entity.getTitulo());
         dto.setDescripcion(entity.getDescripcion());
-        dto.setFechaVencimiento(entity.getFechaVencimiento());
+        dto.setFechaVencimiento(entity.getFechaVencimiento() != null
+                ? entity.getFechaVencimiento().format(FORMATTER) : null);
         dto.setEstadoCompletada(entity.getEstadoCompletada());
         dto.setUsuarioId(entity.getUsuario().getId());
         if (entity.getSector() != null) {
