@@ -112,10 +112,6 @@ const formatearFecha = (fecha: string) => {
                 <span class="valor destacado">{{ factura.factura_ID }}</span>
               </div>
               <div class="info-item">
-                <span class="etiqueta">ID Cliente:</span>
-                <span class="valor">{{ factura.usuarioId }}</span>
-              </div>
-              <div class="info-item">
                 <span class="etiqueta">Fecha de Emisión:</span>
                 <span class="valor">{{ formatearFecha(factura.fecha_Emision) }}</span>
               </div>
