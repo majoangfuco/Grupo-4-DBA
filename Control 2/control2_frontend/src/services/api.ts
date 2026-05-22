@@ -2,7 +2,10 @@ import axios from 'axios'
 
 const api = axios.create({
   baseURL: 'http://localhost:8080/api',
-  headers: { 'Content-Type': 'application/json' },
+  headers: { 
+    'Content-Type': 'application/json; charset=UTF-8',
+    'Accept-Charset': 'UTF-8'
+  },
 })
 
 api.interceptors.request.use((config) => {

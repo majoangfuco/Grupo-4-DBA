@@ -8,7 +8,6 @@ import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Optional;
 
 @Repository
 public interface TareaRepository extends JpaRepository<TareaEntity, Long> {
@@ -64,7 +63,7 @@ public interface TareaRepository extends JpaRepository<TareaEntity, Long> {
             )
             LIMIT 1
             """)
-    Optional<Object[]> findTareaMasCercana(@Param("usuarioId") Long usuarioId);
+    List<Object[]> findTareaMasCercana(@Param("usuarioId") Long usuarioId);
 
     // Q3: Sector con más tareas completadas en radio de 2 km
     @Query(nativeQuery = true, value = """
@@ -82,7 +81,7 @@ public interface TareaRepository extends JpaRepository<TareaEntity, Long> {
             ORDER BY total DESC
             LIMIT 1
             """)
-    Optional<Object[]> findSectorMasTareasCompletadasRadio2km(@Param("usuarioId") Long usuarioId);
+    List<Object[]> findSectorMasTareasCompletadasRadio2km(@Param("usuarioId") Long usuarioId);
 
     // Q4 & Q8: Promedio de distancia de tareas completadas respecto al usuario
     @Query(nativeQuery = true, value = """
@@ -97,13 +96,28 @@ public interface TareaRepository extends JpaRepository<TareaEntity, Long> {
             """)
     Double findPromedioDistanciaTareasCompletadas(@Param("usuarioId") Long usuarioId);
 
-    // Q5: Sectores con mayor concentración de tareas pendientes
+    // Q5: Concentración espacial de tareas pendientes por grupos de sectores cercanos
     @Query(nativeQuery = true, value = """
-            SELECT s.nombre, COUNT(t.id) AS total
-            FROM tareas t
-            JOIN sectores s ON t.sector_id = s.id
-            WHERE t.estado_completada = false
-            GROUP BY s.id, s.nombre
+            WITH pendientes AS (
+                SELECT t.id, s.nombre, s.ubicacion_espacial
+                FROM tareas t
+                JOIN sectores s ON t.sector_id = s.id
+                WHERE t.estado_completada = false
+            ),
+            clusters AS (
+                SELECT id, nombre,
+                       ST_ClusterDBSCAN(
+                           ST_Transform(ubicacion_espacial, 3857),
+                           eps := 250,
+                           minpoints := 1
+                       ) OVER () AS cluster_id
+                FROM pendientes
+            )
+            SELECT 'Grupo espacial ' || (cluster_id + 1) || ': ' ||
+                   STRING_AGG(DISTINCT nombre, ', ' ORDER BY nombre) AS sector,
+                   COUNT(id) AS total
+            FROM clusters
+            GROUP BY cluster_id
             ORDER BY total DESC
             """)
     List<Object[]> findSectoresConTareasPendientes();
@@ -135,5 +149,5 @@ public interface TareaRepository extends JpaRepository<TareaEntity, Long> {
             ORDER BY total DESC
             LIMIT 1
             """)
-    Optional<Object[]> findSectorMasTareasCompletadasRadio5km(@Param("usuarioId") Long usuarioId);
+    List<Object[]> findSectorMasTareasCompletadasRadio5km(@Param("usuarioId") Long usuarioId);
 }

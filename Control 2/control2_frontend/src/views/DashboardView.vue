@@ -21,6 +21,7 @@ interface Sector {
 
 const tareas = ref<Tarea[]>([])
 const sectores = ref<Sector[]>([])
+const notificaciones = ref<Tarea[]>([])
 const loading = ref(false)
 const error = ref('')
 
@@ -49,6 +50,10 @@ const tareasFiltradas = computed(() => {
   return lista
 })
 
+const tareasVencidas = computed(() => {
+  return tareas.value.filter((t) => !t.estadoCompletada && isVencida(t.fechaVencimiento))
+})
+
 async function cargarTareas() {
   loading.value = true
   try {
@@ -66,9 +71,20 @@ async function cargarSectores() {
   sectores.value = res.data
 }
 
+async function cargarNotificaciones() {
+  try {
+    const res = await tareasApi.getNotificaciones()
+    notificaciones.value = res.data
+  } catch {
+    // No mostrar error si falla, es opcional
+    notificaciones.value = []
+  }
+}
+
 onMounted(() => {
   cargarTareas()
   cargarSectores()
+  cargarNotificaciones()
 })
 
 function openCreate() {
@@ -147,6 +163,36 @@ function isVencida(fecha: string) {
     <div class="page-header">
       <h1>Mis Tareas</h1>
       <button @click="openCreate" class="btn-primary">+ Nueva Tarea</button>
+    </div>
+    <!-- Sección de TAREAS VENCIDAS (crítico) -->
+    <div v-if="tareasVencidas.length > 0" class="vencidas-section">
+      <h3>🔴 TAREAS VENCIDAS ({{ tareasVencidas.length }})</h3>
+      <p class="vencidas-desc">Estas tareas pasaron su plazo de vencimiento</p>
+      <div class="vencidas-list">
+        <div v-for="tarea in tareasVencidas" :key="tarea.id" class="vencida-item">
+          <div class="vencida-content">
+            <p class="vencida-titulo">{{ tarea.titulo }}</p>
+            <p class="vencida-sector">📍 {{ tarea.sectorNombre }}</p>
+            <p class="vencida-fecha">📅 {{ formatFecha(tarea.fechaVencimiento) }}</p>
+            <p class="vencida-dias">⏳ Vencido hace {{ Math.floor((Date.now() - new Date(tarea.fechaVencimiento).getTime()) / (1000 * 60 * 60 * 24)) }} días</p>
+          </div>
+          <button @click="openEdit(tarea)" class="vencida-btn">Actualizar</button>
+        </div>
+      </div>
+    </div>
+    <!-- Sección de notificaciones: tareas próximas a vencer -->
+    <div v-if="notificaciones.length > 0" class="notificaciones-section">
+      <h3>⚠️ Tareas próximas a vencer (próximas 24h)</h3>
+      <div class="notificaciones-list">
+        <div v-for="tarea in notificaciones" :key="tarea.id" class="notif-item">
+          <div class="notif-content">
+            <p class="notif-titulo">{{ tarea.titulo }}</p>
+            <p class="notif-sector">📍 {{ tarea.sectorNombre }}</p>
+            <p class="notif-fecha">📅 {{ formatFecha(tarea.fechaVencimiento) }}</p>
+          </div>
+          <button @click="openEdit(tarea)" class="notif-btn">Ir a Tarea</button>
+        </div>
+      </div>
     </div>
 
     <div class="filters">
@@ -457,5 +503,129 @@ textarea {
   color: #bbb;
   background: white;
   border-radius: 10px;
+}
+
+/* Tareas Vencidas - Crítico */
+.vencidas-section {
+  background: linear-gradient(135deg, #ffcccb 0%, #ff6b6b 100%);
+  border: 3px solid #d32f2f;
+  border-radius: 10px;
+  padding: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+.vencidas-section h3 {
+  color: #b71c1c;
+  margin: 0 0 0.3rem 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.vencidas-desc {
+  color: #8b0000;
+  font-size: 0.9rem;
+  margin: 0 0 1rem 0;
+}
+.vencidas-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.vencida-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 0.9rem 1rem;
+  border-radius: 8px;
+  border-left: 5px solid #d32f2f;
+}
+.vencida-content {
+  flex: 1;
+}
+.vencida-titulo {
+  font-weight: 700;
+  color: #b71c1c;
+  margin: 0 0 0.3rem 0;
+}
+.vencida-sector,
+.vencida-fecha,
+.vencida-dias {
+  font-size: 0.85rem;
+  color: #555;
+  margin: 0.2rem 0;
+}
+.vencida-dias {
+  color: #d32f2f;
+  font-weight: 600;
+}
+.vencida-btn {
+  background: #d32f2f;
+  color: white;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.vencida-btn:hover {
+  background: #b71c1c;
+}
+
+/* Notificaciones */
+.notificaciones-section {
+  background: linear-gradient(135deg, #fff3cd 0%, #ffe6cc 100%);
+  border: 2px solid #ffc107;
+  border-radius: 10px;
+  padding: 1.2rem;
+  margin-bottom: 1.5rem;
+}
+.notificaciones-section h3 {
+  color: #856404;
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+}
+.notificaciones-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+.notif-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: white;
+  padding: 0.8rem 1rem;
+  border-radius: 8px;
+  border-left: 4px solid #ff9800;
+}
+.notif-content {
+  flex: 1;
+}
+.notif-titulo {
+  font-weight: 600;
+  color: #333;
+  margin: 0 0 0.3rem 0;
+}
+.notif-sector,
+.notif-fecha {
+  font-size: 0.85rem;
+  color: #666;
+  margin: 0.2rem 0;
+}
+.notif-btn {
+  background: #ffc107;
+  color: #333;
+  border: none;
+  padding: 0.4rem 0.9rem;
+  border-radius: 5px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.notif-btn:hover {
+  background: #ffb300;
 }
 </style>

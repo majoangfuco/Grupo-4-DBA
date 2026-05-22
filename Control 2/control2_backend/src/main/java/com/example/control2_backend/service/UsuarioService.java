@@ -45,6 +45,12 @@ public class UsuarioService {
         return toDto(usuario);
     }
 
+    public UsuarioDto getById(Long id) {
+        UsuarioEntity usuario = usuarioRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));
+        return toDto(usuario);
+    }
+
     public UsuarioEntity getEntityByUsername(String username) {
         return usuarioRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Usuario no encontrado"));

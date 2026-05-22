@@ -15,8 +15,9 @@ const sectorRadio5km = ref<any>(null)
 
 onMounted(async () => {
   loading.value = true
+  error.value = ''
   try {
-    const [r1, r2, r3, r4, r5, r6, r7] = await Promise.all([
+    const results = await Promise.allSettled([
       tareasApi.estadisticas.porSector(),
       tareasApi.estadisticas.masCercana(),
       tareasApi.estadisticas.sectorRadio2km(),
@@ -25,13 +26,21 @@ onMounted(async () => {
       tareasApi.estadisticas.porUsuarioSector(),
       tareasApi.estadisticas.sectorRadio5km(),
     ])
-    tareasPorSector.value = r1.data
-    tareaMasCercana.value = r2.data
-    sectorRadio2km.value = r3.data
-    promedioDistancia.value = r4.data?.promedioMetros
-    sectoresPendientes.value = r5.data
-    tareasPorUsuario.value = r6.data
-    sectorRadio5km.value = r7.data
+
+    const data = (result: PromiseSettledResult<any>) =>
+      result.status === 'fulfilled' ? result.value.data : null
+
+    tareasPorSector.value = data(results[0]) ?? []
+    tareaMasCercana.value = data(results[1]) ?? null
+    sectorRadio2km.value = data(results[2]) ?? null
+    promedioDistancia.value = data(results[3])?.promedioMetros ?? null
+    sectoresPendientes.value = data(results[4]) ?? []
+    tareasPorUsuario.value = data(results[5]) ?? []
+    sectorRadio5km.value = data(results[6]) ?? null
+
+    if (results.some((result) => result.status === 'rejected')) {
+      error.value = 'Algunas estadísticas no pudieron cargarse'
+    }
   } catch {
     error.value = 'Error al cargar estadísticas'
   } finally {
@@ -40,7 +49,7 @@ onMounted(async () => {
 })
 
 function formatMetros(metros: number | null) {
-  if (!metros) return 'Sin datos'
+  if (metros === null || metros === undefined) return 'Sin datos'
   if (metros < 1000) return `${metros.toFixed(0)} m`
   return `${(metros / 1000).toFixed(2)} km`
 }
@@ -49,7 +58,6 @@ function formatMetros(metros: number | null) {
 <template>
   <div>
     <h1>Estadísticas Geoespaciales</h1>
-    <p class="subtitle">Consultas espaciales con PostGIS sobre tus tareas</p>
 
     <p v-if="error" class="error-msg">{{ error }}</p>
     <p v-if="loading" class="loading-msg">Calculando estadísticas...</p>

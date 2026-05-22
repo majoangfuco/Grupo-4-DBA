@@ -74,14 +74,14 @@ async function handleRegister() {
               v-model.number="latitud"
               type="number"
               step="any"
-              placeholder="Latitud (ej: -33.45)"
+              placeholder="Latitud (ej: -33.4)"
               required
             />
             <input
               v-model.number="longitud"
               type="number"
               step="any"
-              placeholder="Longitud (ej: -70.65)"
+              placeholder="Longitud (ej: -70.6)"
               required
             />
           </div>

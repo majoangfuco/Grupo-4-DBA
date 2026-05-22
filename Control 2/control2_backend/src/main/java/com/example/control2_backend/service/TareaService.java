@@ -13,7 +13,6 @@ import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 @Service
 @Transactional
@@ -118,9 +117,8 @@ public class TareaService {
 
     public Map<String, Object> getTareaMasCercana(String username) {
         UsuarioEntity usuario = usuarioService.getEntityByUsername(username);
-        Optional<Object[]> result = tareaRepository.findTareaMasCercana(usuario.getId());
-        if (result.isEmpty()) return Map.of();
-        Object[] row = result.get();
+        Object[] row = firstRow(tareaRepository.findTareaMasCercana(usuario.getId()));
+        if (row == null) return Map.of();
         Map<String, Object> map = new LinkedHashMap<>();
         map.put("id", row[0]);
         map.put("titulo", row[1]);
@@ -136,9 +134,8 @@ public class TareaService {
 
     public Map<String, Object> getSectorRadio2km(String username) {
         UsuarioEntity usuario = usuarioService.getEntityByUsername(username);
-        Optional<Object[]> result = tareaRepository.findSectorMasTareasCompletadasRadio2km(usuario.getId());
-        if (result.isEmpty()) return Map.of();
-        Object[] row = result.get();
+        Object[] row = firstRow(tareaRepository.findSectorMasTareasCompletadasRadio2km(usuario.getId()));
+        if (row == null) return Map.of();
         return Map.of("sector", row[0], "total", row[1]);
     }
 
@@ -163,10 +160,20 @@ public class TareaService {
 
     public Map<String, Object> getSectorRadio5km(String username) {
         UsuarioEntity usuario = usuarioService.getEntityByUsername(username);
-        Optional<Object[]> result = tareaRepository.findSectorMasTareasCompletadasRadio5km(usuario.getId());
-        if (result.isEmpty()) return Map.of();
-        Object[] row = result.get();
+        Object[] row = firstRow(tareaRepository.findSectorMasTareasCompletadasRadio5km(usuario.getId()));
+        if (row == null) return Map.of();
         return Map.of("sector", row[0], "total", row[1]);
+    }
+
+    private Object[] firstRow(List<Object[]> rows) {
+        if (rows.isEmpty()) {
+            return null;
+        }
+        Object[] row = rows.get(0);
+        if (row.length == 1 && row[0] instanceof Object[] nestedRow) {
+            return nestedRow;
+        }
+        return row;
     }
 
     private TareaEntity getEntityById(Long id, String username) {

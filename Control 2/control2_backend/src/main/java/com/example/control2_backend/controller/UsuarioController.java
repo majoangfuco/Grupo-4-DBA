@@ -29,4 +29,10 @@ public class UsuarioController {
     public ResponseEntity<UsuarioDto> me(@AuthenticationPrincipal UserDetails userDetails) {
         return ResponseEntity.ok(usuarioService.getByUsername(userDetails.getUsername()));
     }
+
+    // Obtener usuario por su ID
+    @GetMapping("/{id}")
+    public ResponseEntity<UsuarioDto> getUserById(@PathVariable Long id) {
+        return ResponseEntity.ok(usuarioService.getById(id));
+    }
 }
