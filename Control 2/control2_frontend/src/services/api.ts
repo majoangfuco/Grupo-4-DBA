@@ -34,6 +34,8 @@ export const authApi = {
   register: (username: string, password: string, latitud: number, longitud: number) =>
     api.post('/usuarios/register', { username, password, latitud, longitud }),
   me: () => api.get('/usuarios/me'),
+  updateProfile: (data: object) => api.put('/usuarios/me', data),
+  deleteAccount: (password: string) => api.delete('/usuarios/me', { data: { password } }),
 }
 
 export const tareasApi = {

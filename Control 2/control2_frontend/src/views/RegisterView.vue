@@ -13,6 +13,23 @@ const longitud = ref<number | null>(null)
 const error = ref('')
 const loading = ref(false)
 
+const errors = ref({
+  username: '',
+  password: '',
+  latitud: '',
+  longitud: '',
+})
+
+function clearErrors() {
+  error.value = ''
+  errors.value = {
+    username: '',
+    password: '',
+    latitud: '',
+    longitud: '',
+  }
+}
+
 function useCurrentLocation() {
   if (!navigator.geolocation) {
     error.value = 'Tu navegador no soporta geolocalización'
@@ -20,8 +37,10 @@ function useCurrentLocation() {
   }
   navigator.geolocation.getCurrentPosition(
     (pos) => {
-      latitud.value = pos.coords.latitude
-      longitud.value = pos.coords.longitude
+      latitud.value = parseFloat(pos.coords.latitude.toFixed(6))
+      longitud.value = parseFloat(pos.coords.longitude.toFixed(6))
+      errors.value.latitud = ''
+      errors.value.longitud = ''
     },
     () => {
       error.value = 'No se pudo obtener la ubicación'
@@ -30,15 +49,34 @@ function useCurrentLocation() {
 }
 
 async function handleRegister() {
-  error.value = ''
-  if (!latitud.value || !longitud.value) {
-    error.value = 'Debes ingresar o detectar tu ubicación'
+  clearErrors()
+  let hasErrors = false
+
+  if (!username.value.trim()) {
+    errors.value.username = 'El nombre de usuario es obligatorio'
+    hasErrors = true
+  }
+  if (!password.value) {
+    errors.value.password = 'La contraseña es obligatoria'
+    hasErrors = true
+  }
+  if (latitud.value === null || isNaN(Number(latitud.value))) {
+    errors.value.latitud = 'La latitud es obligatoria y debe ser un número'
+    hasErrors = true
+  }
+  if (longitud.value === null || isNaN(Number(longitud.value))) {
+    errors.value.longitud = 'La longitud es obligatoria y debe ser un número'
+    hasErrors = true
+  }
+
+  if (hasErrors) {
     return
   }
+
   loading.value = true
   try {
-    await auth.register(username.value, password.value, latitud.value, longitud.value)
-    await auth.login(username.value, password.value)
+    await auth.register(username.value.trim(), password.value, latitud.value!, longitud.value!)
+    await auth.login(username.value.trim(), password.value)
     router.push('/dashboard')
   } catch (e: any) {
     error.value = e.response?.data?.message || 'Error al registrar usuario'
@@ -57,11 +95,27 @@ async function handleRegister() {
       <form @submit.prevent="handleRegister">
         <div class="form-group">
           <label>Usuario</label>
-          <input v-model="username" type="text" placeholder="Nombre de usuario" required />
+          <input
+            v-model="username"
+            type="text"
+            placeholder="Nombre de usuario"
+            :class="{ 'input-error': errors.username }"
+            @input="errors.username = ''"
+            required
+          />
+          <span v-if="errors.username" class="field-error">{{ errors.username }}</span>
         </div>
         <div class="form-group">
           <label>Contraseña</label>
-          <input v-model="password" type="password" placeholder="Contraseña" required />
+          <input
+            v-model="password"
+            type="password"
+            placeholder="Contraseña"
+            :class="{ 'input-error': errors.password }"
+            @input="errors.password = ''"
+            required
+          />
+          <span v-if="errors.password" class="field-error">{{ errors.password }}</span>
         </div>
 
         <div class="form-group">
@@ -75,6 +129,8 @@ async function handleRegister() {
               type="number"
               step="any"
               placeholder="Latitud (ej: -33.4)"
+              :class="{ 'input-error': errors.latitud }"
+              @input="errors.latitud = ''"
               required
             />
             <input
@@ -82,9 +138,13 @@ async function handleRegister() {
               type="number"
               step="any"
               placeholder="Longitud (ej: -70.6)"
+              :class="{ 'input-error': errors.longitud }"
+              @input="errors.longitud = ''"
               required
             />
           </div>
+          <span v-if="errors.latitud" class="field-error">{{ errors.latitud }}</span>
+          <span v-if="errors.longitud" class="field-error">{{ errors.longitud }}</span>
           <p v-if="latitud && longitud" class="coords-info">
             📌 {{ latitud?.toFixed(6) }}, {{ longitud?.toFixed(6) }}
           </p>
@@ -208,5 +268,16 @@ input:focus {
   color: #3498db;
   text-decoration: none;
   font-weight: 600;
+}
+.input-error {
+  border-color: #e74c3c !important;
+  background-color: #fdf2f2 !important;
+  box-shadow: 0 0 5px rgba(231, 76, 60, 0.2) !important;
+}
+.field-error {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  display: block;
 }
 </style>

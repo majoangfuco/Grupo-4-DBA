@@ -11,14 +11,44 @@ const password = ref('')
 const error = ref('')
 const loading = ref(false)
 
-async function handleLogin() {
+const errors = ref({
+  username: '',
+  password: '',
+})
+
+function clearErrors() {
   error.value = ''
+  errors.value = {
+    username: '',
+    password: '',
+  }
+}
+
+async function handleLogin() {
+  clearErrors()
+  let hasErrors = false
+
+  if (!username.value.trim()) {
+    errors.value.username = 'El nombre de usuario es obligatorio'
+    hasErrors = true
+  }
+  if (!password.value) {
+    errors.value.password = 'La contraseña es obligatoria'
+    hasErrors = true
+  }
+
+  if (hasErrors) {
+    return
+  }
+
   loading.value = true
   try {
-    await auth.login(username.value, password.value)
+    await auth.login(username.value.trim(), password.value)
     router.push('/dashboard')
   } catch (e: any) {
     error.value = e.response?.data?.message || 'Credenciales incorrectas'
+    errors.value.username = 'Verifica tus credenciales'
+    errors.value.password = 'Verifica tus credenciales'
   } finally {
     loading.value = false
   }
@@ -34,11 +64,27 @@ async function handleLogin() {
       <form @submit.prevent="handleLogin">
         <div class="form-group">
           <label>Usuario</label>
-          <input v-model="username" type="text" placeholder="Nombre de usuario" required />
+          <input
+            v-model="username"
+            type="text"
+            placeholder="Nombre de usuario"
+            :class="{ 'input-error': errors.username }"
+            @input="errors.username = ''"
+            required
+          />
+          <span v-if="errors.username" class="field-error">{{ errors.username }}</span>
         </div>
         <div class="form-group">
           <label>Contraseña</label>
-          <input v-model="password" type="password" placeholder="Contraseña" required />
+          <input
+            v-model="password"
+            type="password"
+            placeholder="Contraseña"
+            :class="{ 'input-error': errors.password }"
+            @input="errors.password = ''"
+            required
+          />
+          <span v-if="errors.password" class="field-error">{{ errors.password }}</span>
         </div>
 
         <p v-if="error" class="error-msg">{{ error }}</p>
@@ -136,5 +182,16 @@ input:focus {
   color: #3498db;
   text-decoration: none;
   font-weight: 600;
+}
+.input-error {
+  border-color: #e74c3c !important;
+  background-color: #fdf2f2 !important;
+  box-shadow: 0 0 5px rgba(231, 76, 60, 0.2) !important;
+}
+.field-error {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  display: block;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { tareasApi, sectoresApi } from '@/services/api'
 
 interface Tarea {
@@ -25,6 +25,12 @@ const notificaciones = ref<Tarea[]>([])
 const loading = ref(false)
 const error = ref('')
 
+const errors = ref({
+  titulo: '',
+  fechaVencimiento: '',
+  sectorId: '',
+})
+
 const filtroEstado = ref<string>('all')
 const busqueda = ref('')
 const showModal = ref(false)
@@ -35,6 +41,16 @@ const form = ref({
   descripcion: '',
   fechaVencimiento: '',
   sectorId: null as number | null,
+})
+
+const minDate = computed(() => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  const hours = String(now.getHours()).padStart(2, '0')
+  const minutes = String(now.getMinutes()).padStart(2, '0')
+  return `${year}-${month}-${day}T${hours}:${minutes}`
 })
 
 const tareasFiltradas = computed(() => {
@@ -81,15 +97,34 @@ async function cargarNotificaciones() {
   }
 }
 
+let notifInterval: any = null
+
 onMounted(() => {
   cargarTareas()
   cargarSectores()
   cargarNotificaciones()
+  notifInterval = setInterval(cargarNotificaciones, 60000)
 })
+
+onUnmounted(() => {
+  if (notifInterval) {
+    clearInterval(notifInterval)
+  }
+})
+
+function clearErrors() {
+  error.value = ''
+  errors.value = {
+    titulo: '',
+    fechaVencimiento: '',
+    sectorId: '',
+  }
+}
 
 function openCreate() {
   editingTarea.value = null
   form.value = { titulo: '', descripcion: '', fechaVencimiento: '', sectorId: null }
+  clearErrors()
   showModal.value = true
 }
 
@@ -101,19 +136,43 @@ function openEdit(tarea: Tarea) {
     fechaVencimiento: tarea.fechaVencimiento?.slice(0, 16),
     sectorId: tarea.sectorId,
   }
+  clearErrors()
   showModal.value = true
 }
 
 async function guardarTarea() {
+  clearErrors()
+  let hasErrors = false
+
+  if (!form.value.titulo.trim()) {
+    errors.value.titulo = 'El título de la tarea es obligatorio'
+    hasErrors = true
+  }
+
+  if (!form.value.fechaVencimiento) {
+    errors.value.fechaVencimiento = 'La fecha de vencimiento es obligatoria'
+    hasErrors = true
+  } else {
+    const selectedDate = new Date(form.value.fechaVencimiento)
+    if (selectedDate <= new Date()) {
+      errors.value.fechaVencimiento = 'La fecha de vencimiento debe ser en el futuro'
+      hasErrors = true
+    }
+  }
+
   if (!form.value.sectorId) {
-    error.value = 'Selecciona un sector'
+    errors.value.sectorId = 'Selecciona un sector'
+    hasErrors = true
+  }
+
+  if (hasErrors) {
     return
   }
+
   loading.value = true
-  error.value = ''
   try {
     const payload = {
-      titulo: form.value.titulo,
+      titulo: form.value.titulo.trim(),
       descripcion: form.value.descripcion,
       fechaVencimiento: form.value.fechaVencimiento,
       sectorId: form.value.sectorId,
@@ -125,8 +184,9 @@ async function guardarTarea() {
     }
     showModal.value = false
     await cargarTareas()
-  } catch {
-    error.value = 'Error al guardar la tarea'
+    await cargarNotificaciones() // Refresh immediately after saving
+  } catch (e: any) {
+    error.value = e.response?.data?.message || 'Error al guardar la tarea'
   } finally {
     loading.value = false
   }
@@ -135,12 +195,14 @@ async function guardarTarea() {
 async function toggleTarea(tarea: Tarea) {
   await tareasApi.toggleCompletada(tarea.id)
   await cargarTareas()
+  await cargarNotificaciones()
 }
 
 async function eliminarTarea(id: number) {
   if (!confirm('¿Eliminar esta tarea?')) return
   await tareasApi.delete(id)
   await cargarTareas()
+  await cargarNotificaciones()
 }
 
 function formatFecha(fecha: string) {
@@ -258,7 +320,15 @@ function isVencida(fecha: string) {
 
         <div class="form-group">
           <label>Título *</label>
-          <input v-model="form.titulo" type="text" placeholder="Título de la tarea" required />
+          <input
+            v-model="form.titulo"
+            type="text"
+            placeholder="Título de la tarea"
+            :class="{ 'input-error': errors.titulo }"
+            @input="errors.titulo = ''"
+            required
+          />
+          <span v-if="errors.titulo" class="field-error">{{ errors.titulo }}</span>
         </div>
         <div class="form-group">
           <label>Descripción</label>
@@ -266,14 +336,28 @@ function isVencida(fecha: string) {
         </div>
         <div class="form-group">
           <label>Fecha de Vencimiento *</label>
-          <input v-model="form.fechaVencimiento" type="datetime-local" required />
+          <input
+            v-model="form.fechaVencimiento"
+            type="datetime-local"
+            :min="minDate"
+            :class="{ 'input-error': errors.fechaVencimiento }"
+            @change="errors.fechaVencimiento = ''"
+            required
+          />
+          <span v-if="errors.fechaVencimiento" class="field-error">{{ errors.fechaVencimiento }}</span>
         </div>
         <div class="form-group">
           <label>Sector *</label>
-          <select v-model="form.sectorId" required>
+          <select
+            v-model="form.sectorId"
+            :class="{ 'input-error': errors.sectorId }"
+            @change="errors.sectorId = ''"
+            required
+          >
             <option value="">Selecciona un sector</option>
             <option v-for="s in sectores" :key="s.id" :value="s.id">{{ s.nombre }}</option>
           </select>
+          <span v-if="errors.sectorId" class="field-error">{{ errors.sectorId }}</span>
         </div>
 
         <p v-if="error" class="error-msg">{{ error }}</p>
@@ -288,7 +372,6 @@ function isVencida(fecha: string) {
     </div>
   </div>
 </template>
-
 <style scoped>
 .page-header {
   display: flex;
@@ -627,5 +710,16 @@ textarea {
 }
 .notif-btn:hover {
   background: #ffb300;
+}
+.input-error {
+  border-color: #e74c3c !important;
+  background-color: #fdf2f2 !important;
+  box-shadow: 0 0 5px rgba(231, 76, 60, 0.2) !important;
+}
+.field-error {
+  color: #e74c3c;
+  font-size: 0.8rem;
+  margin-top: 0.25rem;
+  display: block;
 }
 </style>

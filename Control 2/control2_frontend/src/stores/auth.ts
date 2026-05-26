@@ -81,6 +81,13 @@ export const useAuthStore = defineStore('auth', () => {
     clearSession()
   }
 
+  function updateSession(newUser: Usuario, newToken: string) {
+    token.value = newToken
+    user.value = newUser
+    localStorage.setItem('token', newToken)
+    localStorage.setItem('user', JSON.stringify(newUser))
+  }
+
   return {
     token,
     user,
@@ -90,5 +97,6 @@ export const useAuthStore = defineStore('auth', () => {
     login,
     register,
     logout,
+    updateSession,
   }
 })
