@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { Icon } from '@iconify/vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/services/api'
@@ -166,14 +167,14 @@ async function handleDeleteAccount() {
     <!-- Mensaje de éxito -->
     <transition name="fade">
       <div v-if="successMsg" class="success-banner">
-        ✅ {{ successMsg }}
+        <Icon icon="lucide:circle-check" class="icon" /> {{ successMsg }}
       </div>
     </transition>
 
     <!-- Error global -->
     <div v-if="errorGlobal" class="error-banner">
-      ⚠️ {{ errorGlobal }}
-      <button @click="errorGlobal = ''" class="close-btn">✕</button>
+      <Icon icon="lucide:triangle-alert" class="icon" /> {{ errorGlobal }}
+      <button @click="errorGlobal = ''" class="close-btn"><Icon icon="lucide:x" class="icon" /></button>
     </div>
 
     <div class="perfil-container">
@@ -227,7 +228,7 @@ async function handleDeleteAccount() {
           <div class="form-group">
             <label>Ubicación Geográfica Asignada *</label>
             <button type="button" class="btn-geo" @click="useCurrentLocation">
-               Detectar mi ubicación actual
+              <Icon icon="lucide:locate" class="icon" /> Detectar mi ubicación actual
             </button>
             <div class="coords-grid">
               <div>
@@ -313,14 +314,14 @@ async function handleDeleteAccount() {
     <!-- ===== MODAL CONFIRMAR ELIMINACIÓN DE CUENTA ===== -->
     <div v-if="showDeleteModal" class="modal-overlay" @click.self="showDeleteModal = false">
       <div class="modal modal-confirm" role="dialog" aria-modal="true">
-        <div class="confirm-icon">⚠️</div>
+        <div class="confirm-icon"><Icon icon="lucide:triangle-alert" class="icon" style="font-size: 3rem; color: #e74c3c" /></div>
         <h3>¿Eliminar tu cuenta definitivamente?</h3>
         <p class="confirm-desc">
           Esta acción es irreversible. Se eliminará permanentemente tu usuario <strong>{{ username }}</strong>,
           así como todas tus tareas creadas y datos del sistema.
         </p>
         <p class="confirm-alert-box">
-          🚨 Esta acción requiere confirmación de seguridad. Por favor ingresa tu contraseña actual para proceder con el borrado físico en cascada.
+          <Icon icon="lucide:shield-alert" class="icon" /> Esta acción requiere confirmación de seguridad. Por favor ingresa tu contraseña actual para proceder con el borrado físico en cascada.
         </p>
 
         <div class="form-group" style="text-align: left; margin-bottom: 1.5rem;">
@@ -725,5 +726,12 @@ input:focus {
 
 .btn-delete-confirm:hover {
   opacity: 0.9;
+}
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+  display: inline-block;
 }
 </style>

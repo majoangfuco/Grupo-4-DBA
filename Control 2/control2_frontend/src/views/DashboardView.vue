@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { Icon } from '@iconify/vue'
 import { tareasApi, sectoresApi } from '@/services/api'
 
 interface Tarea {
@@ -228,15 +229,15 @@ function isVencida(fecha: string) {
     </div>
     <!-- Sección de TAREAS VENCIDAS (crítico) -->
     <div v-if="tareasVencidas.length > 0" class="vencidas-section">
-      <h3>🔴 TAREAS VENCIDAS ({{ tareasVencidas.length }})</h3>
+      <h3><Icon icon="lucide:circle-alert" class="icon text-red" /> TAREAS VENCIDAS ({{ tareasVencidas.length }})</h3>
       <p class="vencidas-desc">Estas tareas pasaron su plazo de vencimiento</p>
       <div class="vencidas-list">
         <div v-for="tarea in tareasVencidas" :key="tarea.id" class="vencida-item">
           <div class="vencida-content">
             <p class="vencida-titulo">{{ tarea.titulo }}</p>
-            <p class="vencida-sector">📍 {{ tarea.sectorNombre }}</p>
-            <p class="vencida-fecha">📅 {{ formatFecha(tarea.fechaVencimiento) }}</p>
-            <p class="vencida-dias">⏳ Vencido hace {{ Math.floor((Date.now() - new Date(tarea.fechaVencimiento).getTime()) / (1000 * 60 * 60 * 24)) }} días</p>
+            <p class="vencida-sector"><Icon icon="lucide:map-pin" class="icon" /> {{ tarea.sectorNombre }}</p>
+            <p class="vencida-fecha"><Icon icon="lucide:calendar" class="icon" /> {{ formatFecha(tarea.fechaVencimiento) }}</p>
+            <p class="vencida-dias"><Icon icon="lucide:hourglass" class="icon" /> Vencido hace {{ Math.floor((Date.now() - new Date(tarea.fechaVencimiento).getTime()) / (1000 * 60 * 60 * 24)) }} días</p>
           </div>
           <button @click="openEdit(tarea)" class="vencida-btn">Actualizar</button>
         </div>
@@ -244,13 +245,13 @@ function isVencida(fecha: string) {
     </div>
     <!-- Sección de notificaciones: tareas próximas a vencer -->
     <div v-if="notificaciones.length > 0" class="notificaciones-section">
-      <h3>⚠️ Tareas próximas a vencer (próximas 24h)</h3>
+      <h3><Icon icon="lucide:triangle-alert" class="icon" /> Tareas próximas a vencer (próximas 24h)</h3>
       <div class="notificaciones-list">
         <div v-for="tarea in notificaciones" :key="tarea.id" class="notif-item">
           <div class="notif-content">
             <p class="notif-titulo">{{ tarea.titulo }}</p>
-            <p class="notif-sector">📍 {{ tarea.sectorNombre }}</p>
-            <p class="notif-fecha">📅 {{ formatFecha(tarea.fechaVencimiento) }}</p>
+            <p class="notif-sector"><Icon icon="lucide:map-pin" class="icon" /> {{ tarea.sectorNombre }}</p>
+            <p class="notif-fecha"><Icon icon="lucide:calendar" class="icon" /> {{ formatFecha(tarea.fechaVencimiento) }}</p>
           </div>
           <button @click="openEdit(tarea)" class="notif-btn">Ir a Tarea</button>
         </div>
@@ -301,9 +302,9 @@ function isVencida(fecha: string) {
         <p class="tarea-desc">{{ tarea.descripcion }}</p>
 
         <div class="tarea-meta">
-          <span>📍 {{ tarea.sectorNombre }}</span>
+          <span><Icon icon="lucide:map-pin" class="icon" /> {{ tarea.sectorNombre }}</span>
           <span :class="{ 'text-red': !tarea.estadoCompletada && isVencida(tarea.fechaVencimiento) }">
-            📅 {{ formatFecha(tarea.fechaVencimiento) }}
+            <Icon icon="lucide:calendar" class="icon" /> {{ formatFecha(tarea.fechaVencimiento) }}
           </span>
         </div>
 
@@ -721,5 +722,12 @@ textarea {
   font-size: 0.8rem;
   margin-top: 0.25rem;
   display: block;
+}
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+  display: inline-block;
 }
 </style>

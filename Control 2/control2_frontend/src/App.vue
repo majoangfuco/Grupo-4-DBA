@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/auth'
 import { useRouter } from 'vue-router'
 import { onMounted, onUnmounted, ref, watch } from 'vue'
 import { tareasApi } from '@/services/api'
+import { Icon } from '@iconify/vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -121,10 +122,10 @@ function goToPerfil() {
               </div>
               <hr class="dropdown-divider" />
               <button class="dropdown-item" @click="goToPerfil" role="menuitem">
-                Perfil
+                <Icon icon="lucide:user" class="icon" /> Perfil
               </button>
               <button class="dropdown-item dropdown-item--danger" @click="logout" role="menuitem">
-                Salir
+                <Icon icon="lucide:log-out" class="icon" /> Salir
               </button>
             </div>
           </transition>
@@ -137,8 +138,8 @@ function goToPerfil() {
       class="notif-banner"
       @click="showNotif = false"
     >
-      ⚠️ Tienes {{ notificaciones.length }} tarea(s) con vencimiento en las próximas 24 horas.
-      <span class="notif-close">✕</span>
+      <Icon icon="lucide:triangle-alert" class="icon" /> Tienes {{ notificaciones.length }} tarea(s) con vencimiento en las próximas 24 horas.
+      <span class="notif-close"><Icon icon="lucide:x" class="icon" /></span>
     </div>
 
     <main class="main-content">
@@ -349,6 +350,13 @@ body {
 }
 .notif-close {
   font-weight: bold;
+}
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+  display: inline-block;
 }
 .main-content {
   padding: 2rem;

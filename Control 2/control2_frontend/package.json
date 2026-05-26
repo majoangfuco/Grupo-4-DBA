@@ -15,6 +15,8 @@
     "format": "prettier --write --experimental-cli src/"
   },
   "dependencies": {
+    "@iconify-json/lucide": "^1.2.109",
+    "@iconify/vue": "^5.0.1",
     "axios": "^1.16.1",
     "pinia": "^3.0.4",
     "vue": "^3.5.32",

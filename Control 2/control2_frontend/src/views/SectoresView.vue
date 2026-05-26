@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
+import { Icon } from '@iconify/vue'
 import { sectoresApi, tareasApi } from '@/services/api'
 
 interface Sector {
@@ -253,7 +254,7 @@ function openGoogleMaps(lat: number, lng: number) {
 
     <!-- Empty State -->
     <div v-else-if="sectoresFiltrados.length === 0 && !loading" class="empty-state">
-      <div class="empty-icon">🗺️</div>
+      <div class="empty-icon"><Icon icon="lucide:map" class="icon" /></div>
       <p class="empty-title">
         {{ busqueda ? 'No se encontraron sectores' : 'No hay sectores registrados' }}
       </p>
@@ -329,8 +330,8 @@ function openGoogleMaps(lat: number, lng: number) {
     <div v-if="showModal" class="modal-overlay" @click.self="closeModal">
       <div class="modal" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <h3>{{ editingSector ? ' Editar Sector' : '➕ Nuevo Sector' }}</h3>
-          <button @click="closeModal" class="modal-close">✕</button>
+          <h3>{{ editingSector ? ' Editar Sector' : '' }}<template v-if="!editingSector"><Icon icon="lucide:plus" class="icon" /> Nuevo Sector</template></h3>
+          <button @click="closeModal" class="modal-close"><Icon icon="lucide:x" class="icon" /></button>
         </div>
 
         <div class="modal-body">
@@ -354,7 +355,7 @@ function openGoogleMaps(lat: number, lng: number) {
           <div class="form-group">
             <label>Ubicación Geoespacial *</label>
             <button type="button" class="btn-geo" @click="useMyLocation">
-              📍 Usar mi ubicación actual
+              <Icon icon="lucide:map-pin" class="icon" /> Usar mi ubicación actual
             </button>
             <div class="coords-grid">
               <div>
@@ -385,7 +386,7 @@ function openGoogleMaps(lat: number, lng: number) {
               </div>
             </div>
             <p v-if="form.latitud && form.longitud" class="coords-preview">
-              📌 {{ form.latitud }}, {{ form.longitud }}
+              <Icon icon="lucide:map-pin" class="icon" /> {{ form.latitud }}, {{ form.longitud }}
               <a
                 :href="`https://www.google.com/maps?q=${form.latitud},${form.longitud}`"
                 target="_blank"
@@ -393,11 +394,11 @@ function openGoogleMaps(lat: number, lng: number) {
               >Ver en mapa ↗</a>
             </p>
             <p class="coords-hint">
-              💡 Ingresa las coordenadas manualmente o usa el botón para detectar tu posición
+              <Icon icon="lucide:lightbulb" class="icon" /> Ingresa las coordenadas manualmente o usa el botón para detectar tu posición
             </p>
           </div>
 
-          <p v-if="error" class="error-msg">⚠️ {{ error }}</p>
+          <p v-if="error" class="error-msg"><Icon icon="lucide:triangle-alert" class="icon" /> {{ error }}</p>
         </div>
 
         <div class="modal-footer">
@@ -417,13 +418,13 @@ function openGoogleMaps(lat: number, lng: number) {
     <!-- ===== MODAL CONFIRMAR ELIMINAR ===== -->
     <div v-if="confirmDeleteId !== null" class="modal-overlay" @click.self="confirmDeleteId = null">
       <div class="modal modal-confirm" role="dialog">
-        <div class="confirm-icon">🗑️</div>
+        <div class="confirm-icon"><Icon icon="lucide:trash-2" class="icon" style="font-size:2.5rem" /></div>
         <h3>¿Eliminar sector?</h3>
         <p class="confirm-desc">
           Esta acción no se puede deshacer. Si el sector tiene tareas asociadas, la eliminación
           fallará.
         </p>
-        <p v-if="error" class="error-msg">⚠️ {{ error }}</p>
+        <p v-if="error" class="error-msg"><Icon icon="lucide:triangle-alert" class="icon" /> {{ error }}</p>
         <div class="modal-footer">
           <button @click="confirmDeleteId = null" class="btn-cancel">Cancelar</button>
           <button
@@ -957,5 +958,13 @@ function openGoogleMaps(lat: number, lng: number) {
   font-size: 0.8rem;
   margin-top: 0.25rem;
   display: block;
+}
+
+.icon {
+  width: 1em;
+  height: 1em;
+  vertical-align: -0.15em;
+  flex-shrink: 0;
+  display: inline-block;
 }
 </style>
