@@ -163,7 +163,7 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  background: #2c3e50;
+  background: #395f85;
   color: white;
   padding: 0.8rem 2rem;
   position: relative;

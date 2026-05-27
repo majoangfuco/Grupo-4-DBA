@@ -209,11 +209,11 @@ function openGoogleMaps(lat: number, lng: number) {
     <!-- Header -->
     <div class="page-header">
       <div class="header-left">
-        <h1> Gestión de Sectores</h1>
+        <h1><Icon icon="lucide:map" class="icon" /> Gestión de Sectores</h1>
         <p class="subtitle">Administra los sectores geográficos del sistema</p>
       </div>
       <button @click="openCreate" class="btn-primary" id="btn-nuevo-sector">
-        <span class="btn-icon">+</span> Nuevo Sector
+        <Icon icon="lucide:plus" class="icon" /> Nuevo Sector
       </button>
     </div>
 
@@ -227,7 +227,7 @@ function openGoogleMaps(lat: number, lng: number) {
     <!-- Error global -->
     <div v-if="error && !showModal && confirmDeleteId === null" class="error-banner">
        {{ error }}
-      <button @click="error = ''" class="close-btn">✕</button>
+      <button @click="error = ''" class="close-btn"><Icon icon="lucide:x" class="icon" /></button>
     </div>
 
     <!-- Buscador y contador -->
@@ -261,7 +261,7 @@ function openGoogleMaps(lat: number, lng: number) {
       <p class="empty-desc">
         {{ busqueda ? 'Intenta con otro término de búsqueda' : 'Crea el primer sector para comenzar' }}
       </p>
-      <button v-if="!busqueda" @click="openCreate" class="btn-primary">+ Crear Primer Sector</button>
+      <button v-if="!busqueda" @click="openCreate" class="btn-primary"><Icon icon="lucide:plus" class="icon" /> Crear Primer Sector</button>
     </div>
 
     <!-- Grid de Sectores -->
@@ -306,21 +306,21 @@ function openGoogleMaps(lat: number, lng: number) {
             class="btn-maps"
             title="Ver en Google Maps"
           >
-            Ver mapa
+            <Icon icon="lucide:map" class="icon" /> Ver mapa
           </button>
           <button
             @click="openEdit(sector)"
             class="btn-edit"
             :id="`btn-edit-sector-${sector.id}`"
           >
-             Editar
+             <Icon icon="lucide:pencil" class="icon" /> Editar
           </button>
           <button
             @click="pedirConfirmacion(sector.id)"
             class="btn-delete"
             :id="`btn-delete-sector-${sector.id}`"
           >
-            Eliminar
+            <Icon icon="lucide:trash-2" class="icon" /> Eliminar
           </button>
         </div>
       </div>
