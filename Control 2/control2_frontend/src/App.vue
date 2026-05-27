@@ -94,11 +94,11 @@ function goToPerfil() {
 <template>
   <div id="app">
     <nav v-if="auth.isAuthenticated" class="navbar">
-      <div class="nav-brand">Gestión de Tareas</div>
+      <div class="nav-brand"><Icon icon="lucide:check-square" class="icon" /> Gestión de Tareas</div>
       <div class="nav-links">
-        <router-link to="/dashboard">Mis Tareas</router-link>
-        <router-link to="/sectores">Sectores</router-link>
-        <router-link to="/estadisticas">Estadísticas</router-link>
+        <router-link to="/dashboard"><Icon icon="lucide:list-todo" class="icon" /> Mis Tareas</router-link>
+        <router-link to="/sectores"><Icon icon="lucide:map" class="icon" /> Sectores</router-link>
+        <router-link to="/estadisticas"><Icon icon="lucide:pie-chart" class="icon" /> Estadísticas</router-link>
 
         <!-- Dropdown de usuario -->
         <div id="user-menu-wrapper" class="user-menu-wrapper">

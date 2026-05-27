@@ -33,6 +33,7 @@ const errors = ref({
 })
 
 const filtroEstado = ref<string>('all')
+const filtroSector = ref<number | 'all'>('all')
 const busqueda = ref('')
 const showModal = ref(false)
 const editingTarea = ref<Tarea | null>(null)
@@ -58,10 +59,11 @@ const tareasFiltradas = computed(() => {
   let lista = tareas.value
   if (filtroEstado.value === 'pendiente') lista = lista.filter((t) => !t.estadoCompletada)
   if (filtroEstado.value === 'completada') lista = lista.filter((t) => t.estadoCompletada)
+  if (filtroSector.value !== 'all') lista = lista.filter((t) => t.sectorId === filtroSector.value)
   if (busqueda.value.trim()) {
     const kw = busqueda.value.toLowerCase()
     lista = lista.filter(
-      (t) => t.titulo.toLowerCase().includes(kw) || t.descripcion?.toLowerCase().includes(kw),
+      (t) => t.titulo?.toLowerCase().includes(kw) || t.descripcion?.toLowerCase().includes(kw),
     )
   }
   return lista
@@ -224,8 +226,8 @@ function isVencida(fecha: string) {
 <template>
   <div>
     <div class="page-header">
-      <h1>Mis Tareas</h1>
-      <button @click="openCreate" class="btn-primary">+ Nueva Tarea</button>
+      <h1><Icon icon="lucide:list-todo" class="icon" /> Mis Tareas</h1>
+      <button @click="openCreate" class="btn-primary"><Icon icon="lucide:plus" class="icon" /> Nueva Tarea</button>
     </div>
     <!-- Sección de TAREAS VENCIDAS (crítico) -->
     <div v-if="tareasVencidas.length > 0" class="vencidas-section">
@@ -257,11 +259,14 @@ function isVencida(fecha: string) {
         </div>
       </div>
     </div>
-
     <div class="filters">
       <input v-model="busqueda" type="text" placeholder="Buscar por título o descripción..." />
+      <select v-model="filtroSector">
+        <option value="all">Sectores</option>
+        <option v-for="s in sectores" :key="s.id" :value="s.id">{{ s.nombre }}</option>
+      </select>
       <select v-model="filtroEstado">
-        <option value="all">Todas</option>
+        <option value="all">Estados</option>
         <option value="pendiente">Pendientes</option>
         <option value="completada">Completadas</option>
       </select>
@@ -271,6 +276,8 @@ function isVencida(fecha: string) {
     <p v-if="loading" class="loading-msg">Cargando...</p>
 
     <div v-if="tareasFiltradas.length === 0 && !loading" class="empty-state">
+      <Icon icon="lucide:inbox" class="icon" style="font-size: 3rem; margin-bottom: 1rem; color: #bbb;" />
+      <br />
       No hay tareas para mostrar.
     </div>
 
@@ -309,8 +316,8 @@ function isVencida(fecha: string) {
         </div>
 
         <div class="tarea-actions">
-          <button @click="openEdit(tarea)" class="btn-edit">Editar</button>
-          <button @click="eliminarTarea(tarea.id)" class="btn-delete">Eliminar</button>
+          <button @click="openEdit(tarea)" class="btn-edit"><Icon icon="lucide:pencil" class="icon" /> Editar</button>
+          <button @click="eliminarTarea(tarea.id)" class="btn-delete"><Icon icon="lucide:trash-2" class="icon" /> Eliminar</button>
         </div>
       </div>
     </div>
@@ -384,9 +391,11 @@ h1 {
   color: #2c3e50;
 }
 .filters {
-  display: flex;
   gap: 1rem;
   margin-bottom: 1.5rem;
+  display: grid;
+  grid-template-columns: 8fr 1fr 1fr;
+  gap: 16px;
 }
 .filters input {
   flex: 1;

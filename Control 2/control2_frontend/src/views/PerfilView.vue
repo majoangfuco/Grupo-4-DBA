@@ -159,7 +159,7 @@ async function handleDeleteAccount() {
   <div class="perfil-page">
     <div class="page-header">
       <div class="header-left">
-        <h1>Mi Perfil</h1>
+        <h1><Icon icon="lucide:user" class="icon" /> Mi Perfil</h1>
         <p class="subtitle">Administra los detalles de tu cuenta y ubicación geográfica</p>
       </div>
     </div>
