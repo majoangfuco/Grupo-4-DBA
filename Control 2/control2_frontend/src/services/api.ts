@@ -5,9 +5,12 @@ const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/a
 const api = axios.create({
   baseURL: apiBaseURL,
   headers: { 
-    'Content-Type': 'application/json; charset=UTF-8',
-    'Accept-Charset': 'UTF-8'
+    'Content-Type': 'application/json; charset=UTF-8'
   },
+  // withCredentials: permite al navegador enviar cookies en peticiones cross-origin
+  withCredentials: true,
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
 })
 
 api.interceptors.request.use((config) => {

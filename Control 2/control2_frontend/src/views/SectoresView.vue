@@ -2,6 +2,7 @@
 import { ref, onMounted, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { sectoresApi, tareasApi } from '@/services/api'
+import AlertBanner from '@/components/AlertBanner.vue'
 
 interface Sector {
   id: number
@@ -217,18 +218,14 @@ function openGoogleMaps(lat: number, lng: number) {
       </button>
     </div>
 
-    <!-- Success Banner -->
-    <transition name="fade">
-      <div v-if="successMsg" class="success-banner">
-        {{ successMsg }}
-      </div>
-    </transition>
-
-    <!-- Error global -->
-    <div v-if="error && !showModal && confirmDeleteId === null" class="error-banner">
-       {{ error }}
-      <button @click="error = ''" class="close-btn"><Icon icon="lucide:x" class="icon" /></button>
-    </div>
+    <!-- AlertBanner: componente reutilizable en src/components/AlertBanner.vue -->
+    <AlertBanner :message="successMsg" type="success" @close="successMsg = ''" />
+    <AlertBanner
+      v-if="!showModal && confirmDeleteId === null"
+      :message="error"
+      type="error"
+      @close="error = ''"
+    />
 
     <!-- Buscador y contador -->
     <div class="toolbar">

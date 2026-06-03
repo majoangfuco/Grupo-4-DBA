@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # 1. Base de Datos (PostgreSQL + PostGIS)
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: control2_db
+    environment:
+      POSTGRES_DB: control2
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: root
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+    # Healthcheck: Docker esperará hasta que PostgreSQL acepte conexiones
+    # antes de arrancar el backend (evita el error "Connection refused" de Spring Boot)
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d control2"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  # 2. Backend (Spring Boot)
+  backend:
+    build:
+      context: ./control2_backend
+      dockerfile: Dockerfile
+    container_name: control2_backend
+    depends_on:
+      db:
+        # Spring Boot solo arranca DESPUÉS de que la DB pase el healthcheck
+        condition: service_healthy
+    restart: on-failure
+    environment:
+      # Base de datos (usando las variables que lee application.properties)
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=control2
+      - DB_USER=postgres
+      - DB_PASSWORD=root
+      # Puerto del servidor
+      - SERVER_PORT=8080
+      # JWT (requerido, sin valor por defecto en application.properties)
+      - JWT_SECRET=clave-secreta-super-segura-para-produccion-minimo-32-chars
+      - JWT_EXPIRATION=86400000
+      # SQL y JPA
+      - SQL_INIT_MODE=always
+      - SQL_INIT_CONTINUE_ON_ERROR=true
+      - JPA_HIBERNATE_DDL_AUTO=update
+      # CORS: permite peticiones desde el frontend en Docker (puerto 80)
+      - CORS_ALLOWED_ORIGINS=http://localhost,http://localhost:80
+      # Email desactivado en Docker (opcional)
+      - MAIL_ENABLED=false
+    ports:
+      - "8080:8080"
+    networks:
+      - app-network
+
+  # 3. Frontend (Vue.js + Nginx con proxy reverso al backend)
+  frontend:
+    build:
+      context: ./control2_frontend
+      dockerfile: Dockerfile
+    container_name: control2_frontend
+    depends_on:
+      - backend
+    restart: on-failure
+    ports:
+      - "80:80"
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+
+networks:
+  app-network:
+    driver: bridge

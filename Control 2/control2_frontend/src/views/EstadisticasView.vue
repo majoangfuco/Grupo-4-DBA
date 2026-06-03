@@ -2,6 +2,8 @@
 import { ref, onMounted, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { tareasApi } from '@/services/api'
+import StatCard from '@/components/StatCard.vue'
+import BarChart from '@/components/BarChart.vue'
 
 const loading = ref(false)
 const error = ref('')
@@ -98,65 +100,61 @@ function getCellValue(usuario: string, sector: string) {
 
     <div v-if="!loading" class="stats-layout">
 
-      <!-- ===== FILA 1: Cards métricas clave ===== -->
+      <!-- ===== FILA 1: Cards métricas clave — usando StatCard (src/components/StatCard.vue) ===== -->
       <div class="metrics-row">
 
         <!-- Q2: Tarea más cercana -->
-        <div class="metric-card accent-blue">
-          <div class="metric-icon"><Icon icon="lucide:map-pin" class="icon" /></div>
-          <div class="metric-body">
-            <p class="metric-label">Tarea Pendiente Más Cercana</p>
-            <template v-if="tareaMasCercana && tareaMasCercana.titulo">
-              <p class="metric-main">{{ tareaMasCercana.titulo }}</p>
-              <p class="metric-sub">Sector: <strong>{{ tareaMasCercana.sectorNombre }}</strong></p>
-              <p class="metric-distance">
-                <span class="distance-badge"><Icon icon="lucide:ruler" class="icon" /> {{ formatMetros(tareaMasCercana.distanciaMetros) }}</span>
-              </p>
-            </template>
-            <p v-else class="metric-empty">Sin tareas pendientes</p>
-          </div>
-        </div>
+        <StatCard label="Tarea Pendiente Más Cercana" icon="lucide:map-pin" accent="blue">
+          <template v-if="tareaMasCercana && tareaMasCercana.titulo">
+            <p class="metric-main">{{ tareaMasCercana.titulo }}</p>
+            <p class="metric-sub">Sector: <strong>{{ tareaMasCercana.sectorNombre }}</strong></p>
+            <p class="metric-distance">
+              <span class="distance-badge"><Icon icon="lucide:ruler" class="icon" /> {{ formatMetros(tareaMasCercana.distanciaMetros) }}</span>
+            </p>
+          </template>
+          <p v-else class="metric-empty">Sin tareas pendientes</p>
+        </StatCard>
 
         <!-- Q4/Q8: Promedio distancia -->
-        <div class="metric-card accent-green">
-          <div class="metric-icon"><Icon icon="lucide:ruler" class="icon" /></div>
-          <div class="metric-body">
-            <p class="metric-label">Promedio de Distancia</p>
-            <p class="metric-label-sub">Tareas completadas respecto a tu ubicación</p>
-            <p class="metric-big">{{ formatMetros(promedioDistancia) }}</p>
-          </div>
-        </div>
+        <StatCard
+          label="Promedio de Distancia"
+          sublabel="Tareas completadas respecto a tu ubicación"
+          icon="lucide:ruler"
+          accent="green"
+        >
+          <p class="metric-big">{{ formatMetros(promedioDistancia) }}</p>
+        </StatCard>
 
         <!-- Q3: Sector 2km -->
-        <div class="metric-card accent-purple">
-          <div class="metric-icon"><Icon icon="lucide:circle-dot" class="icon" style="color:#3498db" /></div>
-          <div class="metric-body">
-            <p class="metric-label">Sector Más Activo (2 km)</p>
-            <p class="metric-label-sub">Con más tareas completadas cerca de ti</p>
-            <template v-if="sectorRadio2km && sectorRadio2km.sector">
-              <p class="metric-main">{{ sectorRadio2km.sector }}</p>
-              <p class="metric-sub">{{ sectorRadio2km.total }} tarea(s) completada(s)</p>
-            </template>
-            <p v-else class="metric-empty">Sin datos en 2 km</p>
-          </div>
-        </div>
+        <StatCard
+          label="Sector Más Activo (2 km)"
+          sublabel="Con más tareas completadas cerca de ti"
+          icon="lucide:circle-dot"
+          accent="purple"
+        >
+          <template v-if="sectorRadio2km && sectorRadio2km.sector">
+            <p class="metric-main">{{ sectorRadio2km.sector }}</p>
+            <p class="metric-sub">{{ sectorRadio2km.total }} tarea(s) completada(s)</p>
+          </template>
+          <p v-else class="metric-empty">Sin datos en 2 km</p>
+        </StatCard>
 
         <!-- Q7: Sector 5km -->
-        <div class="metric-card accent-orange">
-          <div class="metric-icon"><Icon icon="lucide:circle-dot" class="icon" style="color:#2ecc71" /></div>
-          <div class="metric-body">
-            <p class="metric-label">Sector Más Activo (5 km)</p>
-            <p class="metric-label-sub">Con más tareas completadas cerca de ti</p>
-            <template v-if="sectorRadio5km && sectorRadio5km.sector">
-              <p class="metric-main">{{ sectorRadio5km.sector }}</p>
-              <p class="metric-sub">{{ sectorRadio5km.total }} tarea(s) completada(s)</p>
-            </template>
-            <p v-else class="metric-empty">Sin datos en 5 km</p>
-          </div>
-        </div>
+        <StatCard
+          label="Sector Más Activo (5 km)"
+          sublabel="Con más tareas completadas cerca de ti"
+          icon="lucide:circle-dot"
+          accent="orange"
+        >
+          <template v-if="sectorRadio5km && sectorRadio5km.sector">
+            <p class="metric-main">{{ sectorRadio5km.sector }}</p>
+            <p class="metric-sub">{{ sectorRadio5km.total }} tarea(s) completada(s)</p>
+          </template>
+          <p v-else class="metric-empty">Sin datos en 5 km</p>
+        </StatCard>
       </div>
 
-      <!-- ===== FILA 2: Q1 Mis tareas por sector ===== -->
+      <!-- ===== FILA 2: Q1 — usando BarChart (src/components/BarChart.vue) ===== -->
       <div class="chart-card">
         <div class="card-header">
           <div>
@@ -165,24 +163,15 @@ function getCellValue(usuario: string, sector: string) {
           </div>
           <span class="badge badge-blue">{{ tareasPorSector.length }} sector(es)</span>
         </div>
-        <div v-if="tareasPorSector.length > 0" class="bar-chart">
-          <div v-for="item in tareasPorSector" :key="item.sector" class="bar-row">
-            <span class="bar-label">{{ item.sector }}</span>
-            <div class="bar-track">
-              <div
-                class="bar-fill bar-fill--blue"
-                :style="{ width: `${(Number(item.total) / maxTareasSector) * 100}%` }"
-              ></div>
-            </div>
-            <span class="bar-count">{{ item.total }}</span>
-          </div>
-        </div>
-        <div v-else class="empty-state">
-          <p><Icon icon="lucide:folder-open" class="icon" /> Aún no tienes tareas registradas en ningún sector.</p>
-        </div>
+        <!-- BarChart: componente reutilizable en src/components/BarChart.vue -->
+        <BarChart
+          :items="tareasPorSector.map((i: any) => ({ label: i.sector, value: Number(i.total) }))"
+          color="blue"
+          emptyMessage="Aún no tienes tareas registradas en ningún sector."
+        />
       </div>
 
-      <!-- ===== FILA 3: Q5 Concentración espacial de pendientes ===== -->
+      <!-- ===== FILA 3: Q5 — usando BarChart (src/components/BarChart.vue) ===== -->
       <div class="chart-card">
         <div class="card-header">
           <div>
@@ -194,21 +183,12 @@ function getCellValue(usuario: string, sector: string) {
           </div>
           <span class="badge badge-orange">Agrupación espacial</span>
         </div>
-        <div v-if="sectoresPendientes.length > 0" class="bar-chart">
-          <div v-for="item in sectoresPendientes" :key="item.sector" class="bar-row">
-            <span class="bar-label">{{ item.sector }}</span>
-            <div class="bar-track">
-              <div
-                class="bar-fill bar-fill--orange"
-                :style="{ width: `${(Number(item.total) / maxPendientes) * 100}%` }"
-              ></div>
-            </div>
-            <span class="bar-count">{{ item.total }}</span>
-          </div>
-        </div>
-        <div v-else class="empty-state">
-          <p><Icon icon="lucide:circle-check" class="icon" /> No hay tareas pendientes registradas.</p>
-        </div>
+        <!-- BarChart: componente reutilizable en src/components/BarChart.vue -->
+        <BarChart
+          :items="sectoresPendientes.map((i: any) => ({ label: i.sector, value: Number(i.total) }))"
+          color="orange"
+          emptyMessage="No hay tareas pendientes registradas."
+        />
       </div>
 
       <!-- ===== FILA 4: Q6 Tareas por usuario y sector (tabla cruzada) ===== -->
@@ -321,7 +301,6 @@ function getCellValue(usuario: string, sector: string) {
   margin-bottom: 1.5rem;
   font-size: 0.88rem;
 }
-
 /* ===== LAYOUT ===== */
 .stats-layout {
   display: flex;
@@ -336,48 +315,7 @@ function getCellValue(usuario: string, sector: string) {
   gap: 1rem;
 }
 
-.metric-card {
-  background: white;
-  border-radius: 12px;
-  padding: 1.4rem;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.07);
-  display: flex;
-  gap: 1rem;
-  align-items: flex-start;
-  border-top: 4px solid transparent;
-}
-
-.accent-blue   { border-top-color: #3498db; }
-.accent-green  { border-top-color: #2ecc71; }
-.accent-purple { border-top-color: #9b59b6; }
-.accent-orange { border-top-color: #e67e22; }
-
-.metric-icon {
-  font-size: 1.8rem;
-  line-height: 1;
-  flex-shrink: 0;
-}
-
-.metric-body {
-  flex: 1;
-  min-width: 0;
-}
-
-.metric-label {
-  font-size: 0.78rem;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  color: #7f8c8d;
-  margin: 0 0 0.3rem 0;
-}
-
-.metric-label-sub {
-  font-size: 0.72rem;
-  color: #95a5a6;
-  margin: 0 0 0.5rem 0;
-}
-
+/* Estilos de contenido interno de StatCard */
 .metric-main {
   font-size: 1.05rem;
   font-weight: 700;

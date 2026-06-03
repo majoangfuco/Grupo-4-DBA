@@ -4,6 +4,7 @@ import { Icon } from '@iconify/vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { authApi } from '@/services/api'
+import AlertBanner from '@/components/AlertBanner.vue'
 
 const auth = useAuthStore()
 const router = useRouter()
@@ -164,18 +165,9 @@ async function handleDeleteAccount() {
       </div>
     </div>
 
-    <!-- Mensaje de éxito -->
-    <transition name="fade">
-      <div v-if="successMsg" class="success-banner">
-        <Icon icon="lucide:circle-check" class="icon" /> {{ successMsg }}
-      </div>
-    </transition>
-
-    <!-- Error global -->
-    <div v-if="errorGlobal" class="error-banner">
-      <Icon icon="lucide:triangle-alert" class="icon" /> {{ errorGlobal }}
-      <button @click="errorGlobal = ''" class="close-btn"><Icon icon="lucide:x" class="icon" /></button>
-    </div>
+    <!-- AlertBanner: componente reutilizable en src/components/AlertBanner.vue -->
+    <AlertBanner :message="successMsg" type="success" @close="successMsg = ''" />
+    <AlertBanner :message="errorGlobal" type="error" @close="errorGlobal = ''" />
 
     <div class="perfil-container">
       <!-- Tarjeta Formulario Perfil -->

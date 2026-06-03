@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed } from 'vue'
 import { Icon } from '@iconify/vue'
 import { tareasApi, sectoresApi } from '@/services/api'
+import TareaCard from '@/components/TareaCard.vue'
 
 interface Tarea {
   id: number
@@ -281,45 +282,16 @@ function isVencida(fecha: string) {
       No hay tareas para mostrar.
     </div>
 
+    <!-- TareaCard: componente reutilizable extraído a src/components/TareaCard.vue -->
     <div class="tareas-grid">
-      <div
+      <TareaCard
         v-for="tarea in tareasFiltradas"
         :key="tarea.id"
-        class="tarea-card"
-        :class="{
-          completada: tarea.estadoCompletada,
-          vencida: !tarea.estadoCompletada && isVencida(tarea.fechaVencimiento),
-        }"
-      >
-        <div class="tarea-header">
-          <input
-            type="checkbox"
-            :checked="tarea.estadoCompletada"
-            @change="toggleTarea(tarea)"
-            class="tarea-check"
-          />
-          <span class="tarea-titulo" :class="{ tachado: tarea.estadoCompletada }">
-            {{ tarea.titulo }}
-          </span>
-          <span class="badge" :class="tarea.estadoCompletada ? 'badge-ok' : 'badge-pend'">
-            {{ tarea.estadoCompletada ? 'Completada' : 'Pendiente' }}
-          </span>
-        </div>
-
-        <p class="tarea-desc">{{ tarea.descripcion }}</p>
-
-        <div class="tarea-meta">
-          <span><Icon icon="lucide:map-pin" class="icon" /> {{ tarea.sectorNombre }}</span>
-          <span :class="{ 'text-red': !tarea.estadoCompletada && isVencida(tarea.fechaVencimiento) }">
-            <Icon icon="lucide:calendar" class="icon" /> {{ formatFecha(tarea.fechaVencimiento) }}
-          </span>
-        </div>
-
-        <div class="tarea-actions">
-          <button @click="openEdit(tarea)" class="btn-edit"><Icon icon="lucide:pencil" class="icon" /> Editar</button>
-          <button @click="eliminarTarea(tarea.id)" class="btn-delete"><Icon icon="lucide:trash-2" class="icon" /> Eliminar</button>
-        </div>
-      </div>
+        :tarea="tarea"
+        @toggle="toggleTarea(tarea)"
+        @edit="openEdit(tarea)"
+        @delete="eliminarTarea(tarea.id)"
+      />
     </div>
 
     <div v-if="showModal" class="modal-overlay" @click.self="showModal = false">
@@ -411,100 +383,11 @@ h1 {
   border-radius: 6px;
   font-size: 0.95rem;
 }
+/* TareaCard styles moved to src/components/TareaCard.vue */
 .tareas-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
   gap: 1rem;
-}
-.tarea-card {
-  background: white;
-  border-radius: 10px;
-  padding: 1.2rem;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  border-left: 4px solid #3498db;
-  transition: transform 0.15s;
-}
-.tarea-card:hover {
-  transform: translateY(-2px);
-}
-.tarea-card.completada {
-  border-left-color: #27ae60;
-  opacity: 0.8;
-}
-.tarea-card.vencida {
-  border-left-color: #e74c3c;
-}
-.tarea-header {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  margin-bottom: 0.6rem;
-}
-.tarea-check {
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-}
-.tarea-titulo {
-  flex: 1;
-  font-weight: 600;
-  font-size: 1rem;
-}
-.tachado {
-  text-decoration: line-through;
-  color: #999;
-}
-.badge {
-  font-size: 0.75rem;
-  padding: 0.2rem 0.5rem;
-  border-radius: 12px;
-  font-weight: 600;
-}
-.badge-ok {
-  background: #d5f5e3;
-  color: #27ae60;
-}
-.badge-pend {
-  background: #fef9e7;
-  color: #f39c12;
-}
-.tarea-desc {
-  color: #666;
-  font-size: 0.9rem;
-  margin-bottom: 0.7rem;
-  line-height: 1.4;
-}
-.tarea-meta {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.82rem;
-  color: #888;
-  margin-bottom: 0.8rem;
-}
-.text-red {
-  color: #e74c3c;
-}
-.tarea-actions {
-  display: flex;
-  gap: 0.5rem;
-}
-.btn-edit {
-  background: #3498db;
-  color: white;
-  border: none;
-  padding: 0.3rem 0.7rem;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.85rem;
-}
-.btn-delete {
-  background: #e74c3c;
-  color: white;
-  border: none;
-  padding: 0.3rem 0.7rem;
-  border-radius: 5px;
-  cursor: pointer;
-  font-size: 0.85rem;
 }
 .btn-primary {
   background: #2c3e50;
