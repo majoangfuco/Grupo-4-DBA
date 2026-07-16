@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { authApi } from '@/services/api'
+import { authApi, ensureCsrfCookie } from '@/services/api'
 
 export interface Usuario {
   id: number
@@ -53,6 +53,10 @@ export const useAuthStore = defineStore('auth', () => {
     const response = await authApi.login(username, password)
     token.value = response.data.token
     localStorage.setItem('token', token.value!)
+
+    // Obtener cookie CSRF proactivamente después del login
+    // para que la primera petición mutante no falle con 403
+    await ensureCsrfCookie()
 
     await fetchCurrentUser()
   }

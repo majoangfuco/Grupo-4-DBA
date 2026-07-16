@@ -3,11 +3,21 @@ import { computed } from 'vue'
 import { Icon } from '@iconify/vue'
 
 /**
+ * BarChart — Gráfico de barras horizontales proporcionales reutilizable.
+ *
+ * Usado en: EstadisticasView.vue (Q1 Mis tareas por sector, Q5 Sectores con pendientes)
  *
  * Props:
  *   - items:        Array de { label: string, value: number }
  *   - color:        'blue' | 'orange' | 'green' (default: 'blue')
  *   - emptyMessage: Mensaje cuando no hay items (opcional)
+ *
+ * Uso:
+ *   <BarChart
+ *     :items="tareasPorSector.map(i => ({ label: i.sector, value: Number(i.total) }))"
+ *     color="blue"
+ *     emptyMessage="No hay tareas registradas"
+ *   />
  */
 
 const props = withDefaults(defineProps<{

@@ -35,6 +35,19 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+
+                // ── CSRF: Patrón Double-Submit Cookie ────────────────────────────────
+                // CookieCsrfTokenRepository.withHttpOnlyFalse() → la cookie XSRF-TOKEN
+                // es legible por JavaScript, para que Axios pueda leerla y enviarla
+                // como header X-XSRF-TOKEN en cada petición mutante (POST/PUT/DELETE).
+                //
+                // Se ignoran los endpoints públicos (login/register) porque el cliente
+                // aún no tiene la cookie cuando hace esas peticiones por primera vez.
+                //
+                // ¿Por qué esto protege incluso con JWT?
+                //   Un atacante puede forzar al navegador a enviar cookies, pero NO puede
+                //   leerlas desde otro dominio (Same-Origin Policy). Sin poder leer
+                //   XSRF-TOKEN, no puede incluir el header X-XSRF-TOKEN correcto → bloqueado.
                 .csrf(csrf -> csrf
                         .csrfTokenRepository(CookieCsrfTokenRepository.withHttpOnlyFalse())
                         .csrfTokenRequestHandler(new CsrfTokenRequestAttributeHandler())

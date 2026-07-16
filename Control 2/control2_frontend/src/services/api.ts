@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const apiBaseURL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8081/api'
+const apiBaseURL = import.meta.env.VITE_API_BASE_URL || '/api'
 
 const api = axios.create({
   baseURL: apiBaseURL,
@@ -8,7 +8,10 @@ const api = axios.create({
     'Content-Type': 'application/json; charset=UTF-8'
   },
   // withCredentials: permite al navegador enviar cookies en peticiones cross-origin
+  // (necesario para que el browser envíe la cookie XSRF-TOKEN al backend)
   withCredentials: true,
+  // Axios leerá automáticamente la cookie 'XSRF-TOKEN' que Spring genera
+  // y la enviará como header 'X-XSRF-TOKEN' en cada POST/PUT/DELETE/PATCH
   xsrfCookieName: 'XSRF-TOKEN',
   xsrfHeaderName: 'X-XSRF-TOKEN',
 })
@@ -21,9 +24,36 @@ api.interceptors.request.use((config) => {
   return config
 })
 
+// ── Función para obtener/refrescar la cookie CSRF ───────────────────────────
+// Hace un GET ligero al backend para que Spring genere la cookie XSRF-TOKEN.
+// Axios la leerá automáticamente en la siguiente petición mutante.
+export async function ensureCsrfCookie(): Promise<void> {
+  try {
+    await api.get('/auth/csrf', { timeout: 5000 })
+  } catch {
+    // Si /auth/csrf no existe, cualquier GET autenticado sirve (las tareas, etc.)
+    // La cookie se genera en cualquier respuesta gracias al CsrfCookieFilter.
+  }
+}
+
 api.interceptors.response.use(
   (response) => response,
-  (error) => {
+  async (error) => {
+    const originalRequest = error.config
+
+    // Si recibimos 403 en una petición mutante y NO es un reintento,
+    // probablemente el CSRF token no estaba sincronizado.
+    // La respuesta del 403 ya trae la cookie XSRF-TOKEN actualizada
+    // (gracias al CsrfCookieFilter), así que reintentamos directamente.
+    if (
+      error.response?.status === 403 &&
+      !originalRequest._csrfRetry &&
+      ['post', 'put', 'delete', 'patch'].includes(originalRequest.method?.toLowerCase())
+    ) {
+      originalRequest._csrfRetry = true
+      return api(originalRequest)
+    }
+
     if (error.response?.status === 401) {
       localStorage.removeItem('token')
       localStorage.removeItem('user')

@@ -2,12 +2,24 @@
 import { Icon } from '@iconify/vue'
 
 /**
+ * StatCard — Tarjeta de métrica/estadística reutilizable.
+ *
+ * Usado en: EstadisticasView.vue (Q2, Q3, Q4/Q8, Q7)
+ *
  * Props:
  *   - label:    Texto superior pequeño (ej: "Tarea Más Cercana")
  *   - sublabel: Texto descriptivo secundario (opcional)
  *   - icon:     Nombre del icono Iconify (ej: "lucide:map-pin")
  *   - accent:   'blue' | 'green' | 'purple' | 'orange' (default: 'blue')
  *   - empty:    Mensaje cuando no hay datos (opcional)
+ *
+ * Slots:
+ *   - default: contenido principal de la card (valor, nombre, badge, etc.)
+ *
+ * Uso:
+ *   <StatCard label="Tarea más cercana" icon="lucide:map-pin" accent="blue">
+ *     <p class="metric-main">{{ tarea.titulo }}</p>
+ *   </StatCard>
  */
 
 withDefaults(defineProps<{

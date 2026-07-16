@@ -2,10 +2,21 @@
 import { Icon } from '@iconify/vue'
 
 /**
+ * AlertBanner — Componente reutilizable de banner de alerta.
+ *
+ * Usado en: SectoresView.vue, PerfilView.vue, DashboardView.vue
+ *
  * Props:
  *   - message: texto del mensaje (string)
  *   - type: 'success' | 'error' | 'warning' (default: 'success')
  *   - closeable: si muestra botón X para cerrar (default: true)
+ *
+ * Emits:
+ *   - close: cuando el usuario pulsa el botón cerrar
+ *
+ * Uso:
+ *   <AlertBanner message="Guardado correctamente" type="success" @close="msg = ''" />
+ *   <AlertBanner message="Error al guardar" type="error" @close="err = ''" />
  */
 
 const props = withDefaults(defineProps<{

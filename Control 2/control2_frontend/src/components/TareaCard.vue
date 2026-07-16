@@ -2,6 +2,10 @@
 import { Icon } from '@iconify/vue'
 
 /**
+ * TareaCard — Tarjeta de tarea reutilizable.
+ *
+ * Usado en: DashboardView.vue
+ *
  * Props:
  *   - tarea: objeto Tarea con campos id, titulo, descripcion,
  *            fechaVencimiento, estadoCompletada, sectorNombre
@@ -10,6 +14,9 @@ import { Icon } from '@iconify/vue'
  *   - toggle: cuando el usuario marca/desmarca la tarea
  *   - edit:   cuando el usuario pulsa Editar
  *   - delete: cuando el usuario pulsa Eliminar
+ *
+ * Uso:
+ *   <TareaCard :tarea="t" @toggle="toggleTarea(t)" @edit="openEdit(t)" @delete="eliminar(t.id)" />
  */
 
 interface Tarea {
