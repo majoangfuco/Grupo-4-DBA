@@ -6,7 +6,7 @@ services:
     image: postgis/postgis:15-3.3
     container_name: control2_db
     environment:
-      POSTGRES_DB: control2
+      POSTGRES_DB: control2_bd
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: root
     ports:
@@ -18,7 +18,7 @@ services:
     # Healthcheck: Docker esperará hasta que PostgreSQL acepte conexiones
     # antes de arrancar el backend (evita el error "Connection refused" de Spring Boot)
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d control2"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d control2_bd"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -39,7 +39,7 @@ services:
       # Base de datos (usando las variables que lee application.properties)
       - DB_HOST=db
       - DB_PORT=5432
-      - DB_NAME=control2
+      - DB_NAME=control2_bd
       - DB_USER=postgres
       - DB_PASSWORD=root
       # Puerto del servidor
