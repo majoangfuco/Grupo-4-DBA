@@ -1,0 +1,10 @@
+# Backend environment (example)
+APP_ENV=development
+APP_PORT=8090
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=app_db
+DB_USER=app_user
+DB_PASSWORD=changeme
+JWT_SECRET=changeme
+JWT_EXPIRATION_MS=3600000
