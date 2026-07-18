@@ -3,7 +3,7 @@
 // Carrito-PaginaClientes.vue
 // Muestra el carrito activo/abandonado del cliente.
 // =====================================================
-
+import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -48,8 +48,8 @@ const newAddress = ref<Partial<InformacionEntregaEntidad>>({
   rut_Recibe_Entrega: '',
   rut_Empresa: '',
   comuna: '',
-  latitud: null,
-  longitud: null,
+  latitud: undefined,
+  longitud: undefined
 })
 const newPayment = ref<Partial<DatosDePagoEntidad>>({ metodo_Pago: '', numero_Tarjeta: '', fecha_Expiracion: '' })
 const newPaymentMonth = ref<string>('')
@@ -95,22 +95,64 @@ const crearNuevaEntrega = async () => {
   showAddressErrors.value = true // Activar la validación visual de los campos
   
   try {
-    if (!authStore.userId) throw new Error('Usuario no validado')
+if (!authStore.userId) {
+      throw new Error('Usuario no validado')
+    }
 
-    // Se obliga al usuario a proporcionar ambas coordenadas
-    if (!Number.isFinite(newAddress.value.latitud) || !Number.isFinite(newAddress.value.longitud)) {
-      notificar('Debes indicar latitud y longitud de la dirección', 'error')
+    // 1. Validar campos de texto requeridos
+    if (
+      !newAddress.value.direccion?.trim() ||
+      !newAddress.value.numero?.trim() ||
+      !newAddress.value.comuna?.trim()
+    ) {
+      notificar('Completa dirección, número y comuna', 'error')
       return
     }
 
-    const payload = { ...newAddress.value, usuarioId: Number(authStore.userId) }
+    // 2. Validar que las coordenadas existan y sean números
+    if (
+      newAddress.value.latitud === undefined || 
+      newAddress.value.longitud === undefined || 
+      !Number.isFinite(newAddress.value.latitud) ||
+      !Number.isFinite(newAddress.value.longitud)
+    ) {
+      notificar('Ingresa coordenadas válidas', 'error')
+      return
+    }
+
+    // 3. Validar límites geográficos reales
+    if (newAddress.value.latitud < -90 || newAddress.value.latitud > 90) {
+      notificar('La latitud debe estar entre -90 y 90', 'error')
+      return
+    }
+
+    if (newAddress.value.longitud < -180 || newAddress.value.longitud > 180) {
+      notificar('La longitud debe estar entre -180 y 180', 'error')
+      return
+    }
+
+    // 4. Armar el payload con los valores por defecto
+    const payload: Partial<InformacionEntregaEntidad> = {
+      ...newAddress.value,
+      usuarioId: Number(authStore.userId),
+      activa: true,
+      estado_Entrega: 'PENDIENTE'
+    }
+
     await crearEntrega(payload)
     
-    // Resetear formulario y variables al tener éxito
+    // 5. Resetear formulario y variables
     showAddressModal.value = false
-    showAddressErrors.value = false
-    newAddress.value = { direccion: '', numero: '', rut_Recibe_Entrega: '', rut_Empresa: '', comuna: '', latitud: null, longitud: null }
-    
+    showAddressErrors.value = false // <- Tu aporte para limpiar la UI
+    newAddress.value = {
+      direccion: '',
+      numero: '',
+      rut_Recibe_Entrega: '',
+      rut_Empresa: '',
+      comuna: '',
+      latitud: undefined, // Ajustado al tipado de tus compañeros
+      longitud: undefined
+    }
     await cargarCarrito()
     notificar('Dirección guardada', 'ok')
   } catch (err) {
@@ -289,19 +331,31 @@ const extraerMensajeError = (err: unknown, mensajePorDefecto: string): string =>
 
 const solicitarOrden = async () => {
   if (!carrito.value?.carrito_ID) return
-  if (!selectedEntregaId.value || !selectedPagoId.value || selectedEntregaId.value === 'new' || selectedPagoId.value === 'new') {
-    notificar('Selecciona dirección de envío y datos de pago', 'error')
+
+  if (
+    !selectedEntregaId.value ||
+    !selectedPagoId.value ||
+    selectedEntregaId.value === 'new' ||
+    selectedPagoId.value === 'new'
+  ) {
+    notificar(
+      'Selecciona dirección de envío y datos de pago',
+      'error'
+    )
     return
   }
 
   try {
     cargando.value = true
     almacenAsignado.value = null
+    
+    // 1. Ejecutamos el checkout asegurando el tipado numérico (aporte de tus compañeros)
     const resp = await carritoServicio.checkout(carrito.value.carrito_ID, {
-      infoEntregaId: selectedEntregaId.value,
-      datosPagoId: selectedPagoId.value,
+      infoEntregaId: Number(selectedEntregaId.value),
+      datosPagoId: Number(selectedPagoId.value),
     })
 
+    // 2. Buscamos el almacén asignado a la orden (tu aporte)
     const ordenId = (resp.data as { ordenId?: number })?.ordenId
     if (ordenId) {
       try {
@@ -312,16 +366,39 @@ const solicitarOrden = async () => {
       }
     }
 
+    // 3. Mostramos la notificación dinámica (tu aporte)
     notificar(
       almacenAsignado.value
         ? `Orden solicitada. Se despachará desde ${almacenAsignado.value}.`
         : 'Orden solicitada correctamente',
-      'ok',
+      'ok'
     )
     await cargarCarrito()
+
   } catch (err: unknown) {
     console.error('Error al solicitar orden:', err)
-    notificar(extraerMensajeError(err, 'No se pudo procesar la orden'), 'error')
+
+    let mensaje = 'No se pudo procesar la orden'
+
+    if (axios.isAxiosError(err)) {
+      const respuesta = err.response?.data
+
+      if (typeof respuesta === 'string') {
+        mensaje = respuesta
+      } else if (
+        respuesta &&
+        typeof respuesta === 'object'
+      ) {
+        if ('message' in respuesta) {
+          mensaje = String(respuesta.message)
+        } else if ('error' in respuesta) {
+          mensaje = String(respuesta.error)
+        }
+      }
+    }
+
+    notificar(mensaje, 'error')
+
   } finally {
     cargando.value = false
   }
@@ -470,7 +547,12 @@ onMounted(cargarCarrito)
           <label>RUT empresa</label>
           <input type="text" v-model="newAddress.rut_Empresa" />
           <label>Comuna</label>
-          <input type="text" v-model="newAddress.comuna" placeholder="Ej: Providencia" />
+
+          <input
+            type="text"
+            v-model.trim="newAddress.comuna"
+            placeholder="Ejemplo: Providencia"
+          />
         </div>
 
         <div class="form-grid" style="margin-top: 10px;">

@@ -1,13 +1,10 @@
 package com.ecommerceb2b.backend.Services;
 
 import com.ecommerceb2b.backend.Entities.CarritoEntidad;
-import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
 import com.ecommerceb2b.backend.Entities.CheckoutPedidoDto;
 import com.ecommerceb2b.backend.Entities.DatosDePagoEntidad;
 import com.ecommerceb2b.backend.Entities.FacturaEntidad;
-import com.ecommerceb2b.backend.Entities.InformacionEntregaEntidad;
 import com.ecommerceb2b.backend.Entities.OrdenesEntidad;
-import com.ecommerceb2b.backend.Repository.AlmacenRepositorio;
 import com.ecommerceb2b.backend.Repository.OrdenesRepositorio;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,27 +22,18 @@ public class OrdenesServicio {
     private final CarritoServicio carritoServicio;
     private final CarritoProductoServicio carritoProductoServicio;
     private final DatosDePagoServicio datosDePagoServicio;
-    private final InformacionEntregaServicio informacionEntregaServicio;
     private final FacturaServicio facturaServicio;
-    private final UsuarioServicio usuarioServicio;
-    private final AlmacenRepositorio almacenRepositorio;
 
     public OrdenesServicio(OrdenesRepositorio ordenesRepositorio,
                            CarritoServicio carritoServicio,
                            CarritoProductoServicio carritoProductoServicio,
                            DatosDePagoServicio datosDePagoServicio,
-                           InformacionEntregaServicio informacionEntregaServicio,
-                           FacturaServicio facturaServicio,
-                           UsuarioServicio usuarioServicio,
-                           AlmacenRepositorio almacenRepositorio) {
+                           FacturaServicio facturaServicio) {
         this.ordenesRepositorio = ordenesRepositorio;
         this.carritoServicio = carritoServicio;
         this.carritoProductoServicio = carritoProductoServicio;
         this.datosDePagoServicio = datosDePagoServicio;
-        this.informacionEntregaServicio = informacionEntregaServicio;
         this.facturaServicio = facturaServicio;
-        this.usuarioServicio = usuarioServicio;
-        this.almacenRepositorio = almacenRepositorio;
     }
 
 
@@ -61,78 +49,68 @@ public class OrdenesServicio {
     }
 
     @Transactional
-    public FacturaEntidad solicitarOrdenAtomica(Long carritoId, CheckoutPedidoDto pedido) {
+    public FacturaEntidad solicitarOrdenAtomica(
+            Long carritoId,
+            CheckoutPedidoDto pedido
+    ) {
+        if (carritoId == null || carritoId <= 0) {
+            throw new IllegalArgumentException("El carrito es obligatorio");
+        }
+
         if (pedido == null) {
-            throw new IllegalArgumentException("El pedido de checkout es obligatorio");
+            throw new IllegalArgumentException(
+                    "El pedido de checkout es obligatorio"
+            );
         }
 
+        if (pedido.getInfoEntregaId() == null
+                || pedido.getInfoEntregaId() <= 0) {
+            throw new IllegalArgumentException(
+                    "La dirección de entrega es obligatoria"
+            );
+        }
+
+        /*
+         * Se obtiene el usuario únicamente para validar o crear el medio de
+         * pago. Toda la lógica crítica del checkout se ejecuta después en el
+         * procedimiento almacenado, que vuelve a validar estos datos bajo
+         * bloqueo transaccional.
+         */
         CarritoEntidad carrito = carritoServicio.obtenerCarritoPorId(carritoId);
+
         if (!"ACTIVO".equalsIgnoreCase(carrito.getEstado())) {
-            throw new IllegalStateException("Solo se puede procesar la solicitud desde un carrito ACTIVO");
+            throw new IllegalStateException(
+                    "Solo se puede procesar la solicitud desde un carrito ACTIVO"
+            );
         }
 
-        if (carrito.getUsuario() == null || carrito.getUsuario().getUsuario_ID() == null) {
-            throw new IllegalStateException("El carrito debe tener un usuario válido");
+        if (carrito.getUsuario() == null
+                || carrito.getUsuario().getUsuario_ID() == null) {
+            throw new IllegalStateException(
+                    "El carrito debe tener un usuario válido"
+            );
         }
 
         Long usuarioId = carrito.getUsuario().getUsuario_ID();
-        List<CarritoProductoEntidad> items = carritoProductoServicio.listarItemsPorCarrito(carritoId);
-        if (items.isEmpty()) {
-            throw new IllegalStateException("El carrito no tiene productos para generar la orden");
-        }
-
-        InformacionEntregaEntidad entrega = informacionEntregaServicio.obtenerPorId(pedido.getInfoEntregaId());
-        if (!usuarioId.equals(entrega.getUsuarioId())) {
-            throw new IllegalArgumentException("La información de entrega no pertenece al mismo usuario del carrito");
-        }
-
         DatosDePagoEntidad datosPago = resolveDatosDePago(usuarioId, pedido);
-        if (datosPago == null) {
-            throw new IllegalArgumentException("Se requiere información de pago válida para completar la solicitud");
+
+        if (datosPago == null || datosPago.getDatos_Pago_ID() == null) {
+            throw new IllegalArgumentException(
+                    "Se requiere información de pago válida para completar la solicitud"
+            );
         }
 
-        BigDecimal subtotal = carritoProductoServicio.calcularSubtotal(carritoId);
-        if (subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
-            throw new IllegalStateException("El subtotal del carrito es inválido");
-        }
+        Long ordenId = ordenesRepositorio.procesarCheckout(
+                carritoId,
+                pedido.getInfoEntregaId(),
+                datosPago.getDatos_Pago_ID()
+        );
 
-        float precioTotal = subtotal.floatValue();
-        float totalNeto = subtotal.divide(BigDecimal.valueOf(1.19), 2, RoundingMode.HALF_UP).floatValue();
-        float iva = precioTotal - totalNeto;
-
-        // Asignar automáticamente el almacén mas cercano  
-        Long almacenAsignadoId = almacenRepositorio
-                .findMasCercano(entrega.getLongitud(), entrega.getLatitud())
-                .orElse(null);
-
-        OrdenesEntidad orden = new OrdenesEntidad();
-        orden.setCarrito_ID(carritoId);
-        orden.setUsuario_ID(usuarioId);
-        orden.setInfo_Entrega_ID(entrega.getInfo_Entrega_ID());
-        orden.setEstado("PENDIENTE");
-        orden.setAlmacen_Asignado_ID(almacenAsignadoId);
-        OrdenesEntidad ordenCreada = crearOrden(orden);
-        ordenCreada.setUsuario_ID(usuarioId);
-
-        FacturaEntidad factura = new FacturaEntidad();
-        factura.setUsuarioId(usuarioId);
-        factura.setDatos_Pago_ID(datosPago.getDatos_Pago_ID());
-        factura.setOrdenId(ordenCreada.getOrden_ID());
-        factura.setPrecio_Total(precioTotal);
-        factura.setTotal_Neto(totalNeto);
-        factura.setIva(iva);
-        factura.setFecha_Emision(new Date());
-
-        FacturaEntidad facturaCreada = facturaServicio.crearFactura(factura);
-
-        // Mantener los productos del carrito para que la factura pueda recuperar
-        // los items más tarde, mientras el carrito se marca como pagado.
-        carritoServicio.ordenarCarrito(carritoId);
-
-        // Actualizar la fecha de última compra del usuario
-        usuarioServicio.actualizarUltimaCompra(usuarioId);
-
-        return facturaCreada;
+        return facturaServicio.obtenerPorOrden(ordenId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "El checkout creó la orden " + ordenId
+                                + " pero no fue posible recuperar su factura"
+                ));
     }
 
     @Transactional(readOnly = true)
@@ -144,7 +122,7 @@ public class OrdenesServicio {
     public OrdenesEntidad obtenerOrdenPorId(Long ordenId) {
         return ordenesRepositorio.encontrarPorId(ordenId)
                 .orElseThrow(() -> new NoSuchElementException(
-                    "Orden no encontrada: " + ordenId
+                        "Orden no encontrada: " + ordenId
                 ));
     }
 
@@ -202,17 +180,36 @@ public class OrdenesServicio {
     public OrdenesEntidad aprobarOrden(Long ordenId) {
         OrdenesEntidad orden = obtenerOrdenPorId(ordenId);
 
-        if (orden.getEstado().equals("APROBADA")) {
-            throw new IllegalStateException("La orden ya está aprobada");
-        }
-        if (orden.getEstado().equals("CANCELADA")) {
-            throw new IllegalStateException("No se puede aprobar una orden cancelada");
+        if ("APROBADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "La orden ya está aprobada"
+            );
         }
 
-        orden.setEstado("APROBADA");
-        ordenesRepositorio.actualizar(orden);
-        crearFacturaSiNoExiste(orden);
-        return orden;
+        if ("CANCELADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "No se puede aprobar una orden cancelada"
+            );
+        }
+
+        int filasAfectadas =
+                ordenesRepositorio.actualizarEstado(
+                        ordenId,
+                        "APROBADA"
+                );
+
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException(
+                    "No se pudo aprobar la orden: " + ordenId
+            );
+        }
+
+        OrdenesEntidad ordenAprobada =
+                obtenerOrdenPorId(ordenId);
+
+        crearFacturaSiNoExiste(ordenAprobada);
+
+        return ordenAprobada;
     }
 
     private void crearFacturaSiNoExiste(OrdenesEntidad orden) {
@@ -251,16 +248,31 @@ public class OrdenesServicio {
     public OrdenesEntidad cancelarOrden(Long ordenId) {
         OrdenesEntidad orden = obtenerOrdenPorId(ordenId);
 
-        if (orden.getEstado().equals("APROBADA")) {
-            throw new IllegalStateException("No se puede cancelar una orden ya aprobada");
-        }
-        if (orden.getEstado().equals("CANCELADA")) {
-            throw new IllegalStateException("La orden ya está cancelada");
+        if ("APROBADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "No se puede cancelar una orden ya aprobada"
+            );
         }
 
-        orden.setEstado("CANCELADA");
-        ordenesRepositorio.actualizar(orden);
-        return orden;
+        if ("CANCELADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "La orden ya está cancelada"
+            );
+        }
+
+        int filasAfectadas =
+                ordenesRepositorio.actualizarEstado(
+                        ordenId,
+                        "CANCELADA"
+                );
+
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException(
+                    "No se pudo cancelar la orden: " + ordenId
+            );
+        }
+
+        return obtenerOrdenPorId(ordenId);
     }
 
 
@@ -283,7 +295,7 @@ public class OrdenesServicio {
         List<String> estadosValidos = List.of("PENDIENTE", "APROBADA", "CANCELADA");
         if (!estadosValidos.contains(estado.toUpperCase())) {
             throw new IllegalArgumentException(
-                "Estado inválido. Valores permitidos: " + estadosValidos
+                    "Estado inválido. Valores permitidos: " + estadosValidos
             );
         }
     }

@@ -3,6 +3,7 @@ defineOptions({ name: 'LoginView' })
 
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { AlertTriangle, Eye, EyeOff, Lock, Mail } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import AuthService from '@/services/Auth.service'
 
@@ -100,7 +101,7 @@ async function handleLogin() {
           <div class="field-group">
             <label for="login-email" class="field-label">Correo electrónico</label>
             <div class="input-wrapper">
-              <span class="input-icon">✉️</span>
+              <span class="input-icon"><Mail :size="16" /></span>
               <input
                 id="login-email"
                 v-model="correo"
@@ -117,7 +118,7 @@ async function handleLogin() {
           <div class="field-group">
             <label for="login-password" class="field-label">Contraseña</label>
             <div class="input-wrapper">
-              <span class="input-icon">🔒</span>
+              <span class="input-icon"><Lock :size="16" /></span>
               <input
                 id="login-password"
                 v-model="contrasena"
@@ -133,7 +134,7 @@ async function handleLogin() {
                 :aria-label="showPass ? 'Ocultar contraseña' : 'Mostrar contraseña'"
                 @click="showPass = !showPass"
               >
-                {{ showPass ? '🙈' : '👁️' }}
+                <component :is="showPass ? EyeOff : Eye" :size="16" />
               </button>
             </div>
           </div>
@@ -141,7 +142,8 @@ async function handleLogin() {
           <!-- Error -->
           <Transition name="fade">
             <div v-if="errorMsg" class="error-banner" role="alert">
-              ⚠️ {{ errorMsg }}
+              <AlertTriangle :size="16" />
+              <span>{{ errorMsg }}</span>
             </div>
           </Transition>
 
@@ -320,7 +322,10 @@ async function handleLogin() {
 .input-icon {
   position: absolute;
   left: 14px;
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5b7186;
   pointer-events: none;
   user-select: none;
 }
@@ -349,7 +354,10 @@ async function handleLogin() {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #5b7186;
   padding: 4px;
   border-radius: 6px;
   transition: background 0.15s;
@@ -361,6 +369,9 @@ async function handleLogin() {
 
 /* ─── Banner de error ─────────────────── */
 .error-banner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   background: #fef2f2;
   border: 1px solid #fca5a5;
   color: #b91c1c;

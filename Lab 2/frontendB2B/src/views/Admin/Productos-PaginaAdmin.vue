@@ -20,9 +20,9 @@ interface Producto {
   descripcion: string
   precio: number
   stock: number
-  stock_reservado?: number
+  stock_reservado: number
   sku: string
-  activo?: boolean
+  activo: boolean
 }
 
 // ==================== ESTADO ========================
@@ -86,7 +86,7 @@ const productosOrdenados = computed(() =>
     const valor = (p: Producto): string | number => {
       if (clave === 'stock_disponible') return (p.stock ?? 0) - (p.stock_reservado ?? 0)
       if (clave === 'activo') return p.activo ? 1 : 0
-      return String((p as Record<string, unknown>)[clave] ?? '').toLowerCase()
+      return String((p as any)[clave] ?? '').toLowerCase()
     }
     const valA = valor(a)
     const valB = valor(b)

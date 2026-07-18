@@ -3,6 +3,7 @@ defineOptions({ name: 'RegisterView' })
 
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { AlertTriangle, CheckCircle2, Eye, EyeOff } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import AuthService from '@/services/Auth.service'
 
@@ -102,7 +103,7 @@ async function handleRegister() {
               required
             />
             <button type="button" @click="showPass = !showPass">
-              {{ showPass ? 'Ocultar' : 'Mostrar' }}
+              <component :is="showPass ? EyeOff : Eye" :size="16" />
             </button>
           </div>
         </label>
@@ -113,10 +114,10 @@ async function handleRegister() {
         </label>
 
         <Transition name="fade">
-          <div v-if="errorMsg" class="alert error">⚠️ {{ errorMsg }}</div>
+          <div v-if="errorMsg" class="alert error"><AlertTriangle :size="16" /> {{ errorMsg }}</div>
         </Transition>
         <Transition name="fade">
-          <div v-if="successMsg" class="alert success">✅ {{ successMsg }}</div>
+          <div v-if="successMsg" class="alert success"><CheckCircle2 :size="16" /> {{ successMsg }}</div>
         </Transition>
 
         <button type="submit" class="btn-submit" :disabled="loading">
@@ -181,8 +182,14 @@ async function handleRegister() {
   border-radius: 12px;
   padding: 0 12px;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 .alert {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   border-radius: 12px;
   padding: 12px 14px;
   margin-bottom: 16px;

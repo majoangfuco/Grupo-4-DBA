@@ -72,24 +72,25 @@ const isHome = computed(() => route.path === '/')
 // --- Ítems de navegación según rol ---
 const navItems = computed(() => {
   const baseItems = [
-    { label: 'Inicio', path: '/', icon: '🏠' },
+    { label: 'Inicio', path: '/' }
   ]
 
   if (authStore.isAdmin) {
     return [
       ...baseItems,
-      { label: 'Productos', path: '/productosAdmin', icon: '📦' },
-      { label: 'Clientes', path: '/clientesAdmin', icon: '👥' },
+      { label: 'Productos', path: '/productosAdmin' },
+      { label: 'Clientes', path: '/clientesAdmin' }
     ]
   } else if (authStore.isCliente) {
     return [
-      { label: 'Productos', path: '/productosCliente', icon: '📦' },
-      { label: 'Órdenes', path: '/ordenesCliente', icon: '📋' },
+      { label: 'Productos', path: '/productosCliente' },
+      { label: 'Órdenes', path: '/ordenesCliente' }
     ]
   }
 
   return baseItems
 })
+
 </script>
 
 <template>

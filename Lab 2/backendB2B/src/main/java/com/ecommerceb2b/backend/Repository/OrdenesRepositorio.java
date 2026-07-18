@@ -12,7 +12,7 @@ import java.util.Optional;
 
 @Repository
 public class OrdenesRepositorio {
-private final JdbcTemplate jdbcTemplate;
+    private final JdbcTemplate jdbcTemplate;
 
     public OrdenesRepositorio(JdbcTemplate jdbcTemplate) {
         this.jdbcTemplate = jdbcTemplate;
@@ -129,12 +129,12 @@ private final JdbcTemplate jdbcTemplate;
                 WHERE orden_id = ?
                 """;
         return jdbcTemplate.update(sql,
-            o.getCarrito_ID(),
-            o.getInfo_Entrega_ID(),
-            new java.sql.Timestamp(o.getFecha_Orden().getTime()),
-            o.getEstado(),
-            o.getAlmacen_Asignado_ID(),
-            o.getOrden_ID());
+                o.getCarrito_ID(),
+                o.getInfo_Entrega_ID(),
+                new java.sql.Timestamp(o.getFecha_Orden().getTime()),
+                o.getEstado(),
+                o.getAlmacen_Asignado_ID(),
+                o.getOrden_ID());
     }
 
     // eliminar
@@ -159,7 +159,7 @@ private final JdbcTemplate jdbcTemplate;
     // buscar por usuario
     // Como la tabla ordenes_entidad no tiene usuario_id, necesitamos hacer un JOIN con carrito_entidad
     public List<OrdenesEntidad> encontrarPorUsuarioId(Long usuarioId){
-       String sql = """
+        String sql = """
                SELECT o.*, c.carrito_usuario_id AS usuario_id,
                       alm.nombre AS almacen_nombre
                FROM ordenes_entidad o
@@ -167,7 +167,7 @@ private final JdbcTemplate jdbcTemplate;
                LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
                WHERE c.carrito_usuario_id = ?
                """;
-       return jdbcTemplate.query(sql, rowMapper, usuarioId);
+        return jdbcTemplate.query(sql, rowMapper, usuarioId);
 
     }
 
@@ -195,4 +195,70 @@ private final JdbcTemplate jdbcTemplate;
                 """;
         return jdbcTemplate.query(sql, rowMapper);
     }
+
+    public int actualizarEstado(Long ordenId, String estado) {
+        String sql = """
+            UPDATE ordenes_entidad
+            SET estado = ?
+            WHERE orden_id = ?
+            """;
+
+        return jdbcTemplate.update(
+                sql,
+                estado,
+                ordenId
+        );
+    }
+
+
+    /**
+     * Ejecuta el checkout geoespacial completo en PostgreSQL.
+     * El procedimiento valida cobertura y restricciones, selecciona mediante
+     * ST_Distance el almacén más cercano con stock, crea orden/factura y
+     * descuenta el inventario dentro de la misma transacción.
+     */
+    public Long procesarCheckout(
+            Long carritoId,
+            Long infoEntregaId,
+            Long datosPagoId
+    ) {
+        try {
+            jdbcTemplate.update(
+                    "CALL procesar_checkout(?, ?, ?)",
+                    carritoId,
+                    infoEntregaId,
+                    datosPagoId
+            );
+
+            Long ordenId = jdbcTemplate.queryForObject(
+                    """
+                    SELECT o.orden_id
+                    FROM ordenes_entidad o
+                    JOIN factura_entidad f
+                      ON f.orden_orden_id = o.orden_id
+                    WHERE o.carrito_carrito_id = ?
+                      AND o.informacion_info_entrega_id = ?
+                      AND f.datos_pago_id = ?
+                    ORDER BY o.orden_id DESC
+                    LIMIT 1
+                    """,
+                    Long.class,
+                    carritoId,
+                    infoEntregaId,
+                    datosPagoId
+            );
+
+            if (ordenId == null) {
+                throw new IllegalStateException(
+                        "El procedimiento terminó sin generar una orden"
+                );
+            }
+
+            return ordenId;
+
+        } catch (org.springframework.dao.DataAccessException e) {
+            throw new IllegalStateException(extraerMensajeAmigable(e));
+        }
+    }
+
 }

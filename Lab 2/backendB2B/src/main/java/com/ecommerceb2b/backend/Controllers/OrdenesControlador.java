@@ -139,11 +139,26 @@ public class OrdenesControlador {
     @PatchMapping("/{id}/aprobar")
     public ResponseEntity<?> aprobar(@PathVariable Long id) {
         try {
-            return ResponseEntity.ok(ordenesServicio.aprobarOrden(id));
+            return ResponseEntity.ok(
+                    ordenesServicio.aprobarOrden(id)
+            );
+
         } catch (IllegalStateException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+            return ResponseEntity
+                    .badRequest()
+                    .body(e.getMessage());
+
         } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
+            e.printStackTrace();
+
+            return ResponseEntity
+                    .internalServerError()
+                    .body(
+                            "Error al aprobar la orden: "
+                                    + e.getClass().getSimpleName()
+                                    + " - "
+                                    + e.getMessage()
+                    );
         }
     }
 
