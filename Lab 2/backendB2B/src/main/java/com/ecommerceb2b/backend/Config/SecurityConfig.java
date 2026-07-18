@@ -50,7 +50,7 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/usuario/login", "/usuario/register").permitAll()
+                        .requestMatchers("/usuario/login", "/usuario/register", "/error").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/productos/**",
                                 "/api/categorias/**")
                         .permitAll()
@@ -78,3 +78,4 @@ public class SecurityConfig {
         return http.build();
     }
 }
+

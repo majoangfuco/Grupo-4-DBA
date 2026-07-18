@@ -128,13 +128,15 @@ public class UsuarioControlador {
             List<UsuarioEntidad> clientes = usuarioServicio.obtenerUsuariosPorRol("CLIENTE");
             response.put("clientes", clientes.stream().map(u -> {
                 Long ultimaCompraMillis = u.getUltima_Compra() != null ? u.getUltima_Compra().getTime() : null;
-                return Map.of(
-                    "usuario_ID", u.getUsuario_ID(),
-                    "nombre_Usuario", u.getNombre_Usuario(),
-                    "correo", u.getCorreo(),
-                    "rut_Empresa", u.getRut_Empresa(),
-                    "ultima_Compra", ultimaCompraMillis
-                );
+                
+                Map<String, Object> map = new HashMap<>();
+                map.put("usuario_ID", u.getUsuario_ID());
+                map.put("nombre_Usuario", u.getNombre_Usuario());
+                map.put("correo", u.getCorreo());
+                map.put("rut_Empresa", u.getRut_Empresa());
+                map.put("ultima_Compra", ultimaCompraMillis);
+                return map;
+
             }).toList());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
@@ -143,3 +145,4 @@ public class UsuarioControlador {
         }
     }
 }
+

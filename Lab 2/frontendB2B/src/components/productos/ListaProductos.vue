@@ -8,6 +8,7 @@
 // =====================================================
 
 import { ref } from 'vue'
+import { ArrowUpDown, Circle, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
 import FormularioEditarProducto from '@/components/productos/FormularioEditarProducto.vue'
 import FormularioEliminarProducto from '@/components/productos/FormularioEliminarProducto.vue'
 import FormularioActualizarStock from '@/components/productos/FormularioActualizarStock.vue'
@@ -137,7 +138,7 @@ const columnas = [
             <span class="encabezado-contenido">
               {{ col.etiqueta }}
               <span class="icono-orden">
-                {{ estaOrdenandoPor(col.clave) ? (obtenerDireccion(col.clave) === 'asc' ? '↑' : '↓') : '⇅' }}
+                <ArrowUpDown :size="14" />
               </span>
             </span>
           </th>
@@ -160,7 +161,10 @@ const columnas = [
         <tr v-else-if="error">
           <td colspan="9" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
-            <button class="btn-reintentar" @click="emit('reintentar')">↺ Reintentar</button>
+            <button class="btn-reintentar" @click="emit('reintentar')">
+              <RefreshCw :size="14" />
+              <span>Reintentar</span>
+            </button>
           </td>
         </tr>
 
@@ -183,8 +187,8 @@ const columnas = [
               {{ (prod.stock ?? 0) - (prod.stock_reservado ?? 0) }}
             </span>
             <span v-else-if="col.clave === 'activo'">
-              <span v-if="prod.activo" title="Activo">🟢</span>
-              <span v-else title="Inactivo">🔴</span>
+              <Circle v-if="prod.activo" :size="14" class="status-dot active" title="Activo" />
+              <Circle v-else :size="14" class="status-dot inactive" title="Inactivo" />
             </span>
             <span v-else>{{ prod[col.clave as keyof typeof prod] }}</span>
           </td>
@@ -197,7 +201,7 @@ const columnas = [
                 title="Editar producto"
                 @click="abrirModalEditar(prod)"
               >
-                ✏️
+                <Pencil :size="16" />
               </button>
 
               <!-- Botón: Eliminar producto (solo si está activo) -->
@@ -207,7 +211,7 @@ const columnas = [
                 title="Eliminar producto"
                 @click="abrirModalEliminar(prod)"
               >
-                🗑️
+                <Trash2 :size="16" />
               </button>
 
               <!-- Botón: Agregar unidades (Stock) -->
@@ -216,7 +220,7 @@ const columnas = [
                 title="Agregar unidades"
                 @click="agregarUnidades(prod.producto_ID)"
               >
-                ➕
+                <Plus :size="16" />
               </button>
 
             </div>
@@ -290,8 +294,10 @@ const columnas = [
 @keyframes girar { to { transform: rotate(360deg); } }
 .texto-estado { color: #666; font-size: 0.9rem; }
 .texto-error { color: #d32f2f; margin-bottom: 10px; }
-.btn-reintentar { padding: 6px 14px; border: 1px solid #d32f2f; color: #d32f2f; background: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
+.btn-reintentar { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border: 1px solid #d32f2f; color: #d32f2f; background: none; border-radius: 6px; cursor: pointer; font-size: 0.85rem; }
 .btn-reintentar:hover { background: #fff0f0; }
+.status-dot.active { color: #22c55e; }
+.status-dot.inactive { color: #ef4444; }
 .texto-vacio { color: #555; margin-bottom: 6px; }
 .texto-vacio-sub { color: #888; font-size: 0.85rem; }
 .acciones { display: flex; justify-content: center; gap: 8px; }

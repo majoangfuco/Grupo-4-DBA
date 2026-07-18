@@ -1,0 +1,53 @@
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: b2b-db
+    environment:
+      POSTGRES_DB: b2b
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backendB2B/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - b2b-network
+
+  backend:
+    build:
+      context: ./backendB2B
+    container_name: b2b-backend
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/b2b
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - JWT_SECRET=m1Sup3rS3cr3t0Q0P4r4JwT2026_ABCDEF
+      - JWT_EXPIRATION=86400000
+    ports:
+      - "8090:8090"
+    depends_on:
+      - db
+    networks:
+      - b2b-network
+
+  frontend:
+    build:
+      context: ./frontendB2B
+      args:
+        VITE_API_BASE_URL: http://localhost:8090
+    container_name: b2b-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - b2b-network
+
+volumes:
+  db_data:
+
+networks:
+  b2b-network:
+    driver: bridge
+

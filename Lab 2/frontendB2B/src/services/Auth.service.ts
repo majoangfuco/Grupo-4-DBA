@@ -36,9 +36,11 @@ export interface RegisterPayload {
 
 export interface UsuarioDTO {
   id: number
+  usuario_id?: number
   nombre: string
   correo: string
   rol: string
+  rut_empresa?: string
 }
 
 export interface LoginResponse {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
+import { Home, Package, Users, ShoppingCart, UserRound, ChevronLeft } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const router    = useRouter()
@@ -8,7 +9,7 @@ const route     = useRoute()
 const authStore = useAuthStore()
 
 // --- Nombre del usuario (viene del store de auth) ---
-// 🔧 BACKEND: authStore.userName se llena en Login.vue después de
+// BACKEND: authStore.userName se llena en Login.vue después de
 //             llamar a GET /usuario/buscar y recibir { nombre, ... }
 const userName = computed(() => authStore.userName ?? 'Usuario')
 
@@ -72,19 +73,19 @@ const isHome = computed(() => route.path === '/')
 // --- Ítems de navegación según rol ---
 const navItems = computed(() => {
   const baseItems = [
-    { label: 'Inicio', path: '/', icon: '🏠' },
+    { label: 'Inicio', path: '/', icon: Home },
   ]
 
   if (authStore.isAdmin) {
     return [
       ...baseItems,
-      { label: 'Productos', path: '/productosAdmin', icon: '📦' },
-      { label: 'Clientes', path: '/clientesAdmin', icon: '👥' },
+      { label: 'Productos', path: '/productosAdmin', icon: Package },
+      { label: 'Clientes', path: '/clientesAdmin', icon: Users },
     ]
   } else if (authStore.isCliente) {
     return [
-      { label: 'Productos', path: '/productosCliente', icon: '📦' },
-      { label: 'Órdenes', path: '/ordenesCliente', icon: '📋' },
+      { label: 'Productos', path: '/productosCliente', icon: Package },
+      { label: 'Órdenes', path: '/ordenesCliente', icon: Users },
     ]
   }
 
@@ -109,7 +110,9 @@ const navItems = computed(() => {
           class="nav-item"
           :class="{ active: route.path === item.path }"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
+          <span class="nav-icon">
+            <component :is="item.icon" :size="18" />
+          </span>
           <span class="nav-label">{{ item.label }}</span>
         </RouterLink>
       </nav>
@@ -130,7 +133,7 @@ const navItems = computed(() => {
             @click="router.go(-1)"
             aria-label="Volver"
           >
-            ←
+            <ChevronLeft :size="18" />
           </button>
 
           <!-- Breadcrumbs -->
@@ -154,11 +157,11 @@ const navItems = computed(() => {
           <!-- Usuario + menú -->
           <div class="user-menu-wrapper">
             <button v-if="authStore.isCliente" class="btn-cart" @click="handleCart">
-              🛒
+              <ShoppingCart :size="18" />
             </button>
             <button class="btn-user" @click="toggleMenu">
               <span class="user-name">{{ userName }}</span>
-              <span class="user-icon">👤</span>
+              <span class="user-icon"><UserRound :size="18" /></span>
             </button>
 
             <div v-if="menuOpen" class="dropdown-menu" @click.stop>

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, reactive, computed, onMounted } from 'vue'
+import { DollarSign, Package, Receipt, RefreshCw, TrendingUp } from 'lucide-vue-next'
 import { reporteVentasServicio, type ReporteVentas } from '@/services/reporteVentasServicio'
 import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
@@ -177,30 +178,31 @@ onMounted(cargarDatos)
         :disabled="cargando || refrescando"
         title="Refrescar vista materializada"
       >
-        <span v-if="refrescando"> Refrescando...</span>
-        <span v-else> Refrescar</span>
+        <RefreshCw :size="16" />
+        <span v-if="refrescando">Refrescando...</span>
+        <span v-else>Refrescar</span>
       </button>
     </div>
 
     <!-- ===== KPIs ===== -->
     <div v-if="totalConsolidado && !cargando" class="kpis-section">
       <div class="kpi-card">
-        <span class="kpi-icono">🧾</span>
+        <span class="kpi-icono"><Receipt :size="24" /></span>
         <p class="kpi-etiqueta">Total de Órdenes</p>
         <p class="kpi-valor">{{ totalConsolidado.cantidadOrdenes }}</p>
       </div>
       <div class="kpi-card">
-        <span class="kpi-icono">📦</span>
+        <span class="kpi-icono"><Package :size="24" /></span>
         <p class="kpi-etiqueta">Productos Vendidos</p>
         <p class="kpi-valor">{{ totalConsolidado.cantidadProductos }}</p>
       </div>
       <div class="kpi-card kpi-destacado">
-        <span class="kpi-icono">💰</span>
+        <span class="kpi-icono"><DollarSign :size="24" /></span>
         <p class="kpi-etiqueta">Monto Total</p>
         <p class="kpi-valor">${{ formatearMoneda(totalConsolidado.totalVendido) }}</p>
       </div>
       <div class="kpi-card">
-        <span class="kpi-icono">📈</span>
+        <span class="kpi-icono"><TrendingUp :size="24" /></span>
         <p class="kpi-etiqueta">Precio Promedio</p>
         <p class="kpi-valor">${{ formatearMoneda(totalConsolidado.precioPromedio) }}</p>
       </div>

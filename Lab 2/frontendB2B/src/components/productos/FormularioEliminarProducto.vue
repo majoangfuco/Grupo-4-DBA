@@ -7,6 +7,7 @@
 // =====================================================
 
 import { reactive } from 'vue'
+import { AlertTriangle, X } from 'lucide-vue-next'
 import { productoServicio } from '@/services/productoServicio'
 
 // --- Props: datos del producto a eliminar ---
@@ -62,8 +63,8 @@ const confirmarEliminar = async () => {
 <template>
   <div class="contenedor">
     <div class="cabecera-modal">
-      <div class="icono-advertencia" aria-hidden="true">⚠️</div>
-      <button class="modal-cerrar" type="button" @click="emit('cancelado')" aria-label="Cerrar">✕</button>
+      <div class="icono-advertencia" aria-hidden="true"><AlertTriangle :size="44" /></div>
+      <button class="modal-cerrar" type="button" @click="emit('cancelado')" aria-label="Cerrar"><X :size="18" /></button>
     </div>
     <h3 class="titulo">Eliminar Producto</h3>
 
@@ -119,8 +120,10 @@ const confirmarEliminar = async () => {
 
 /* ===== ÍCONO ===== */
 .icono-advertencia {
-  font-size: 3rem;
-  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #c62828;
 }
 
 /* ===== TEXTOS ===== */
