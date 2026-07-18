@@ -6,6 +6,7 @@ import { useRouter } from 'vue-router'
 import { AlertTriangle, CheckCircle2, Eye, EyeOff } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 import AuthService from '@/services/Auth.service'
+import { validarRut } from '@/utils/rut'
 
 const router = useRouter()
 const authStore = useAuthStore()
@@ -22,6 +23,13 @@ const showPass = ref(false)
 async function handleRegister() {
   errorMsg.value = ''
   successMsg.value = ''
+
+  // Validación de RUT antes de enviar al backend.
+  if (!validarRut(rutEmpresa.value)) {
+    errorMsg.value = 'El RUT de empresa no es válido. Ejemplo: 76.123.456-7'
+    return
+  }
+
   loading.value = true
 
   try {

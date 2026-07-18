@@ -3,8 +3,10 @@ package com.ecommerceb2b.backend.Services;
 import com.ecommerceb2b.backend.Config.JwtMiddlewareService;
 import com.ecommerceb2b.backend.Entities.UsuarioEntidad;
 import com.ecommerceb2b.backend.Repository.UsuarioRepositorio;
+import com.ecommerceb2b.backend.Util.RutValidador;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -53,6 +55,10 @@ public class UsuarioServicio {
             throw new Exception("Todos los campos son requeridos");
         }
 
+        if (!RutValidador.esValido(rutEmpresa)) {
+            throw new Exception("El RUT de empresa no es válido");
+        }
+
         if (usuarioRepositorio.findByCorreo(correoNormalizado).isPresent()) {
             throw new Exception("El correo ya está registrado");
         }
@@ -65,6 +71,55 @@ public class UsuarioServicio {
         usuario.setRol("CLIENTE");
 
         usuarioRepositorio.save(usuario);
+    }
+
+    /**
+     * Actualiza los datos de una cuenta. Valida correo único y RUT.
+     * La contraseña es opcional: si viene vacía o null, se conserva la actual.
+     */
+    @Transactional
+    public UsuarioEntidad actualizarUsuario(Long usuarioId, String nombre, String correo,
+                                            String rutEmpresa, String contrasena) throws Exception {
+        UsuarioEntidad actual = usuarioRepositorio.findById(usuarioId)
+                .orElseThrow(() -> new Exception("Usuario no encontrado"));
+
+        if (nombre == null || nombre.trim().isEmpty()) {
+            throw new Exception("El nombre es obligatorio");
+        }
+        String correoNormalizado = correo == null ? null : correo.trim().toLowerCase();
+        if (correoNormalizado == null || correoNormalizado.isEmpty()) {
+            throw new Exception("El correo es obligatorio");
+        }
+        if (rutEmpresa == null || !RutValidador.esValido(rutEmpresa)) {
+            throw new Exception("El RUT de empresa no es válido");
+        }
+        if (usuarioRepositorio.existeCorreoEnOtroUsuario(correoNormalizado, usuarioId)) {
+            throw new Exception("El correo ya está registrado por otro usuario");
+        }
+
+        String contrasenaCodificada = null;
+        if (contrasena != null && !contrasena.trim().isEmpty()) {
+            contrasenaCodificada = passwordEncoder.encode(contrasena);
+        }
+
+        int filas = usuarioRepositorio.actualizar(usuarioId, nombre.trim(),
+                correoNormalizado, rutEmpresa.trim(), contrasenaCodificada);
+        if (filas == 0) {
+            throw new Exception("No se pudo actualizar el usuario");
+        }
+
+        actual.setNombre_Usuario(nombre.trim());
+        actual.setCorreo(correoNormalizado);
+        actual.setRut_Empresa(rutEmpresa.trim());
+        return actual;
+    }
+
+    /** Elimina la cuenta y todo su historial dependiente en una transacción. */
+    @Transactional
+    public void eliminarUsuario(Long usuarioId) throws Exception {
+        usuarioRepositorio.findById(usuarioId)
+                .orElseThrow(() -> new Exception("Usuario no encontrado"));
+        usuarioRepositorio.eliminarEnCascada(usuarioId);
     }
 
     public Optional<UsuarioEntidad> obtenerUsuarioPorId(Long usuarioId) {

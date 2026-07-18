@@ -108,6 +108,77 @@ public class UsuarioControlador {
         }
     }
 
+    // PUT /usuario/{id} — editar la cuenta (propia o, si es ADMIN, cualquiera)
+    @PutMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> actualizar(
+            @PathVariable Long id,
+            @RequestBody Map<String, String> datos,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        Optional<String> tokenOpt = extraerTokenValido(authHeader);
+        if (tokenOpt.isEmpty()) {
+            response.put("error", "Token no proporcionado, inválido o expirado");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+        String token = tokenOpt.get();
+
+        if (!puedeGestionar(token, id)) {
+            response.put("error", "No tienes permiso para modificar esta cuenta");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        }
+
+        try {
+            UsuarioEntidad actualizado = usuarioServicio.actualizarUsuario(
+                    id,
+                    datos.get("nombre"),
+                    datos.get("correo"),
+                    datos.get("rut_empresa"),
+                    datos.get("contrasena"));
+
+            response.put("mensaje", "Cuenta actualizada correctamente");
+            response.put("usuario_id", actualizado.getUsuario_ID());
+            response.put("nombre", actualizado.getNombre_Usuario());
+            response.put("correo", actualizado.getCorreo());
+            response.put("rut_empresa", actualizado.getRut_Empresa());
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
+    // DELETE /usuario/{id} — eliminar la cuenta (propia o, si es ADMIN, cualquiera)
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Map<String, Object>> eliminar(
+            @PathVariable Long id,
+            @RequestHeader(value = "Authorization", required = false) String authHeader) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        Optional<String> tokenOpt = extraerTokenValido(authHeader);
+        if (tokenOpt.isEmpty()) {
+            response.put("error", "Token no proporcionado, inválido o expirado");
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response);
+        }
+        String token = tokenOpt.get();
+
+        if (!puedeGestionar(token, id)) {
+            response.put("error", "No tienes permiso para eliminar esta cuenta");
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body(response);
+        }
+
+        try {
+            usuarioServicio.eliminarUsuario(id);
+            response.put("mensaje", "Cuenta eliminada correctamente");
+            return ResponseEntity.ok(response);
+        } catch (Exception e) {
+            response.put("error", e.getMessage());
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+    }
+
     @GetMapping("/clientes")
     public ResponseEntity<Map<String, Object>> obtenerClientes(@RequestHeader("Authorization") String authHeader) {
         Map<String, Object> response = new HashMap<>();
@@ -144,5 +215,25 @@ public class UsuarioControlador {
             response.put("error", "Error al obtener clientes: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
+    }
+
+    /** Devuelve el token si el header es válido y el token no está expirado. */
+    private Optional<String> extraerTokenValido(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return Optional.empty();
+        }
+        String token = authHeader.substring(7);
+        if (!jwtMiddlewareService.validateToken(token)) {
+            return Optional.empty();
+        }
+        return Optional.of(token);
+    }
+
+    /** Un usuario puede gestionar su propia cuenta; un ADMIN, cualquiera. */
+    private boolean puedeGestionar(String token, Long usuarioObjetivo) {
+        Long idSolicitante = jwtMiddlewareService.getUsuarioIdFromToken(token);
+        String rol = jwtMiddlewareService.getRolFromToken(token);
+        boolean esAdmin = "ADMIN".equalsIgnoreCase(rol);
+        return esAdmin || (idSolicitante != null && idSolicitante.equals(usuarioObjetivo));
     }
 }

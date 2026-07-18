@@ -9,6 +9,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import ListaProductos from '@/components/productos/ListaProductos.vue'
 import FormularioAgregarProducto from '@/components/productos/FormularioAgregarProducto.vue'
 import FormularioDescuentoCategoria from '@/components/productos/FormularioDescuentoCategoria.vue'
+import FormularioGestionCategorias from '@/components/productos/FormularioGestionCategorias.vue'
 import { productoServicio } from '@/services/productoServicio'
 import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
 
@@ -31,6 +32,7 @@ const cargando   = ref(true)
 const error      = ref<string | null>(null)
 const modalAbierto = ref(false)
 const modalDescuentoAbierto = ref(false)
+const modalCategoriasAbierto = ref(false)
 const categorias = ref<CategoriaEntidad[]>([])
 
 // ==================== FILTROS =======================
@@ -159,6 +161,9 @@ onMounted(cargarProductos)
     <div class="encabezado">
       <h1 class="titulo-pagina">Gestión de productos</h1>
       <div class="botones-acciones">
+        <button class="btn-categorias" @click="modalCategoriasAbierto = true">
+          🏷️ Gestionar Categorías
+        </button>
         <button class="btn-descuentos" @click="modalDescuentoAbierto = true">
           💰 Aplicar Descuento
         </button>
@@ -176,6 +181,18 @@ onMounted(cargarProductos)
             :categorias="categorias"
             @descuentoAplicado="manejarDescuentoAplicado" 
             @cancelado="modalDescuentoAbierto = false" 
+          />
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ===== MODAL: GESTIÓN DE CATEGORÍAS ===== -->
+    <Teleport to="body">
+      <div v-if="modalCategoriasAbierto" class="modal-overlay" @click.self="modalCategoriasAbierto = false">
+        <div class="modal-contenido">
+          <FormularioGestionCategorias
+            @actualizado="cargarProductos"
+            @cerrar="modalCategoriasAbierto = false"
           />
         </div>
       </div>
@@ -262,6 +279,8 @@ onMounted(cargarProductos)
 .btn-agregar:hover { background-color: #0f5070; }
 .btn-descuentos { padding: 10px 18px; background-color: #f57c00; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
 .btn-descuentos:hover { background-color: #e65100; }
+.btn-categorias { padding: 10px 18px; background-color: #5b7fa6; color: white; border: none; border-radius: 8px; font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
+.btn-categorias:hover { background-color: #456087; }
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.45); display: flex; align-items: center; justify-content: center; z-index: 200; }
 .modal-contenido { background: white; border-radius: 12px; padding: 28px; min-width: 380px; max-width: 90vw; position: relative; box-shadow: 0 8px 32px rgba(0,0,0,0.18); }
 .modal-cerrar { position: absolute; top: 12px; right: 14px; background: none; border: none; font-size: 1.1rem; cursor: pointer; color: #666; }

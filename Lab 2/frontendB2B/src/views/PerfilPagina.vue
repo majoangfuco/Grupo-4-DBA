@@ -4,12 +4,20 @@
 
       <!-- Top Left: Profile Info -->
       <div class="card profile-card">
-        <button class="edit-icon" title="Editar perfil">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-          </svg>
-        </button>
+        <div class="acciones-perfil">
+          <button class="edit-icon" title="Editar perfil" @click="abrirEdicion">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+            </svg>
+          </button>
+          <button class="delete-icon" title="Eliminar cuenta" @click="confirmarEliminacion = true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+          </button>
+        </div>
         <div class="profile-content">
           <div class="avatar-container">
             <div class="avatar">{{ userInitial }}</div>
@@ -82,16 +90,76 @@
       </div>
 
     </div>
+
+    <!-- ===== MODAL: EDITAR CUENTA ===== -->
+    <Teleport to="body">
+      <div v-if="editando" class="modal-overlay" @click.self="editando = false">
+        <div class="modal-box">
+          <button class="modal-cerrar" @click="editando = false">✕</button>
+          <h3 class="modal-titulo">Editar mi cuenta</h3>
+
+          <form class="modal-form" @submit.prevent="guardarCambios">
+            <label>Nombre
+              <input v-model="form.nombre" type="text" required />
+            </label>
+            <label>Correo
+              <input v-model="form.correo" type="email" required />
+            </label>
+            <label>RUT empresa
+              <input v-model="form.rut_empresa" type="text" placeholder="76.123.456-7" required />
+            </label>
+            <label>Nueva contraseña <small>(opcional)</small>
+              <input v-model="form.contrasena" type="password" placeholder="Dejar en blanco para no cambiar" />
+            </label>
+
+            <p v-if="errorEdicion" class="msg-error">{{ errorEdicion }}</p>
+            <p v-if="okEdicion" class="msg-ok">{{ okEdicion }}</p>
+
+            <div class="modal-acciones">
+              <button type="button" class="btn-secundario" @click="editando = false">Cancelar</button>
+              <button type="submit" class="btn-primario" :disabled="guardando">
+                {{ guardando ? 'Guardando...' : 'Guardar cambios' }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ===== MODAL: CONFIRMAR ELIMINACIÓN ===== -->
+    <Teleport to="body">
+      <div v-if="confirmarEliminacion" class="modal-overlay" @click.self="confirmarEliminacion = false">
+        <div class="modal-box">
+          <h3 class="modal-titulo">Eliminar cuenta</h3>
+          <p class="modal-texto">
+            ¿Seguro que deseas eliminar tu cuenta? Esta acción es permanente y
+            borrará también tu historial de carritos, órdenes y facturas.
+          </p>
+          <p v-if="errorEdicion" class="msg-error">{{ errorEdicion }}</p>
+          <div class="modal-acciones">
+            <button class="btn-secundario" @click="confirmarEliminacion = false">Cancelar</button>
+            <button class="btn-peligro" :disabled="eliminando" @click="eliminarCuenta">
+              {{ eliminando ? 'Eliminando...' : 'Sí, eliminar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { obtenerEntregasPorUsuario, type InformacionEntregaEntidad } from '@/services/entregaServicio';
 import { obtenerDatosPagoPorUsuario, type DatosDePagoEntidad } from '@/services/datosPagoServicio';
+import { usuarioServicio } from '@/services/usuarioServicio';
+import { validarRut } from '@/utils/rut';
 
 const authStore = useAuthStore();
+const router = useRouter();
 
 const userName = computed(() => authStore.userName || 'Usuario Anónimo');
 const userEmail = computed(() => authStore.userEmail || 'No disponible');
@@ -112,6 +180,100 @@ const cargandoEntregas = ref(false);
 
 const datosPago = ref<DatosDePagoEntidad[]>([]);
 const cargandoPago = ref(false);
+
+// ===================== EDICIÓN / ELIMINACIÓN DE CUENTA =====================
+const editando = ref(false);
+const guardando = ref(false);
+const confirmarEliminacion = ref(false);
+const eliminando = ref(false);
+const errorEdicion = ref('');
+const okEdicion = ref('');
+
+const form = reactive({
+  nombre: '',
+  correo: '',
+  rut_empresa: '',
+  contrasena: '',
+});
+
+const abrirEdicion = () => {
+  errorEdicion.value = '';
+  okEdicion.value = '';
+  form.nombre = authStore.userName ?? '';
+  form.correo = authStore.userEmail ?? '';
+  form.rut_empresa = authStore.userRut ?? '';
+  form.contrasena = '';
+  editando.value = true;
+};
+
+const guardarCambios = async () => {
+  errorEdicion.value = '';
+  okEdicion.value = '';
+
+  if (!form.nombre.trim()) {
+    errorEdicion.value = 'El nombre es obligatorio.';
+    return;
+  }
+  if (!validarRut(form.rut_empresa)) {
+    errorEdicion.value = 'El RUT de empresa no es válido. Ejemplo: 76.123.456-7';
+    return;
+  }
+
+  const id = Number(authStore.userId);
+  if (!id) {
+    errorEdicion.value = 'No se pudo identificar la cuenta.';
+    return;
+  }
+
+  guardando.value = true;
+  try {
+    await usuarioServicio.actualizarCuenta(id, {
+      nombre: form.nombre.trim(),
+      correo: form.correo.trim(),
+      rut_empresa: form.rut_empresa.trim(),
+      contrasena: form.contrasena.trim() || undefined,
+    });
+
+    // Refresca la sesión con los nuevos datos (conserva token, id y rol).
+    authStore.setSession({
+      token: authStore.token ?? '',
+      userId: String(authStore.userId ?? ''),
+      userEmail: form.correo.trim(),
+      userName: form.nombre.trim(),
+      userRole: authStore.userRole ?? '',
+      userRut: form.rut_empresa.trim(),
+    });
+
+    okEdicion.value = 'Cuenta actualizada correctamente.';
+    setTimeout(() => { editando.value = false; }, 800);
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { error?: string } } };
+    errorEdicion.value = axiosErr.response?.data?.error ?? 'No se pudo actualizar la cuenta.';
+  } finally {
+    guardando.value = false;
+  }
+};
+
+const eliminarCuenta = async () => {
+  errorEdicion.value = '';
+  const id = Number(authStore.userId);
+  if (!id) {
+    errorEdicion.value = 'No se pudo identificar la cuenta.';
+    return;
+  }
+
+  eliminando.value = true;
+  try {
+    await usuarioServicio.eliminarCuenta(id);
+    authStore.clearSession();
+    router.push('/login');
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { error?: string } } };
+    errorEdicion.value = axiosErr.response?.data?.error ?? 'No se pudo eliminar la cuenta.';
+  } finally {
+    eliminando.value = false;
+  }
+};
 
 const maskCardNumber = (numero: string): string => {
   if (!numero) return '---- ---- ---- ----';
@@ -197,10 +359,15 @@ onMounted(async () => {
   justify-content: center;
 }
 
-.edit-icon {
+.acciones-perfil {
   position: absolute;
   top: 24px;
   right: 24px;
+  display: flex;
+  gap: 4px;
+}
+
+.edit-icon {
   background: transparent;
   border: none;
   color: #6b4ba3;
@@ -212,6 +379,117 @@ onMounted(async () => {
 .edit-icon:hover {
   background: #f0f0f5;
 }
+
+.delete-icon {
+  background: transparent;
+  border: none;
+  color: #d64545;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 8px;
+  transition: background 0.2s;
+}
+.delete-icon:hover {
+  background: #fdecec;
+}
+
+/* ===== MODALES DE CUENTA ===== */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 300;
+}
+.modal-box {
+  background: #fff;
+  border-radius: 16px;
+  padding: 28px;
+  width: 100%;
+  max-width: 420px;
+  position: relative;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+}
+.modal-cerrar {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: none;
+  border: none;
+  font-size: 1.1rem;
+  cursor: pointer;
+  color: #888;
+}
+.modal-titulo {
+  margin: 0 0 16px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #243b55;
+}
+.modal-texto {
+  color: #55687d;
+  line-height: 1.5;
+  margin-bottom: 20px;
+}
+.modal-form label {
+  display: block;
+  margin-bottom: 14px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #34495e;
+}
+.modal-form label small {
+  color: #8a8a9d;
+  font-weight: 400;
+}
+.modal-form input {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid #d6e2ed;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+}
+.msg-error { color: #b02a1f; font-size: 0.88rem; margin: 4px 0; }
+.msg-ok { color: #1e5a25; font-size: 0.88rem; margin: 4px 0; }
+.modal-acciones {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 12px;
+}
+.btn-primario {
+  padding: 10px 18px;
+  background: #2b6cb0;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-primario:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-secundario {
+  padding: 10px 18px;
+  background: #eef2f7;
+  color: #34495e;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-peligro {
+  padding: 10px 18px;
+  background: #d64545;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-peligro:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .profile-content {
   display: flex;
