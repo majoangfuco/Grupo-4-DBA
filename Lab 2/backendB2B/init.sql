@@ -2,19 +2,27 @@
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- ─── 1. LIMPIEZA DEL ESQUEMA ANTERIOR ─────────────────────
+DROP MATERIALIZED VIEW IF EXISTS vw_ventas_geo_por_distrito CASCADE;
+DROP MATERIALIZED VIEW IF EXISTS vw_ventas_por_comuna CASCADE;
 DROP MATERIALIZED VIEW IF EXISTS vw_ventas_mensuales_por_categoria CASCADE;
+
+DROP TABLE IF EXISTS stock_almacen_producto_entidad CASCADE;
+DROP TABLE IF EXISTS zona_residencial_protegida_entidad CASCADE;
+DROP TABLE IF EXISTS distrito_postal_entidad CASCADE;
+DROP TABLE IF EXISTS cobertura_empresa_entidad CASCADE;
 DROP TABLE IF EXISTS almacen_entidad CASCADE;
 DROP TABLE IF EXISTS zona_cobertura_entidad CASCADE;
+DROP TABLE IF EXISTS audit_ordenes CASCADE;
 DROP TABLE IF EXISTS factura_item_entidad CASCADE;
-DROP TABLE IF EXISTS factura_entidad;
-DROP TABLE IF EXISTS carrito_producto_entidad;
+DROP TABLE IF EXISTS factura_entidad CASCADE;
+DROP TABLE IF EXISTS carrito_producto_entidad CASCADE;
 DROP TABLE IF EXISTS informacion_entrega_entidad CASCADE;
 DROP TABLE IF EXISTS ordenes_entidad CASCADE;
-DROP TABLE IF EXISTS producto_entidad;
-DROP TABLE IF EXISTS carrito_entidad;
-DROP TABLE IF EXISTS categoria_entidad;
-DROP TABLE IF EXISTS datos_pago_entidad;  -- ← LÍNEA AGREGADA
-DROP TABLE IF EXISTS usuario_entidad;
+DROP TABLE IF EXISTS producto_entidad CASCADE;
+DROP TABLE IF EXISTS carrito_entidad CASCADE;
+DROP TABLE IF EXISTS categoria_entidad CASCADE;
+DROP TABLE IF EXISTS datos_pago_entidad CASCADE;
+DROP TABLE IF EXISTS usuario_entidad CASCADE;
 
 -- ─── 2. TABLAS ─────────────────────────────────────────────
 
@@ -469,38 +477,109 @@ CREATE TABLE audit_ordenes (
     descripcion     TEXT
 );
 
--- Trigger function: Prevenir sobreventa (Req. 5)
+-- Previene la sobreventa solamente al crear una orden pagada.
+-- Los cambios administrativos posteriores, como PENDIENTE -> APROBADA,
+-- no vuelven a validar ni descontar inventario.
+
 CREATE OR REPLACE FUNCTION trg_prevenir_sobreventa()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_stock_disponible INT;
-    v_nombre_producto  VARCHAR(255);
+    v_estado_carrito VARCHAR(255);
 BEGIN
-    SELECT p.stock - p.stock_reservado, p.nombre_producto
-    INTO v_stock_disponible, v_nombre_producto
-    FROM ordenes_entidad o
-    JOIN carrito_entidad c ON c.carrito_id = o.carrito_carrito_id
-    JOIN carrito_producto_entidad cp ON cp.carrito_carrito_id = c.carrito_id
-    JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
-    WHERE o.orden_id = NEW.orden_id
-    LIMIT 1;
+    -- Este trigger está diseñado para validar nuevas órdenes.
+    -- La aprobación administrativa no debe tocar inventario.
+    IF TG_OP = 'UPDATE' THEN
+        RETURN NEW;
+    END IF;
 
-    IF v_stock_disponible IS NOT NULL AND NEW.estado IN ('PAGADO', 'APROBADA') THEN
-        IF v_stock_disponible < 1 THEN
-            RAISE EXCEPTION 'Error: Stock insuficiente para producto: % - Solo hay % disponibles',
-                v_nombre_producto, v_stock_disponible;
-        END IF;
+    -- Las órdenes pendientes todavía no consumen inventario aquí.
+    IF NEW.estado NOT IN ('PAGADO', 'ORDENADO', 'APROBADA') THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT c.estado
+    INTO v_estado_carrito
+    FROM carrito_entidad c
+    WHERE c.carrito_id = NEW.carrito_carrito_id;
+
+    IF v_estado_carrito IS NULL THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: el carrito no existe';
+    END IF;
+
+    -- Si el carrito ya estaba pagado, su stock ya fue consumido.
+    -- Esto también permite cargar órdenes históricas.
+    IF v_estado_carrito <> 'ACTIVO' THEN
+        RETURN NEW;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM carrito_producto_entidad
+        WHERE carrito_carrito_id = NEW.carrito_carrito_id
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: el carrito está vacío';
+    END IF;
+
+    -- Validar stock global y stock reservado.
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = NEW.carrito_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        JOIN producto_entidad p
+          ON p.producto_id = solicitado.producto_producto_id
+        WHERE p.stock < solicitado.cantidad
+           OR p.stock_reservado < solicitado.cantidad
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: stock global o reservado insuficiente';
+    END IF;
+
+    IF NEW.almacen_asignado_id IS NULL THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden sin almacén asignado';
+    END IF;
+
+    -- Validar stock físico del almacén.
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = NEW.carrito_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        LEFT JOIN stock_almacen_producto_entidad sap
+          ON sap.almacen_id = NEW.almacen_asignado_id
+         AND sap.producto_id = solicitado.producto_producto_id
+        WHERE COALESCE(sap.stock_disponible, 0)
+              < solicitado.cantidad
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: stock insuficiente en el almacén asignado';
     END IF;
 
     RETURN NEW;
 END;
 $$;
 
-DROP TRIGGER IF EXISTS prevenir_sobreventa ON ordenes_entidad;
+DROP TRIGGER IF EXISTS prevenir_sobreventa
+ON ordenes_entidad;
+
 CREATE TRIGGER prevenir_sobreventa
-    BEFORE INSERT OR UPDATE ON ordenes_entidad
+    BEFORE INSERT
+    ON ordenes_entidad
     FOR EACH ROW
     EXECUTE FUNCTION trg_prevenir_sobreventa();
 
@@ -541,8 +620,9 @@ RETURNS TRIGGER
 LANGUAGE plpgsql
 AS $$
 DECLARE
-    v_usuario_id     BIGINT;
-    v_descripcion    TEXT;
+    v_usuario_id      BIGINT;
+    v_estado_anterior VARCHAR(255);
+    v_descripcion     TEXT;
 BEGIN
     SELECT c.carrito_usuario_id
     INTO v_usuario_id
@@ -550,13 +630,32 @@ BEGIN
     WHERE c.carrito_id = NEW.carrito_carrito_id;
 
     IF TG_OP = 'INSERT' THEN
-        v_descripcion := 'Orden creada - Estado inicial: ' || NEW.estado;
-    ELSIF TG_OP = 'UPDATE' THEN
-        v_descripcion := 'Cambio de estado: ' || COALESCE(OLD.estado, 'NULL') || ' -> ' || NEW.estado;
+        v_estado_anterior := NULL;
+        v_descripcion := 'Orden creada - Estado inicial: ' || COALESCE(NEW.estado, 'NULL');
+    ELSE
+        v_estado_anterior := OLD.estado;
+        v_descripcion := 'Cambio de estado: '
+            || COALESCE(OLD.estado, 'NULL')
+            || ' -> '
+            || COALESCE(NEW.estado, 'NULL');
     END IF;
 
-    INSERT INTO audit_ordenes (orden_id, estado_anterior, estado_nuevo, usuario_id, fecha_cambio, descripcion)
-    VALUES (NEW.orden_id, OLD.estado, NEW.estado, v_usuario_id, NOW(), v_descripcion);
+    INSERT INTO audit_ordenes (
+        orden_id,
+        estado_anterior,
+        estado_nuevo,
+        usuario_id,
+        fecha_cambio,
+        descripcion
+    )
+    VALUES (
+        NEW.orden_id,
+        v_estado_anterior,
+        NEW.estado,
+        v_usuario_id,
+        NOW(),
+        v_descripcion
+    );
 
     RETURN NEW;
 END;
@@ -1002,3 +1101,921 @@ CREATE INDEX idx_informacion_entrega_orden ON informacion_entrega_entidad(orden_
 CREATE INDEX idx_informacion_entrega_ubicacion ON informacion_entrega_entidad USING GIST (ubicacion);
 CREATE INDEX idx_almacen_ubicacion ON almacen_entidad USING GIST (ubicacion);
 CREATE INDEX idx_zona_cobertura_geom ON zona_cobertura_entidad USING GIST (geom);
+
+-- ============================================================
+-- INTEGRACIÓN FINAL: PUNTOS 2, 3 Y 4
+-- 2) El procedimiento no descuenta stock global directamente:
+--    solo cambia el carrito a PAGADO y el trigger consume la reserva.
+-- 3) Stock normalizado por almacén y selección del almacén más cercano
+--    que pueda satisfacer el carrito completo.
+-- 4) Categorías restringidas y zonas residenciales protegidas.
+--
+-- Esta sección forma parte del init.sql y reemplaza las definiciones previas.
+-- ============================================================
+
+BEGIN;
+
+-- ============================================================
+-- 1. EXTENSIONES DEL MODELO
+-- ============================================================
+
+ALTER TABLE categoria_entidad
+    ADD COLUMN IF NOT EXISTS restringida_zona_residencial
+    BOOLEAN NOT NULL DEFAULT FALSE;
+
+ALTER TABLE ordenes_entidad
+    ADD COLUMN IF NOT EXISTS distancia_envio_km NUMERIC(12,3);
+
+CREATE TABLE IF NOT EXISTS stock_almacen_producto_entidad (
+    stock_almacen_id BIGSERIAL PRIMARY KEY,
+    almacen_id       BIGINT NOT NULL
+        REFERENCES almacen_entidad(almacen_id) ON DELETE CASCADE,
+    producto_id      BIGINT NOT NULL
+        REFERENCES producto_entidad(producto_id) ON DELETE CASCADE,
+    stock_disponible INT NOT NULL DEFAULT 0,
+    CONSTRAINT ux_stock_almacen_producto
+        UNIQUE (almacen_id, producto_id),
+    CONSTRAINT ck_stock_almacen_disponible
+        CHECK (stock_disponible >= 0)
+);
+
+CREATE TABLE IF NOT EXISTS zona_residencial_protegida_entidad (
+    zona_id     BIGSERIAL PRIMARY KEY,
+    nombre_zona VARCHAR(255) NOT NULL UNIQUE,
+    activa      BOOLEAN NOT NULL DEFAULT TRUE,
+    poligono    geometry(Polygon, 4326) NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_stock_almacen_producto
+    ON stock_almacen_producto_entidad (almacen_id, producto_id);
+
+CREATE INDEX IF NOT EXISTS idx_zona_residencial_poligono_gist
+    ON zona_residencial_protegida_entidad
+    USING GIST (poligono);
+
+-- ============================================================
+-- 2. CONFIGURACIÓN INICIAL DE RESTRICCIONES RESIDENCIALES
+-- ============================================================
+
+UPDATE categoria_entidad
+SET restringida_zona_residencial = TRUE
+WHERE LOWER(nombre_categoria) IN (
+    'insumos tecnológicos',
+    'seguridad electrónica'
+);
+
+INSERT INTO zona_residencial_protegida_entidad (
+    nombre_zona,
+    activa,
+    poligono
+)
+SELECT
+    'Zona Residencial Providencia',
+    TRUE,
+    ST_GeomFromText(
+        'POLYGON((-70.66 -33.47, -70.62 -33.47, -70.62 -33.42, -70.66 -33.42, -70.66 -33.47))',
+        4326
+    )
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM zona_residencial_protegida_entidad
+    WHERE nombre_zona = 'Zona Residencial Providencia'
+);
+
+INSERT INTO zona_residencial_protegida_entidad (
+    nombre_zona,
+    activa,
+    poligono
+)
+SELECT
+    'Zona Residencial La Florida',
+    TRUE,
+    ST_GeomFromText(
+        'POLYGON((-70.61 -33.58, -70.54 -33.58, -70.54 -33.52, -70.61 -33.52, -70.61 -33.58))',
+        4326
+    )
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM zona_residencial_protegida_entidad
+    WHERE nombre_zona = 'Zona Residencial La Florida'
+);
+
+-- ============================================================
+-- 3. DISTRIBUCIÓN INICIAL DEL STOCK ENTRE ALMACENES
+-- ============================================================
+-- Solo crea registros que todavía no existen.
+-- No sobrescribe inventario ya administrado.
+
+WITH distribucion AS (
+    SELECT
+        a.almacen_id,
+        p.producto_id,
+        p.stock,
+        ROW_NUMBER() OVER (
+            PARTITION BY p.producto_id
+            ORDER BY a.almacen_id
+        ) AS posicion,
+        COUNT(*) OVER (
+            PARTITION BY p.producto_id
+        ) AS cantidad_almacenes
+    FROM almacen_entidad a
+    CROSS JOIN producto_entidad p
+)
+INSERT INTO stock_almacen_producto_entidad (
+    almacen_id,
+    producto_id,
+    stock_disponible
+)
+SELECT
+    almacen_id,
+    producto_id,
+    CASE
+        WHEN cantidad_almacenes = 1 THEN stock
+        WHEN posicion < cantidad_almacenes THEN
+            FLOOR(stock::NUMERIC / cantidad_almacenes)::INT
+        ELSE
+            stock
+            - FLOOR(stock::NUMERIC / cantidad_almacenes)::INT
+              * (cantidad_almacenes - 1)
+    END
+FROM distribucion
+ON CONFLICT (almacen_id, producto_id) DO NOTHING;
+
+-- ============================================================
+-- 4. RESERVA GLOBAL ROBUSTA
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION ajustar_reserva_por_carrito(
+    p_carrito_id BIGINT,
+    p_accion TEXT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF p_accion = 'RESERVAR' THEN
+
+        IF EXISTS (
+            SELECT 1
+            FROM (
+                SELECT
+                    producto_producto_id,
+                    SUM(unidad_producto)::INT AS cantidad
+                FROM carrito_producto_entidad
+                WHERE carrito_carrito_id = p_carrito_id
+                GROUP BY producto_producto_id
+            ) solicitado
+            JOIN producto_entidad p
+              ON p.producto_id = solicitado.producto_producto_id
+            WHERE p.activo IS NOT TRUE
+               OR p.stock_reservado + solicitado.cantidad > p.stock
+        ) THEN
+            RAISE EXCEPTION
+                'Stock insuficiente o producto inactivo al reactivar el carrito %',
+                p_carrito_id;
+        END IF;
+
+        UPDATE producto_entidad p
+        SET stock_reservado =
+            p.stock_reservado + solicitado.cantidad
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = p_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        WHERE p.producto_id = solicitado.producto_producto_id;
+
+    ELSIF p_accion = 'LIBERAR' THEN
+
+        IF EXISTS (
+            SELECT 1
+            FROM (
+                SELECT
+                    producto_producto_id,
+                    SUM(unidad_producto)::INT AS cantidad
+                FROM carrito_producto_entidad
+                WHERE carrito_carrito_id = p_carrito_id
+                GROUP BY producto_producto_id
+            ) solicitado
+            JOIN producto_entidad p
+              ON p.producto_id = solicitado.producto_producto_id
+            WHERE p.stock_reservado < solicitado.cantidad
+        ) THEN
+            RAISE EXCEPTION
+                'Stock reservado insuficiente para liberar el carrito %',
+                p_carrito_id;
+        END IF;
+
+        UPDATE producto_entidad p
+        SET stock_reservado =
+            p.stock_reservado - solicitado.cantidad
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = p_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        WHERE p.producto_id = solicitado.producto_producto_id;
+
+    ELSIF p_accion = 'CONSUMIR' THEN
+
+        IF EXISTS (
+            SELECT 1
+            FROM (
+                SELECT
+                    producto_producto_id,
+                    SUM(unidad_producto)::INT AS cantidad
+                FROM carrito_producto_entidad
+                WHERE carrito_carrito_id = p_carrito_id
+                GROUP BY producto_producto_id
+            ) solicitado
+            JOIN producto_entidad p
+              ON p.producto_id = solicitado.producto_producto_id
+            WHERE p.stock < solicitado.cantidad
+               OR p.stock_reservado < solicitado.cantidad
+        ) THEN
+            RAISE EXCEPTION
+                'Stock global o reservado insuficiente para el carrito %',
+                p_carrito_id;
+        END IF;
+
+        UPDATE producto_entidad p
+        SET stock =
+                p.stock - solicitado.cantidad,
+            stock_reservado =
+                p.stock_reservado - solicitado.cantidad
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = p_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        WHERE p.producto_id = solicitado.producto_producto_id;
+
+    ELSE
+        RAISE EXCEPTION 'Acción de reserva no válida: %', p_accion;
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION trg_carrito_estado_cambio()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.estado IS NOT DISTINCT FROM OLD.estado THEN
+        RETURN NEW;
+    END IF;
+
+    IF OLD.estado = 'ACTIVO'
+       AND NEW.estado = 'ABANDONADO' THEN
+
+        PERFORM ajustar_reserva_por_carrito(
+            NEW.carrito_id,
+            'LIBERAR'
+        );
+
+    ELSIF OLD.estado = 'ABANDONADO'
+          AND NEW.estado = 'ACTIVO' THEN
+
+        PERFORM ajustar_reserva_por_carrito(
+            NEW.carrito_id,
+            'RESERVAR'
+        );
+
+    ELSIF OLD.estado = 'ACTIVO'
+          AND NEW.estado IN ('PAGADO', 'ORDENADO') THEN
+
+        -- ÚNICO punto donde se descuenta el stock global.
+        PERFORM ajustar_reserva_por_carrito(
+            NEW.carrito_id,
+            'CONSUMIR'
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS carrito_estado_cambio
+ON carrito_entidad;
+
+CREATE TRIGGER carrito_estado_cambio
+    AFTER UPDATE OF estado
+    ON carrito_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_carrito_estado_cambio();
+
+-- ============================================================
+-- 5. COBERTURA GEOGRÁFICA
+-- ============================================================
+-- Se usa ST_Covers para aceptar también puntos ubicados
+-- exactamente sobre el borde del polígono.
+
+CREATE OR REPLACE FUNCTION trg_validar_cobertura_entrega()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_ubicacion geometry(Point, 4326);
+BEGIN
+    SELECT ie.ubicacion
+    INTO v_ubicacion
+    FROM informacion_entrega_entidad ie
+    WHERE ie.info_entrega_id =
+          NEW.informacion_info_entrega_id;
+
+    IF v_ubicacion IS NULL THEN
+        RAISE EXCEPTION
+            'La dirección de entrega % no tiene coordenadas geográficas registradas',
+            NEW.informacion_info_entrega_id;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM zona_cobertura_entidad z
+        WHERE z.activa = TRUE
+          AND ST_Covers(z.geom, v_ubicacion)
+    ) THEN
+        RAISE EXCEPTION
+            'La dirección de entrega está fuera del área de cobertura';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS validar_cobertura_entrega
+ON ordenes_entidad;
+
+CREATE TRIGGER validar_cobertura_entrega
+    BEFORE INSERT OR UPDATE OF informacion_info_entrega_id
+    ON ordenes_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_validar_cobertura_entrega();
+
+-- ============================================================
+-- 6. CATEGORÍAS RESTRINGIDAS EN ZONAS RESIDENCIALES
+-- ============================================================
+
+CREATE OR REPLACE FUNCTION
+trg_validar_categoria_restringida_por_zona()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_ubicacion geometry(Point, 4326);
+BEGIN
+    SELECT ie.ubicacion
+    INTO v_ubicacion
+    FROM informacion_entrega_entidad ie
+    WHERE ie.info_entrega_id =
+          NEW.informacion_info_entrega_id;
+
+    IF v_ubicacion IS NULL THEN
+        RAISE EXCEPTION
+            'La entrega no tiene ubicación geoespacial definida';
+    END IF;
+
+    IF EXISTS (
+        SELECT 1
+        FROM carrito_producto_entidad cp
+        JOIN producto_entidad p
+          ON p.producto_id = cp.producto_producto_id
+        JOIN categoria_entidad c
+          ON c.categoria_id = p.categoria_categoria_id
+        WHERE cp.carrito_carrito_id =
+              NEW.carrito_carrito_id
+          AND c.restringida_zona_residencial = TRUE
+          AND EXISTS (
+              SELECT 1
+              FROM zona_residencial_protegida_entidad z
+              WHERE z.activa = TRUE
+                AND ST_Covers(z.poligono, v_ubicacion)
+          )
+    ) THEN
+        RAISE EXCEPTION
+            'Orden bloqueada: contiene categorías restringidas para una zona residencial protegida';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS validar_categoria_restringida_por_zona
+ON ordenes_entidad;
+
+CREATE TRIGGER validar_categoria_restringida_por_zona
+    BEFORE INSERT OR UPDATE OF
+        carrito_carrito_id,
+        informacion_info_entrega_id
+    ON ordenes_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION
+        trg_validar_categoria_restringida_por_zona();
+
+-- ============================================================
+-- 7. PREVENCIÓN DE SOBREVENTA GLOBAL Y POR ALMACÉN
+-- ============================================================
+-- La validación se ejecuta únicamente al CREAR una orden.
+-- Los cambios administrativos posteriores, como
+-- PENDIENTE -> APROBADA o PENDIENTE -> CANCELADA,
+-- no vuelven a validar ni a descontar inventario.
+
+CREATE OR REPLACE FUNCTION trg_prevenir_sobreventa()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM carrito_producto_entidad
+        WHERE carrito_carrito_id =
+              NEW.carrito_carrito_id
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: el carrito está vacío';
+    END IF;
+
+    -- Verifica el stock global y la reserva del carrito antes
+    -- de confirmar la creación de la orden.
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id =
+                  NEW.carrito_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        JOIN producto_entidad p
+          ON p.producto_id =
+             solicitado.producto_producto_id
+        WHERE p.activo IS NOT TRUE
+           OR p.stock < solicitado.cantidad
+           OR p.stock_reservado < solicitado.cantidad
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: stock global o reservado insuficiente';
+    END IF;
+
+    IF NEW.almacen_asignado_id IS NULL THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden sin almacén asignado';
+    END IF;
+
+    -- Verifica que el almacén asignado pueda satisfacer
+    -- todos los productos del carrito.
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id =
+                  NEW.carrito_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        LEFT JOIN stock_almacen_producto_entidad sap
+          ON sap.almacen_id =
+             NEW.almacen_asignado_id
+         AND sap.producto_id =
+             solicitado.producto_producto_id
+        WHERE COALESCE(sap.stock_disponible, 0)
+              < solicitado.cantidad
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede crear la orden: stock insuficiente en el almacén asignado';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS prevenir_sobreventa
+ON ordenes_entidad;
+
+CREATE TRIGGER prevenir_sobreventa
+    BEFORE INSERT
+    ON ordenes_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_prevenir_sobreventa();
+
+-- ============================================================
+-- 8. CHECKOUT ATÓMICO
+-- ============================================================
+-- El procedimiento:
+--   1. Valida carrito, entrega, cobertura y restricciones.
+--   2. Selecciona el almacén más cercano con stock completo.
+--   3. Bloquea el inventario físico del almacén.
+--   4. Crea orden, factura e ítems.
+--   5. Descuenta el stock del almacén.
+--   6. SOLO cambia el carrito a PAGADO.
+--      El trigger consume el stock global una única vez.
+--   7. Vacía el carrito dentro de la misma transacción.
+
+CREATE OR REPLACE PROCEDURE procesar_checkout(
+    p_carrito_id BIGINT,
+    p_info_entrega_id BIGINT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_usuario_id        BIGINT;
+    v_ubicacion_entrega geometry(Point, 4326);
+    v_almacen_id        BIGINT;
+    v_almacen_nombre    VARCHAR(255);
+    v_distancia_km      NUMERIC(12,3);
+    v_candidato         RECORD;
+    v_total_neto        NUMERIC(14,2);
+    v_iva               NUMERIC(14,2);
+    v_precio_total      NUMERIC(14,2);
+    v_orden_id          INT;
+    v_factura_id        BIGINT;
+    v_datos_pago_id     BIGINT;
+BEGIN
+    -- Bloquea el carrito para impedir dos checkouts simultáneos.
+    SELECT c.carrito_usuario_id
+    INTO v_usuario_id
+    FROM carrito_entidad c
+    WHERE c.carrito_id = p_carrito_id
+      AND c.estado = 'ACTIVO'
+    FOR UPDATE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'Carrito % no existe o no está ACTIVO',
+            p_carrito_id;
+    END IF;
+
+    -- La entrega debe pertenecer al dueño del carrito y estar activa.
+    SELECT ie.ubicacion
+    INTO v_ubicacion_entrega
+    FROM informacion_entrega_entidad ie
+    WHERE ie.info_entrega_id = p_info_entrega_id
+      AND ie.usuario_usuario = v_usuario_id
+      AND ie.activa = TRUE;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'La entrega % no existe, está inactiva o no pertenece al usuario',
+            p_info_entrega_id;
+    END IF;
+
+    IF v_ubicacion_entrega IS NULL THEN
+        RAISE EXCEPTION
+            'La entrega % no tiene coordenadas geográficas',
+            p_info_entrega_id;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM carrito_producto_entidad
+        WHERE carrito_carrito_id = p_carrito_id
+    ) THEN
+        RAISE EXCEPTION
+            'El carrito % está vacío',
+            p_carrito_id;
+    END IF;
+
+    -- Cobertura.
+    IF NOT EXISTS (
+        SELECT 1
+        FROM zona_cobertura_entidad z
+        WHERE z.activa = TRUE
+          AND ST_Covers(
+              z.geom,
+              v_ubicacion_entrega
+          )
+    ) THEN
+        RAISE EXCEPTION
+            'La dirección de entrega está fuera del área de cobertura';
+    END IF;
+
+    -- Categorías restringidas dentro de zona residencial.
+    IF EXISTS (
+        SELECT 1
+        FROM carrito_producto_entidad cp
+        JOIN producto_entidad p
+          ON p.producto_id = cp.producto_producto_id
+        JOIN categoria_entidad c
+          ON c.categoria_id = p.categoria_categoria_id
+        WHERE cp.carrito_carrito_id = p_carrito_id
+          AND c.restringida_zona_residencial = TRUE
+          AND EXISTS (
+              SELECT 1
+              FROM zona_residencial_protegida_entidad z
+              WHERE z.activa = TRUE
+                AND ST_Covers(
+                    z.poligono,
+                    v_ubicacion_entrega
+                )
+          )
+    ) THEN
+        RAISE EXCEPTION
+            'No se permiten categorías restringidas en esta zona residencial';
+    END IF;
+
+    -- Revalidación global antes de buscar almacén.
+    IF EXISTS (
+        SELECT 1
+        FROM (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = p_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+        JOIN producto_entidad p
+          ON p.producto_id =
+             solicitado.producto_producto_id
+        WHERE p.activo IS NOT TRUE
+           OR p.stock < solicitado.cantidad
+           OR p.stock_reservado < solicitado.cantidad
+    ) THEN
+        RAISE EXCEPTION
+            'Stock global o reservado insuficiente';
+    END IF;
+
+    -- Selecciona candidatos desde el más cercano al más lejano.
+    -- Para cada candidato bloquea las filas de inventario y revalida.
+    FOR v_candidato IN
+        SELECT
+            a.almacen_id,
+            a.nombre,
+            ROUND(
+                (
+                    ST_Distance(
+                        a.ubicacion::geography,
+                        v_ubicacion_entrega::geography
+                    ) / 1000.0
+                )::NUMERIC,
+                3
+            ) AS distancia_km
+        FROM almacen_entidad a
+        ORDER BY
+            a.ubicacion
+            <-> v_ubicacion_entrega
+    LOOP
+        PERFORM sap.stock_almacen_id
+        FROM stock_almacen_producto_entidad sap
+        JOIN (
+            SELECT
+                producto_producto_id,
+                SUM(unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad
+            WHERE carrito_carrito_id = p_carrito_id
+            GROUP BY producto_producto_id
+        ) solicitado
+          ON solicitado.producto_producto_id =
+             sap.producto_id
+        WHERE sap.almacen_id =
+              v_candidato.almacen_id
+        ORDER BY sap.producto_id
+        FOR UPDATE OF sap;
+
+        IF NOT EXISTS (
+            SELECT 1
+            FROM (
+                SELECT
+                    producto_producto_id,
+                    SUM(unidad_producto)::INT AS cantidad
+                FROM carrito_producto_entidad
+                WHERE carrito_carrito_id = p_carrito_id
+                GROUP BY producto_producto_id
+            ) solicitado
+            LEFT JOIN stock_almacen_producto_entidad sap
+              ON sap.almacen_id =
+                 v_candidato.almacen_id
+             AND sap.producto_id =
+                 solicitado.producto_producto_id
+            WHERE COALESCE(
+                sap.stock_disponible,
+                0
+            ) < solicitado.cantidad
+        ) THEN
+            v_almacen_id :=
+                v_candidato.almacen_id;
+            v_almacen_nombre :=
+                v_candidato.nombre;
+            v_distancia_km :=
+                v_candidato.distancia_km;
+            EXIT;
+        END IF;
+    END LOOP;
+
+    IF v_almacen_id IS NULL THEN
+        RAISE EXCEPTION
+            'No existe un almacén con stock suficiente para el carrito %',
+            p_carrito_id;
+    END IF;
+
+    SELECT dp.datos_pago_id
+    INTO v_datos_pago_id
+    FROM datos_pago_entidad dp
+    WHERE dp.usuario_usuario = v_usuario_id
+    ORDER BY dp.datos_pago_id
+    LIMIT 1;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION
+            'El usuario % no tiene datos de pago',
+            v_usuario_id;
+    END IF;
+
+    SELECT ROUND(
+        COALESCE(
+            SUM(
+                cp.unidad_producto
+                * p.precio
+            ),
+            0
+        )::NUMERIC,
+        2
+    )
+    INTO v_total_neto
+    FROM carrito_producto_entidad cp
+    JOIN producto_entidad p
+      ON p.producto_id =
+         cp.producto_producto_id
+    WHERE cp.carrito_carrito_id =
+          p_carrito_id;
+
+    v_iva :=
+        ROUND(v_total_neto * 0.19, 2);
+
+    v_precio_total :=
+        ROUND(v_total_neto + v_iva, 2);
+
+    INSERT INTO ordenes_entidad (
+        carrito_carrito_id,
+        informacion_info_entrega_id,
+        fecha_orden,
+        estado,
+        almacen_asignado_id,
+        distancia_envio_km
+    )
+    VALUES (
+        p_carrito_id,
+        p_info_entrega_id,
+        NOW(),
+        'PAGADO',
+        v_almacen_id,
+        v_distancia_km
+    )
+    RETURNING orden_id
+    INTO v_orden_id;
+
+    INSERT INTO factura_entidad (
+        usuario_usuario,
+        datos_pago_id,
+        orden_orden_id,
+        precio_total,
+        fecha_emision,
+        total_neto,
+        iva
+    )
+    VALUES (
+        v_usuario_id,
+        v_datos_pago_id,
+        v_orden_id,
+        v_precio_total,
+        NOW(),
+        v_total_neto,
+        v_iva
+    )
+    RETURNING factura_id
+    INTO v_factura_id;
+
+    INSERT INTO factura_item_entidad (
+        factura_id,
+        producto_id,
+        cantidad,
+        precio_unitario
+    )
+    SELECT
+        v_factura_id,
+        cp.producto_producto_id,
+        SUM(cp.unidad_producto)::INT,
+        p.precio
+    FROM carrito_producto_entidad cp
+    JOIN producto_entidad p
+      ON p.producto_id =
+         cp.producto_producto_id
+    WHERE cp.carrito_carrito_id =
+          p_carrito_id
+    GROUP BY
+        cp.producto_producto_id,
+        p.precio;
+
+    -- Descuenta únicamente el inventario físico del almacén.
+    UPDATE stock_almacen_producto_entidad sap
+    SET stock_disponible =
+        sap.stock_disponible
+        - solicitado.cantidad
+    FROM (
+        SELECT
+            producto_producto_id,
+            SUM(unidad_producto)::INT AS cantidad
+        FROM carrito_producto_entidad
+        WHERE carrito_carrito_id = p_carrito_id
+        GROUP BY producto_producto_id
+    ) solicitado
+    WHERE sap.almacen_id = v_almacen_id
+      AND sap.producto_id =
+          solicitado.producto_producto_id;
+
+    -- IMPORTANTE:
+    -- aquí NO se actualiza producto_entidad directamente.
+    -- Este cambio activa carrito_estado_cambio y el trigger
+    -- consume stock y stock_reservado una sola vez.
+    UPDATE carrito_entidad
+    SET estado = 'PAGADO',
+        ultima_actualizacion = NOW()
+    WHERE carrito_id = p_carrito_id;
+
+    UPDATE informacion_entrega_entidad
+    SET orden_orden_id = v_orden_id
+    WHERE info_entrega_id =
+          p_info_entrega_id;
+
+    -- Se vacía después del trigger, porque el trigger necesita
+    -- leer los productos del carrito para consumir la reserva.
+    DELETE FROM carrito_producto_entidad
+    WHERE carrito_carrito_id =
+          p_carrito_id;
+
+    RAISE NOTICE
+        'Checkout exitoso. Orden: %, Factura: %, Almacén: %, Distancia: % km, Total: %',
+        v_orden_id,
+        v_factura_id,
+        v_almacen_nombre,
+        v_distancia_km,
+        v_precio_total;
+END;
+$$;
+
+COMMIT;
+
+-- ============================================================
+-- VERIFICACIONES
+-- ============================================================
+
+-- La suma del inventario por almacenes debe coincidir con el stock global
+-- antes de comenzar a procesar nuevas ventas.
+SELECT
+    p.producto_id,
+    p.nombre_producto,
+    p.stock AS stock_global,
+    COALESCE(
+        SUM(sap.stock_disponible),
+        0
+    )::INT AS stock_en_almacenes
+FROM producto_entidad p
+LEFT JOIN stock_almacen_producto_entidad sap
+  ON sap.producto_id = p.producto_id
+GROUP BY
+    p.producto_id,
+    p.nombre_producto,
+    p.stock
+HAVING p.stock <>
+       COALESCE(
+           SUM(sap.stock_disponible),
+           0
+       )::INT;
+
+-- Categorías restringidas.
+SELECT
+    categoria_id,
+    nombre_categoria,
+    restringida_zona_residencial
+FROM categoria_entidad
+ORDER BY categoria_id;
+
+-- Inventario por almacén.
+SELECT
+    a.nombre AS almacen,
+    p.nombre_producto,
+    sap.stock_disponible
+FROM stock_almacen_producto_entidad sap
+JOIN almacen_entidad a
+  ON a.almacen_id = sap.almacen_id
+JOIN producto_entidad p
+  ON p.producto_id = sap.producto_id
+ORDER BY
+    a.almacen_id,
+    p.producto_id;
+
+-- Prueba de checkout:
+-- CALL procesar_checkout(<carrito_activo>, <entrega_del_mismo_usuario>);

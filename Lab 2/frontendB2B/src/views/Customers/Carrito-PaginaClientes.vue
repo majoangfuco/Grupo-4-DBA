@@ -3,7 +3,7 @@
 // Carrito-PaginaClientes.vue
 // Muestra el carrito activo/abandonado del cliente.
 // =====================================================
-
+import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -37,17 +37,93 @@ const modalItem = ref<CarritoProductoEntidad | null>(null)
 const showAddressModal = ref(false)
 const showPaymentModal = ref(false)
 
-const newAddress = ref<Partial<InformacionEntregaEntidad>>({ direccion: '', numero: '', rut_Recibe_Entrega: '', rut_Empresa: '' })
+const newAddress = ref<Partial<InformacionEntregaEntidad>>({
+  direccion: '',
+  numero: '',
+  rut_Recibe_Entrega: '',
+  rut_Empresa: '',
+  comuna: '',
+  latitud: undefined,
+  longitud: undefined
+})
 const newPayment = ref<Partial<DatosDePagoEntidad>>({ metodo_Pago: '', numero_Tarjeta: '', fecha_Expiracion: '' })
 const newPaymentMonth = ref<string>('')
 const newPaymentYear = ref<string>('')
 
 const crearNuevaEntrega = async () => {
   try {
-    if (!authStore.userId) throw new Error('Usuario no validado')
-    const payload = { ...newAddress.value, usuarioId: Number(authStore.userId) }
+    if (!authStore.userId) {
+      throw new Error('Usuario no validado')
+    }
+
+    if (
+      !newAddress.value.direccion?.trim() ||
+      !newAddress.value.numero?.trim() ||
+      !newAddress.value.comuna?.trim()
+    ) {
+      notificar(
+        'Completa dirección, número y comuna',
+        'error'
+      )
+      return
+    }
+
+    if (
+      newAddress.value.latitud === undefined ||
+      newAddress.value.longitud === undefined ||
+      !Number.isFinite(newAddress.value.latitud) ||
+      !Number.isFinite(newAddress.value.longitud)
+    ) {
+      notificar(
+        'Ingresa coordenadas válidas',
+        'error'
+      )
+      return
+    }
+
+    if (
+      newAddress.value.latitud < -90 ||
+      newAddress.value.latitud > 90
+    ) {
+      notificar(
+        'La latitud debe estar entre -90 y 90',
+        'error'
+      )
+      return
+    }
+
+    if (
+      newAddress.value.longitud < -180 ||
+      newAddress.value.longitud > 180
+    ) {
+      notificar(
+        'La longitud debe estar entre -180 y 180',
+        'error'
+      )
+      return
+    }
+
+    const payload: Partial<InformacionEntregaEntidad> = {
+      ...newAddress.value,
+      usuarioId: Number(authStore.userId),
+      activa: true,
+      estado_Entrega: 'PENDIENTE'
+    }
+
     await crearEntrega(payload)
+
     showAddressModal.value = false
+
+    newAddress.value = {
+      direccion: '',
+      numero: '',
+      rut_Recibe_Entrega: '',
+      rut_Empresa: '',
+      comuna: '',
+      latitud: undefined,
+      longitud: undefined
+    }
+
     await cargarCarrito()
     notificar('Dirección guardada', 'ok')
   } catch (err) {
@@ -93,7 +169,7 @@ const notificar = (mensaje: string, tipo: 'ok' | 'error') => {
   if (toastTimer) window.clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => {
     toastMensaje.value = null
-  }, 1800)
+  }, 5000)
 }
 
 const actualizarCantidad = async (item: CarritoProductoEntidad, nuevaCantidad: number) => {
@@ -213,22 +289,58 @@ const handlePagoChange = () => {
 
 const solicitarOrden = async () => {
   if (!carrito.value?.carrito_ID) return
-  if (!selectedEntregaId.value || !selectedPagoId.value || selectedEntregaId.value === 'new' || selectedPagoId.value === 'new') {
-    notificar('Selecciona dirección de envío y datos de pago', 'error')
+
+  if (
+    !selectedEntregaId.value ||
+    !selectedPagoId.value ||
+    selectedEntregaId.value === 'new' ||
+    selectedPagoId.value === 'new'
+  ) {
+    notificar(
+      'Selecciona dirección de envío y datos de pago',
+      'error'
+    )
     return
   }
 
   try {
     cargando.value = true
-    await carritoServicio.checkout(carrito.value.carrito_ID, {
-      infoEntregaId: selectedEntregaId.value,
-      datosPagoId: selectedPagoId.value,
-    })
+
+    await carritoServicio.checkout(
+      carrito.value.carrito_ID,
+      {
+        infoEntregaId: Number(selectedEntregaId.value),
+        datosPagoId: Number(selectedPagoId.value),
+      }
+    )
+
     notificar('Orden solicitada correctamente', 'ok')
     await cargarCarrito()
+
   } catch (err: unknown) {
     console.error('Error al solicitar orden:', err)
-    notificar('No se pudo procesar la orden', 'error')
+
+    let mensaje = 'No se pudo procesar la orden'
+
+    if (axios.isAxiosError(err)) {
+      const respuesta = err.response?.data
+
+      if (typeof respuesta === 'string') {
+        mensaje = respuesta
+      } else if (
+        respuesta &&
+        typeof respuesta === 'object'
+      ) {
+        if ('message' in respuesta) {
+          mensaje = String(respuesta.message)
+        } else if ('error' in respuesta) {
+          mensaje = String(respuesta.error)
+        }
+      }
+    }
+
+    notificar(mensaje, 'error')
+
   } finally {
     cargando.value = false
   }
@@ -372,6 +484,28 @@ onMounted(cargarCarrito)
           <input type="text" v-model="newAddress.rut_Recibe_Entrega" />
           <label>RUT empresa</label>
           <input type="text" v-model="newAddress.rut_Empresa" />
+          <label>Comuna</label>
+          <input
+            type="text"
+            v-model.trim="newAddress.comuna"
+            placeholder="Ejemplo: Providencia"
+          />
+
+          <label>Latitud</label>
+          <input
+            type="number"
+            step="any"
+            v-model.number="newAddress.latitud"
+            placeholder="-33.4450"
+          />
+
+          <label>Longitud</label>
+          <input
+            type="number"
+            step="any"
+            v-model.number="newAddress.longitud"
+            placeholder="-70.6400"
+          />
         </div>
       </div>
       <div class="modal-actions">

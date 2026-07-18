@@ -195,4 +195,18 @@ private final JdbcTemplate jdbcTemplate;
                 """;
         return jdbcTemplate.query(sql, rowMapper);
     }
+
+    public int actualizarEstado(Long ordenId, String estado) {
+        String sql = """
+            UPDATE ordenes_entidad
+            SET estado = ?
+            WHERE orden_id = ?
+            """;
+
+        return jdbcTemplate.update(
+                sql,
+                estado,
+                ordenId
+        );
+    }
 }

@@ -202,17 +202,36 @@ public class OrdenesServicio {
     public OrdenesEntidad aprobarOrden(Long ordenId) {
         OrdenesEntidad orden = obtenerOrdenPorId(ordenId);
 
-        if (orden.getEstado().equals("APROBADA")) {
-            throw new IllegalStateException("La orden ya está aprobada");
-        }
-        if (orden.getEstado().equals("CANCELADA")) {
-            throw new IllegalStateException("No se puede aprobar una orden cancelada");
+        if ("APROBADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "La orden ya está aprobada"
+            );
         }
 
-        orden.setEstado("APROBADA");
-        ordenesRepositorio.actualizar(orden);
-        crearFacturaSiNoExiste(orden);
-        return orden;
+        if ("CANCELADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "No se puede aprobar una orden cancelada"
+            );
+        }
+
+        int filasAfectadas =
+                ordenesRepositorio.actualizarEstado(
+                        ordenId,
+                        "APROBADA"
+                );
+
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException(
+                    "No se pudo aprobar la orden: " + ordenId
+            );
+        }
+
+        OrdenesEntidad ordenAprobada =
+                obtenerOrdenPorId(ordenId);
+
+        crearFacturaSiNoExiste(ordenAprobada);
+
+        return ordenAprobada;
     }
 
     private void crearFacturaSiNoExiste(OrdenesEntidad orden) {
@@ -251,16 +270,31 @@ public class OrdenesServicio {
     public OrdenesEntidad cancelarOrden(Long ordenId) {
         OrdenesEntidad orden = obtenerOrdenPorId(ordenId);
 
-        if (orden.getEstado().equals("APROBADA")) {
-            throw new IllegalStateException("No se puede cancelar una orden ya aprobada");
-        }
-        if (orden.getEstado().equals("CANCELADA")) {
-            throw new IllegalStateException("La orden ya está cancelada");
+        if ("APROBADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "No se puede cancelar una orden ya aprobada"
+            );
         }
 
-        orden.setEstado("CANCELADA");
-        ordenesRepositorio.actualizar(orden);
-        return orden;
+        if ("CANCELADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "La orden ya está cancelada"
+            );
+        }
+
+        int filasAfectadas =
+                ordenesRepositorio.actualizarEstado(
+                        ordenId,
+                        "CANCELADA"
+                );
+
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException(
+                    "No se pudo cancelar la orden: " + ordenId
+            );
+        }
+
+        return obtenerOrdenPorId(ordenId);
     }
 
 
