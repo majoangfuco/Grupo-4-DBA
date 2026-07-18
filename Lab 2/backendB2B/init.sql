@@ -1624,9 +1624,15 @@ CREATE TRIGGER prevenir_sobreventa
 --      El trigger consume el stock global una única vez.
 --   7. Vacía el carrito dentro de la misma transacción.
 
+-- El checkout real de la API invoca este procedimiento con la dirección
+-- y el medio de pago seleccionados por el cliente.
+DROP PROCEDURE IF EXISTS procesar_checkout(BIGINT, BIGINT);
+DROP PROCEDURE IF EXISTS procesar_checkout(BIGINT, BIGINT, BIGINT);
+
 CREATE OR REPLACE PROCEDURE procesar_checkout(
     p_carrito_id BIGINT,
-    p_info_entrega_id BIGINT
+    p_info_entrega_id BIGINT,
+    p_datos_pago_id BIGINT
 )
 LANGUAGE plpgsql
 AS $$
@@ -1642,9 +1648,20 @@ DECLARE
     v_precio_total      NUMERIC(14,2);
     v_orden_id          INT;
     v_factura_id        BIGINT;
-    v_datos_pago_id     BIGINT;
 BEGIN
-    -- Bloquea el carrito para impedir dos checkouts simultáneos.
+    IF p_carrito_id IS NULL OR p_carrito_id <= 0 THEN
+        RAISE EXCEPTION 'El carrito es obligatorio';
+    END IF;
+
+    IF p_info_entrega_id IS NULL OR p_info_entrega_id <= 0 THEN
+        RAISE EXCEPTION 'La dirección de entrega es obligatoria';
+    END IF;
+
+    IF p_datos_pago_id IS NULL OR p_datos_pago_id <= 0 THEN
+        RAISE EXCEPTION 'Los datos de pago son obligatorios';
+    END IF;
+
+    -- Impide que dos solicitudes procesen el mismo carrito simultáneamente.
     SELECT c.carrito_usuario_id
     INTO v_usuario_id
     FROM carrito_entidad c
@@ -1656,6 +1673,14 @@ BEGIN
         RAISE EXCEPTION
             'Carrito % no existe o no está ACTIVO',
             p_carrito_id;
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM carrito_producto_entidad cp
+        WHERE cp.carrito_carrito_id = p_carrito_id
+    ) THEN
+        RAISE EXCEPTION 'El carrito % está vacío', p_carrito_id;
     END IF;
 
     -- La entrega debe pertenecer al dueño del carrito y estar activa.
@@ -1678,31 +1703,30 @@ BEGIN
             p_info_entrega_id;
     END IF;
 
+    -- El medio de pago también debe pertenecer al dueño del carrito.
     IF NOT EXISTS (
         SELECT 1
-        FROM carrito_producto_entidad
-        WHERE carrito_carrito_id = p_carrito_id
+        FROM datos_pago_entidad dp
+        WHERE dp.datos_pago_id = p_datos_pago_id
+          AND dp.usuario_usuario = v_usuario_id
     ) THEN
         RAISE EXCEPTION
-            'El carrito % está vacío',
-            p_carrito_id;
+            'Los datos de pago % no existen o no pertenecen al usuario',
+            p_datos_pago_id;
     END IF;
 
-    -- Cobertura.
+    -- Cobertura general de la empresa.
     IF NOT EXISTS (
         SELECT 1
         FROM zona_cobertura_entidad z
         WHERE z.activa = TRUE
-          AND ST_Covers(
-              z.geom,
-              v_ubicacion_entrega
-          )
+          AND ST_Covers(z.geom, v_ubicacion_entrega)
     ) THEN
         RAISE EXCEPTION
             'La dirección de entrega está fuera del área de cobertura';
     END IF;
 
-    -- Categorías restringidas dentro de zona residencial.
+    -- Categorías restringidas dentro de zonas residenciales protegidas.
     IF EXISTS (
         SELECT 1
         FROM carrito_producto_entidad cp
@@ -1716,40 +1740,49 @@ BEGIN
               SELECT 1
               FROM zona_residencial_protegida_entidad z
               WHERE z.activa = TRUE
-                AND ST_Covers(
-                    z.poligono,
-                    v_ubicacion_entrega
-                )
+                AND ST_Covers(z.poligono, v_ubicacion_entrega)
           )
     ) THEN
         RAISE EXCEPTION
             'No se permiten categorías restringidas en esta zona residencial';
     END IF;
 
-    -- Revalidación global antes de buscar almacén.
+    -- Bloquea los productos globales en un orden estable y revalida la reserva.
+    PERFORM p.producto_id
+    FROM producto_entidad p
+    JOIN (
+        SELECT
+            cp.producto_producto_id,
+            SUM(cp.unidad_producto)::INT AS cantidad
+        FROM carrito_producto_entidad cp
+        WHERE cp.carrito_carrito_id = p_carrito_id
+        GROUP BY cp.producto_producto_id
+    ) solicitado
+      ON solicitado.producto_producto_id = p.producto_id
+    ORDER BY p.producto_id
+    FOR UPDATE OF p;
+
     IF EXISTS (
         SELECT 1
         FROM (
             SELECT
-                producto_producto_id,
-                SUM(unidad_producto)::INT AS cantidad
-            FROM carrito_producto_entidad
-            WHERE carrito_carrito_id = p_carrito_id
-            GROUP BY producto_producto_id
+                cp.producto_producto_id,
+                SUM(cp.unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad cp
+            WHERE cp.carrito_carrito_id = p_carrito_id
+            GROUP BY cp.producto_producto_id
         ) solicitado
         JOIN producto_entidad p
-          ON p.producto_id =
-             solicitado.producto_producto_id
+          ON p.producto_id = solicitado.producto_producto_id
         WHERE p.activo IS NOT TRUE
            OR p.stock < solicitado.cantidad
            OR p.stock_reservado < solicitado.cantidad
     ) THEN
-        RAISE EXCEPTION
-            'Stock global o reservado insuficiente';
+        RAISE EXCEPTION 'Stock global o reservado insuficiente';
     END IF;
 
-    -- Selecciona candidatos desde el más cercano al más lejano.
-    -- Para cada candidato bloquea las filas de inventario y revalida.
+    -- Recorre los almacenes por proximidad. ST_Distance calcula la distancia
+    -- real en metros sobre geography; el operador <-> permite usar el índice GIST.
     FOR v_candidato IN
         SELECT
             a.almacen_id,
@@ -1764,24 +1797,21 @@ BEGIN
                 3
             ) AS distancia_km
         FROM almacen_entidad a
-        ORDER BY
-            a.ubicacion
-            <-> v_ubicacion_entrega
+        ORDER BY a.ubicacion <-> v_ubicacion_entrega
     LOOP
+        -- Bloquea el inventario del candidato antes de comprobarlo.
         PERFORM sap.stock_almacen_id
         FROM stock_almacen_producto_entidad sap
         JOIN (
             SELECT
-                producto_producto_id,
-                SUM(unidad_producto)::INT AS cantidad
-            FROM carrito_producto_entidad
-            WHERE carrito_carrito_id = p_carrito_id
-            GROUP BY producto_producto_id
+                cp.producto_producto_id,
+                SUM(cp.unidad_producto)::INT AS cantidad
+            FROM carrito_producto_entidad cp
+            WHERE cp.carrito_carrito_id = p_carrito_id
+            GROUP BY cp.producto_producto_id
         ) solicitado
-          ON solicitado.producto_producto_id =
-             sap.producto_id
-        WHERE sap.almacen_id =
-              v_candidato.almacen_id
+          ON solicitado.producto_producto_id = sap.producto_id
+        WHERE sap.almacen_id = v_candidato.almacen_id
         ORDER BY sap.producto_id
         FOR UPDATE OF sap;
 
@@ -1789,28 +1819,20 @@ BEGIN
             SELECT 1
             FROM (
                 SELECT
-                    producto_producto_id,
-                    SUM(unidad_producto)::INT AS cantidad
-                FROM carrito_producto_entidad
-                WHERE carrito_carrito_id = p_carrito_id
-                GROUP BY producto_producto_id
+                    cp.producto_producto_id,
+                    SUM(cp.unidad_producto)::INT AS cantidad
+                FROM carrito_producto_entidad cp
+                WHERE cp.carrito_carrito_id = p_carrito_id
+                GROUP BY cp.producto_producto_id
             ) solicitado
             LEFT JOIN stock_almacen_producto_entidad sap
-              ON sap.almacen_id =
-                 v_candidato.almacen_id
-             AND sap.producto_id =
-                 solicitado.producto_producto_id
-            WHERE COALESCE(
-                sap.stock_disponible,
-                0
-            ) < solicitado.cantidad
+              ON sap.almacen_id = v_candidato.almacen_id
+             AND sap.producto_id = solicitado.producto_producto_id
+            WHERE COALESCE(sap.stock_disponible, 0) < solicitado.cantidad
         ) THEN
-            v_almacen_id :=
-                v_candidato.almacen_id;
-            v_almacen_nombre :=
-                v_candidato.nombre;
-            v_distancia_km :=
-                v_candidato.distancia_km;
+            v_almacen_id := v_candidato.almacen_id;
+            v_almacen_nombre := v_candidato.nombre;
+            v_distancia_km := v_candidato.distancia_km;
             EXIT;
         END IF;
     END LOOP;
@@ -1821,43 +1843,26 @@ BEGIN
             p_carrito_id;
     END IF;
 
-    SELECT dp.datos_pago_id
-    INTO v_datos_pago_id
-    FROM datos_pago_entidad dp
-    WHERE dp.usuario_usuario = v_usuario_id
-    ORDER BY dp.datos_pago_id
-    LIMIT 1;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION
-            'El usuario % no tiene datos de pago',
-            v_usuario_id;
-    END IF;
-
+    -- Los precios del catálogo se consideran precios finales con IVA incluido.
     SELECT ROUND(
-        COALESCE(
-            SUM(
-                cp.unidad_producto
-                * p.precio
-            ),
-            0
-        )::NUMERIC,
+        COALESCE(SUM(cp.unidad_producto * p.precio), 0)::NUMERIC,
         2
     )
-    INTO v_total_neto
+    INTO v_precio_total
     FROM carrito_producto_entidad cp
     JOIN producto_entidad p
-      ON p.producto_id =
-         cp.producto_producto_id
-    WHERE cp.carrito_carrito_id =
-          p_carrito_id;
+      ON p.producto_id = cp.producto_producto_id
+    WHERE cp.carrito_carrito_id = p_carrito_id;
 
-    v_iva :=
-        ROUND(v_total_neto * 0.19, 2);
+    IF v_precio_total <= 0 THEN
+        RAISE EXCEPTION 'El total del carrito es inválido';
+    END IF;
 
-    v_precio_total :=
-        ROUND(v_total_neto + v_iva, 2);
+    v_total_neto := ROUND(v_precio_total / 1.19, 2);
+    v_iva := ROUND(v_precio_total - v_total_neto, 2);
 
+    -- La orden queda pendiente de aprobación administrativa. El inventario
+    -- se consume durante este checkout y no vuelve a descontarse al aprobar.
     INSERT INTO ordenes_entidad (
         carrito_carrito_id,
         informacion_info_entrega_id,
@@ -1870,12 +1875,11 @@ BEGIN
         p_carrito_id,
         p_info_entrega_id,
         NOW(),
-        'PAGADO',
+        'PENDIENTE',
         v_almacen_id,
         v_distancia_km
     )
-    RETURNING orden_id
-    INTO v_orden_id;
+    RETURNING orden_id INTO v_orden_id;
 
     INSERT INTO factura_entidad (
         usuario_usuario,
@@ -1888,16 +1892,16 @@ BEGIN
     )
     VALUES (
         v_usuario_id,
-        v_datos_pago_id,
+        p_datos_pago_id,
         v_orden_id,
         v_precio_total,
         NOW(),
         v_total_neto,
         v_iva
     )
-    RETURNING factura_id
-    INTO v_factura_id;
+    RETURNING factura_id INTO v_factura_id;
 
+    -- Copia histórica de los productos antes de vaciar el carrito.
     INSERT INTO factura_item_entidad (
         factura_id,
         producto_id,
@@ -1911,35 +1915,26 @@ BEGIN
         p.precio
     FROM carrito_producto_entidad cp
     JOIN producto_entidad p
-      ON p.producto_id =
-         cp.producto_producto_id
-    WHERE cp.carrito_carrito_id =
-          p_carrito_id
-    GROUP BY
-        cp.producto_producto_id,
-        p.precio;
+      ON p.producto_id = cp.producto_producto_id
+    WHERE cp.carrito_carrito_id = p_carrito_id
+    GROUP BY cp.producto_producto_id, p.precio;
 
-    -- Descuenta únicamente el inventario físico del almacén.
+    -- Único descuento del inventario físico del almacén.
     UPDATE stock_almacen_producto_entidad sap
-    SET stock_disponible =
-        sap.stock_disponible
-        - solicitado.cantidad
+    SET stock_disponible = sap.stock_disponible - solicitado.cantidad
     FROM (
         SELECT
-            producto_producto_id,
-            SUM(unidad_producto)::INT AS cantidad
-        FROM carrito_producto_entidad
-        WHERE carrito_carrito_id = p_carrito_id
-        GROUP BY producto_producto_id
+            cp.producto_producto_id,
+            SUM(cp.unidad_producto)::INT AS cantidad
+        FROM carrito_producto_entidad cp
+        WHERE cp.carrito_carrito_id = p_carrito_id
+        GROUP BY cp.producto_producto_id
     ) solicitado
     WHERE sap.almacen_id = v_almacen_id
-      AND sap.producto_id =
-          solicitado.producto_producto_id;
+      AND sap.producto_id = solicitado.producto_producto_id;
 
-    -- IMPORTANTE:
-    -- aquí NO se actualiza producto_entidad directamente.
-    -- Este cambio activa carrito_estado_cambio y el trigger
-    -- consume stock y stock_reservado una sola vez.
+    -- Este cambio dispara carrito_estado_cambio y consume exactamente una vez
+    -- el stock global y el stock reservado.
     UPDATE carrito_entidad
     SET estado = 'PAGADO',
         ultima_actualizacion = NOW()
@@ -1947,14 +1942,11 @@ BEGIN
 
     UPDATE informacion_entrega_entidad
     SET orden_orden_id = v_orden_id
-    WHERE info_entrega_id =
-          p_info_entrega_id;
+    WHERE info_entrega_id = p_info_entrega_id;
 
-    -- Se vacía después del trigger, porque el trigger necesita
-    -- leer los productos del carrito para consumir la reserva.
+    -- Debe ejecutarse después del trigger del carrito.
     DELETE FROM carrito_producto_entidad
-    WHERE carrito_carrito_id =
-          p_carrito_id;
+    WHERE carrito_carrito_id = p_carrito_id;
 
     RAISE NOTICE
         'Checkout exitoso. Orden: %, Factura: %, Almacén: %, Distancia: % km, Total: %',
@@ -1965,7 +1957,6 @@ BEGIN
         v_precio_total;
 END;
 $$;
-
 COMMIT;
 
 -- ============================================================
@@ -2018,4 +2009,4 @@ ORDER BY
     p.producto_id;
 
 -- Prueba de checkout:
--- CALL procesar_checkout(<carrito_activo>, <entrega_del_mismo_usuario>);
+-- CALL procesar_checkout(<carrito_activo>, <entrega_del_mismo_usuario>, <pago_del_mismo_usuario>);
