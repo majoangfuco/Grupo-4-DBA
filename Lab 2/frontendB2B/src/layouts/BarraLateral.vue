@@ -80,6 +80,7 @@ const navItems = computed(() => {
       ...baseItems,
       { label: 'Productos', path: '/productosAdmin', icon: '📦' },
       { label: 'Clientes', path: '/clientesAdmin', icon: '👥' },
+      { label: 'Almacenes', path: '/almacenesAdmin', icon: '🏬' },
     ]
   } else if (authStore.isCliente) {
     return [

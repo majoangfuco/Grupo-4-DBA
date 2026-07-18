@@ -50,6 +50,13 @@ const router = createRouter({
           component: () => import('@/views/Admin/Clientes-PaginaAdmin.vue'),
           meta: { requiresRole: 'ADMIN' },
         },
+
+        {
+          path: 'almacenesAdmin',
+          name: 'Admin-Almacenes',
+          component: () => import('@/views/Admin/Almacenes-PaginaAdmin.vue'),
+          meta: { requiresRole: 'ADMIN' },
+        },
         {
           path: 'ordenesAdmin',
           name: 'Admin-Ordenes',

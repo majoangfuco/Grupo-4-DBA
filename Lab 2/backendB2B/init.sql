@@ -568,9 +568,7 @@ CREATE TRIGGER auditar_cambios_orden
     FOR EACH ROW
     EXECUTE FUNCTION trg_auditar_cambios_orden();
 
--- Trigger function: Validar cobertura geográfica de entrega
--- Impide crear una orden si la dirección de entrega del cliente está
--- fuera de todos los polígonos de zona de cobertura activos.
+-- Trigger function: Validar cobertura geográfica 
 CREATE OR REPLACE FUNCTION trg_validar_cobertura_entrega()
 RETURNS TRIGGER
 LANGUAGE plpgsql
@@ -610,10 +608,6 @@ CREATE TRIGGER validar_cobertura_entrega
     EXECUTE FUNCTION trg_validar_cobertura_entrega();
 
 -- ─── 5. DATOS DE PRUEBA ────────────────────────────────────
-
--- Datos geoespaciales base
--- órdenes, porque el trigger de cobertura valida contra estos datos.
-
 -- Zona de cobertura: Región Metropolitana (polígono aproximado)
 INSERT INTO zona_cobertura_entidad (nombre, geom, activa) VALUES
 ('Región Metropolitana', ST_GeomFromText(
@@ -624,11 +618,11 @@ INSERT INTO zona_cobertura_entidad (nombre, geom, activa) VALUES
 -- Almacenes (bodegas) de la empresa
 INSERT INTO almacen_entidad (nombre, direccion, ubicacion) VALUES
 ('Almacén Central Santiago', 'Av. Libertador Bernardo O''Higgins 1449, Santiago',
-    ST_SetSRID(ST_MakePoint(-70.6650, -33.4450), 4326)),
+    ST_SetSRID(ST_MakePoint(-70.5750, -33.4430), 4326)),
 ('Almacén Sur Puente Alto', 'Av. Concha y Toro 3300, Puente Alto',
-    ST_SetSRID(ST_MakePoint(-70.5755, -33.6117), 4326)),
+    ST_SetSRID(ST_MakePoint(-70.5757, -33.6118), 4326)),
 ('Almacén Poniente Maipú', 'Av. Pajaritos 3050, Maipú',
-    ST_SetSRID(ST_MakePoint(-70.7580, -33.5100), 4326));
+    ST_SetSRID(ST_MakePoint(-70.7580, -33.4990), 4326));
 
 INSERT INTO usuario_entidad (nombre_usuario, correo, contrasena, ultima_compra, rut_empresa, rol) VALUES
 ('Juan Perez',    'jperez@techsolutions.cl',       '$2a$12$Ue51OzMXnpiqWLxMPaAKjOPSnfs1267HJakRsYNn1jUIlzKopwL/q', '2023-10-01 10:00:00', '76.123.456-7', 'CLIENTE'),
@@ -949,10 +943,7 @@ CREATE INDEX idx_vw_ventas_mes_ano   ON vw_ventas_mensuales_por_categoria (mes_a
 CREATE INDEX idx_vw_ventas_categoria ON vw_ventas_mensuales_por_categoria (nombre_categoria);
 CREATE INDEX idx_vw_ventas_anio      ON vw_ventas_mensuales_por_categoria (anio);
 
--- ─── 6.1 VISTA MATERIALIZADA: VENTAS POR COMUNA
--- Análisis de mercado: volumen de ventas agrupado por comuna, con la
--- geometría combinada (ST_Union) de todas las direcciones de entrega
--- de esa comuna, lista para mostrar en un mapa vía GeoJSON.
+-- Ventas agrupadas por comuna, con uso de funciones espaciales de PostGIS muestra en un mapa vía GeoJSON.
 
 CREATE MATERIALIZED VIEW vw_ventas_por_comuna AS
 SELECT
@@ -970,7 +961,7 @@ ORDER BY volumen_ventas DESC;
 CREATE INDEX idx_vw_ventas_comuna_nombre ON vw_ventas_por_comuna (comuna);
 CREATE INDEX idx_vw_ventas_comuna_geom   ON vw_ventas_por_comuna USING GIST (geom_entregas);
 
--- Función de refresco (Req. A: "Refrescar mediante función o evento programado")
+-- Función de refresco
 CREATE OR REPLACE FUNCTION refrescar_vw_ventas_por_comuna()
 RETURNS VOID
 LANGUAGE plpgsql
@@ -979,8 +970,6 @@ BEGIN
     REFRESH MATERIALIZED VIEW vw_ventas_por_comuna;
 END;
 $$;
--- Se invoca manualmente o vía un job programado (ej. pg_cron, o un
--- endpoint de administración) cada vez que se necesite el dato al día.
 
 -- ─── 7. ÍNDICES PARA OPTIMIZACIÓN (Req. 8) ──────────────────
 

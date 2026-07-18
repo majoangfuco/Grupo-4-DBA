@@ -17,6 +17,8 @@ export interface Orden {
   info_Entrega_ID: number
   fecha_Orden: string
   estado: string
+  almacen_Asignado_ID?: number | null
+  almacen_Nombre?: string | null
 }
 
 export interface OrdenRequest {
@@ -54,4 +56,3 @@ export const ordenesServicio = {
   cancelar,
   eliminar,
 }
-

@@ -10,6 +10,9 @@ export interface InformacionEntregaEntidad {
     rut_Empresa: string
     estado_Entrega: string
     activa: boolean
+    latitud?: number | null
+    longitud?: number | null
+    comuna?: string | null
 }
 
 export const obtenerEntregasPorUsuario = (usuarioId: string | number) => {
