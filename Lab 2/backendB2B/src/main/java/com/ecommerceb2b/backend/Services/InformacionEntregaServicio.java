@@ -47,4 +47,8 @@ public class InformacionEntregaServicio {
         repositorio.softDelete(id);
         return "Entrega desactivada correctamente";
     }
+
+    public String findAllAsGeoJson() {
+        return repositorio.findAllAsGeoJson();
+    }
 }

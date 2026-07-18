@@ -49,4 +49,9 @@ public class InformacionEntregaControlador {
     public ResponseEntity<String> eliminar(@PathVariable Long id) {
         return ResponseEntity.ok(servicio.eliminar(id));
     }
+
+    @GetMapping(value = "/geojson", produces = "application/json")
+    public ResponseEntity<String> obtenerTodasGeoJson() {
+        return ResponseEntity.ok(servicio.findAllAsGeoJson());
+    }
 }

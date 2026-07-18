@@ -695,7 +695,7 @@ BEGIN
     ) INTO v_dentro_cobertura;
 
     IF NOT v_dentro_cobertura THEN
-        RAISE EXCEPTION 'No se puede crear la orden: la dirección de entrega está fuera del área de cobertura de la empresa';
+        RAISE EXCEPTION 'No se puede crear la orden: la direccion de entrega esta fuera del area de cobertura de la empresa';
     END IF;
 
     RETURN NEW;
@@ -716,7 +716,7 @@ CREATE TRIGGER validar_cobertura_entrega
 -- Zona de cobertura: Región Metropolitana (polígono aproximado)
 INSERT INTO zona_cobertura_entidad (nombre, geom, activa) VALUES
 ('Región Metropolitana', ST_GeomFromText(
-    'POLYGON((-70.95 -33.15, -70.35 -33.15, -70.35 -33.75, -70.95 -33.75, -70.95 -33.15))',
+    'POLYGON((-71.60 -32.85, -69.70 -32.85, -69.70 -34.35, -71.60 -34.35, -71.60 -32.85))',
     4326
 ), TRUE);
 
@@ -1058,7 +1058,7 @@ SELECT
     ie.comuna,
     COUNT(DISTINCT o.orden_id)                     AS cantidad_ordenes,
     ROUND(SUM(f.precio_total)::NUMERIC, 2)         AS volumen_ventas,
-    ST_Union(ie.ubicacion)                         AS geom_entregas
+    ST_Buffer(ST_Union(ie.ubicacion), 0.02)        AS geom_entregas
 FROM ordenes_entidad o
 JOIN informacion_entrega_entidad ie ON ie.info_entrega_id = o.informacion_info_entrega_id
 JOIN factura_entidad f              ON f.orden_orden_id   = o.orden_id

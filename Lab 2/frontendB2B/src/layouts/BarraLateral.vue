@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { useRouter, useRoute, RouterLink } from 'vue-router'
-import { Home, Package, Users, ShoppingCart, UserRound, ChevronLeft } from 'lucide-vue-next'
+import { Home, Package, Users, ShoppingCart, UserRound, ChevronLeft, Map } from 'lucide-vue-next'
 import { useAuthStore } from '@/stores/auth'
 
 const router    = useRouter()
@@ -81,6 +81,7 @@ const navItems = computed(() => {
       ...baseItems,
       { label: 'Productos', path: '/productosAdmin', icon: Package },
       { label: 'Clientes', path: '/clientesAdmin', icon: Users },
+      { label: 'Logística', path: '/mapaAdmin', icon: Map },
     ]
   } else if (authStore.isCliente) {
     return [

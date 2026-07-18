@@ -33,6 +33,8 @@ public class OrdenesRepositorio {
         long almacenId = rs.getLong("almacen_asignado_id");
         o.setAlmacen_Asignado_ID(rs.wasNull() ? null : almacenId);
         o.setAlmacen_Nombre(getStringOrNull(rs, "almacen_nombre"));
+        double distanciaKm = rs.getDouble("distancia_envio_km");
+        o.setDistancia_envio_km(rs.wasNull() ? null : distanciaKm);
 
         return o;
     };
@@ -96,11 +98,13 @@ public class OrdenesRepositorio {
     public List<OrdenesEntidad> encontrarTodos() {
         String sql = """
                 SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa,
-                       alm.nombre AS almacen_nombre
+                       alm.nombre AS almacen_nombre,
+                       ST_Distance(alm.ubicacion::geography, ie.ubicacion::geography) / 1000.0 AS distancia_envio_km
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
                 JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
+                LEFT JOIN informacion_entrega_entidad ie ON o.informacion_info_entrega_id = ie.info_entrega_id
                 """;
         return jdbcTemplate.query(sql, rowMapper);
     }
@@ -109,11 +113,13 @@ public class OrdenesRepositorio {
     public Optional<OrdenesEntidad> encontrarPorId(Long id) {
         String sql = """
                 SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa,
-                       alm.nombre AS almacen_nombre
+                       alm.nombre AS almacen_nombre,
+                       ST_Distance(alm.ubicacion::geography, ie.ubicacion::geography) / 1000.0 AS distancia_envio_km
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
                 JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
+                LEFT JOIN informacion_entrega_entidad ie ON o.informacion_info_entrega_id = ie.info_entrega_id
                 WHERE o.orden_id = ?
                 """;
         List<OrdenesEntidad> result = jdbcTemplate.query(sql, rowMapper, id);
@@ -146,11 +152,14 @@ public class OrdenesRepositorio {
     // buscar por estado
     public List<OrdenesEntidad> encontrarPorEstado(String estado) {
         String sql = """
-                SELECT o.*, c.carrito_usuario_id AS usuario_id,
-                       alm.nombre AS almacen_nombre
+                SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa,
+                       alm.nombre AS almacen_nombre,
+                       ST_Distance(alm.ubicacion::geography, ie.ubicacion::geography) / 1000.0 AS distancia_envio_km
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
+                JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
+                LEFT JOIN informacion_entrega_entidad ie ON o.informacion_info_entrega_id = ie.info_entrega_id
                 WHERE o.estado = ?
                 """;
         return jdbcTemplate.query(sql, rowMapper, estado);
@@ -160,11 +169,14 @@ public class OrdenesRepositorio {
     // Como la tabla ordenes_entidad no tiene usuario_id, necesitamos hacer un JOIN con carrito_entidad
     public List<OrdenesEntidad> encontrarPorUsuarioId(Long usuarioId){
         String sql = """
-               SELECT o.*, c.carrito_usuario_id AS usuario_id,
-                      alm.nombre AS almacen_nombre
+               SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa,
+                      alm.nombre AS almacen_nombre,
+                      ST_Distance(alm.ubicacion::geography, ie.ubicacion::geography) / 1000.0 AS distancia_envio_km
                FROM ordenes_entidad o
                JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
+               JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
+               LEFT JOIN informacion_entrega_entidad ie ON o.informacion_info_entrega_id = ie.info_entrega_id
                WHERE c.carrito_usuario_id = ?
                """;
         return jdbcTemplate.query(sql, rowMapper, usuarioId);
@@ -174,11 +186,14 @@ public class OrdenesRepositorio {
     // buscar por fecha 
     public List<OrdenesEntidad> encontrarPorFechaOrden(java.util.Date fecha) {
         String sql = """
-                SELECT o.*, c.carrito_usuario_id AS usuario_id,
-                       alm.nombre AS almacen_nombre
+                SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa,
+                       alm.nombre AS almacen_nombre,
+                       ST_Distance(alm.ubicacion::geography, ie.ubicacion::geography) / 1000.0 AS distancia_envio_km
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
+                JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
+                LEFT JOIN informacion_entrega_entidad ie ON o.informacion_info_entrega_id = ie.info_entrega_id
                 WHERE o.fecha_orden > ?
                 """;
         return jdbcTemplate.query(sql, rowMapper, fecha);
@@ -187,11 +202,13 @@ public class OrdenesRepositorio {
     public List<OrdenesEntidad> encontrarTodosConRut() {
         String sql = """
                 SELECT o.*, c.carrito_usuario_id AS usuario_id, u.rut_empresa,
-                       alm.nombre AS almacen_nombre
+                       alm.nombre AS almacen_nombre,
+                       ST_Distance(alm.ubicacion::geography, ie.ubicacion::geography) / 1000.0 AS distancia_envio_km
                 FROM ordenes_entidad o
                 JOIN carrito_entidad c ON o.carrito_carrito_id = c.carrito_id
                 JOIN usuario_entidad u ON c.carrito_usuario_id = u.usuario_id
                 LEFT JOIN almacen_entidad alm ON o.almacen_asignado_id = alm.almacen_id
+                LEFT JOIN informacion_entrega_entidad ie ON o.informacion_info_entrega_id = ie.info_entrega_id
                 """;
         return jdbcTemplate.query(sql, rowMapper);
     }

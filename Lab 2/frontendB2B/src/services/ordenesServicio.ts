@@ -6,6 +6,8 @@ export interface OrdenAdmin {
   rut_Empresa: string
   fecha_Orden: string
   estado: string
+  almacen_Nombre?: string
+  distancia_envio_km?: number
   usuario_ID: number
 }
 
@@ -17,6 +19,8 @@ export interface Orden {
   info_Entrega_ID: number
   fecha_Orden: string
   estado: string
+  almacen_Nombre?: string
+  distancia_envio_km?: number
 }
 
 export interface OrdenRequest {
@@ -25,6 +29,8 @@ export interface OrdenRequest {
   info_Entrega_ID: number
   fecha_Orden: string
   estado: string
+  almacen_Nombre?: string
+  distancia_envio_km?: number
 }
 
 const obtenerTodas = () => httpClient.get<Orden[]>('/api/ordenes')
@@ -54,4 +60,5 @@ export const ordenesServicio = {
   cancelar,
   eliminar,
 }
+
 

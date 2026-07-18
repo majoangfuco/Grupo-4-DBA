@@ -9,7 +9,16 @@ import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 
 export const useAuthStore = defineStore('auth', () => {
-  // ─── Estado ─────────────────────────────────────────────────
+  const rawUserId = localStorage.getItem('userId')
+  if (rawUserId === 'undefined' || rawUserId === 'NaN') {
+    localStorage.removeItem('jwt')
+    localStorage.removeItem('userId')
+    localStorage.removeItem('userEmail')
+    localStorage.removeItem('userName')
+    localStorage.removeItem('userRole')
+    localStorage.removeItem('userRut')
+  }
+
   const token    = ref<string | null>(localStorage.getItem('jwt'))
   const userId   = ref<string | null>(localStorage.getItem('userId'))
   const userEmail= ref<string | null>(localStorage.getItem('userEmail'))

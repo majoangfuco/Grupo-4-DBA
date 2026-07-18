@@ -48,9 +48,10 @@ async function handleRegister() {
     const userResponse = await AuthService.getUserByEmail(correo.value)
     const usuario = userResponse.data
 
+    const idUsuario = (usuario as any).usuario_id || (usuario as any).usuario_ID || usuario.id || 0
     authStore.setSession({
       token,
-      userId: String(usuario.id),
+      userId: String(idUsuario),
       userEmail: usuario.correo,
       userName: usuario.nombre,
       userRole: usuario.rol,

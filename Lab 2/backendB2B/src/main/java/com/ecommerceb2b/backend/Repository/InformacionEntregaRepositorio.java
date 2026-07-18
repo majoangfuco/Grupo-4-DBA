@@ -112,4 +112,27 @@ public class InformacionEntregaRepositorio {
         );
         return result.stream().findFirst();
     }
+
+    public String findAllAsGeoJson() {
+        String sql = """
+                SELECT json_build_object(
+                    'type', 'FeatureCollection',
+                    'features', COALESCE(json_agg(
+                        json_build_object(
+                            'type', 'Feature',
+                            'geometry', ST_AsGeoJSON(ubicacion)::json,
+                            'properties', json_build_object(
+                                'info_entrega_id', info_entrega_id,
+                                'direccion', direccion,
+                                'usuario_id', usuario_usuario,
+                                'rut_empresa', rut_empresa
+                            )
+                        )
+                    ), '[]')
+                )::text AS geojson
+                FROM informacion_entrega_entidad
+                WHERE activa = TRUE AND ubicacion IS NOT NULL
+                """;
+        return jdbc.queryForObject(sql, String.class);
+    }
 }

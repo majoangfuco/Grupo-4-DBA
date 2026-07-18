@@ -18,7 +18,8 @@ const cargando  = ref(true)
 const error     = ref<string | null>(null)
 
 // ID del usuario en sesión (guardado en localStorage al hacer login)
-const usuarioId = Number(localStorage.getItem('userId') ?? 0)
+const storedUserId = localStorage.getItem('userId')
+const usuarioId = (storedUserId && storedUserId !== 'undefined' && storedUserId !== 'NaN') ? Number(storedUserId) : 0
 
 // ==================== FILTROS =======================
 const filtros = reactive({ orden_ID: '', estado: '' })

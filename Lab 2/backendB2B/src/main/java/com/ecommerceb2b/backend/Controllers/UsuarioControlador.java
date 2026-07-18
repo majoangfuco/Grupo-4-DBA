@@ -140,9 +140,9 @@ public class UsuarioControlador {
             }).toList());
             return ResponseEntity.ok(response);
         } catch (Exception e) {
-            response.put("error", "Error al obtener clientes");
+            e.printStackTrace();
+            response.put("error", "Error al obtener clientes: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(response);
         }
     }
 }
-

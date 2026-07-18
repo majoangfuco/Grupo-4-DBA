@@ -39,9 +39,9 @@ async function handleLogin() {
 
     authStore.setSession({
       token,
-      userId:    String(usuario.usuario_id || usuario.id),
+      userId:    String(usuario.usuario_id || usuario.id || (usuario as any).usuario_ID || 0),
       userEmail: usuario.correo,
-      userName:  usuario.nombre,
+      userName:  usuario.nombre || (usuario as any).nombre_usuario || (usuario as any).nombre_Usuario,
       userRole:  usuario.rol,
       userRut:   usuario.rut_empresa || 'No disponible',
     })

@@ -36,9 +36,11 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
   props.configOrden?.clave === clave ? props.configOrden.direccion : 'asc'
 
 const columnas: Array<{ clave: string; etiqueta: string }> = [
-  { clave: 'orden_ID',    etiqueta: 'N° Orden' },
+  { clave: 'orden_ID',    etiqueta: 'Nº Orden' },
   { clave: 'fecha_Orden', etiqueta: 'Fecha' },
   { clave: 'estado',      etiqueta: 'Estado' },
+  { clave: 'almacen_Nombre', etiqueta: 'Almacén Asignado' },
+  { clave: 'distancia_envio_km', etiqueta: 'Distancia (km)' },
   { clave: 'factura',     etiqueta: 'Factura' },
 ]
 
@@ -100,7 +102,7 @@ function claseEstado(estado: string): string {
 
         <!-- Cargando -->
         <tr v-if="cargando">
-          <td colspan="5" class="celda-estado">
+          <td colspan="6" class="celda-estado">
             <span class="spinner" aria-hidden="true"></span>
             <span class="texto-estado">Cargando órdenes...</span>
           </td>
@@ -108,7 +110,7 @@ function claseEstado(estado: string): string {
 
         <!-- Error -->
         <tr v-else-if="error">
-          <td colspan="5" class="celda-estado">
+          <td colspan="6" class="celda-estado">
             <p class="texto-error">{{ error }}</p>
             <button class="btn-reintentar" @click="emit('reintentar')">↺ Reintentar</button>
           </td>
@@ -116,7 +118,7 @@ function claseEstado(estado: string): string {
 
         <!-- Lista vacía -->
         <tr v-else-if="ordenes.length === 0">
-          <td colspan="5" class="celda-estado">
+          <td colspan="6" class="celda-estado">
             <p class="texto-vacio">No tienes órdenes registradas aún.</p>
           </td>
         </tr>
@@ -129,6 +131,8 @@ function claseEstado(estado: string): string {
             <td class="celda">
               <span :class="claseEstado(orden.estado)">{{ formatearEstado(orden.estado) }}</span>
             </td>
+            <td class="celda">{{ orden.almacen_Nombre || 'N/A' }}</td>
+            <td class="celda">{{ orden.distancia_envio_km ? `${orden.distancia_envio_km} km` : 'N/A' }}</td>
             <td class="celda">
               <button class="btn-ver-factura" @click="abrirFactura(orden.orden_ID)"> Ver factura</button>
             </td>

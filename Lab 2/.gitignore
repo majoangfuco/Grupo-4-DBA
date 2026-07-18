@@ -1,0 +1,63 @@
+# ========================================================
+# GLOBAL GITIGNORE
+# ========================================================
+
+# Dependencias de Node.js (Frontend)
+node_modules/
+frontendB2B/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Compilados de Java / Spring Boot (Backend)
+target/
+backendB2B/target/
+*.class
+*.jar
+*.war
+*.ear
+hs_err_pid*
+
+# Compilados de Vue/Vite (Frontend)
+dist/
+frontendB2B/dist/
+dist-ssr/
+frontendB2B/dist-ssr/
+
+# Información sensible y Variables de Entorno
+.env
+.env.*
+*.local
+credentials.json
+secrets/
+
+# Bases de datos y Volúmenes locales (Docker)
+db_data/
+*.sqlite
+*.db
+
+# Archivos del Sistema Operativo
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Configuración de Editores / IDEs
+.idea/
+.vscode/
+*.swp
+*.swo
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.eclipse
+
+# Archivos de Logs
+*.log
+logs/

@@ -57,6 +57,12 @@ const router = createRouter({
           meta: { requiresRole: 'ADMIN' },
         },
         {
+          path: 'mapaAdmin',
+          name: 'Admin-Mapa',
+          component: () => import('@/views/Admin/Mapa-PaginaAdmin.vue'),
+          meta: { requiresRole: 'ADMIN' },
+        },
+        {
           path: 'productosCliente',
           name: 'Cliente-Productos',
           component: () => import('@/views/Customers/Productos-PaginaClientes.vue'),

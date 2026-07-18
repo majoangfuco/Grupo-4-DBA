@@ -20,4 +20,5 @@ public class OrdenesEntidad {
     private String estado;
     private Long almacen_Asignado_ID;
     private String almacen_Nombre;
+    private Double distancia_envio_km;
 }
