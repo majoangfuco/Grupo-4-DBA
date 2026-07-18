@@ -13,7 +13,6 @@ public class VentasPorComunaEntidad {
     private String comuna;
     private Integer cantidadOrdenes;
     private BigDecimal volumenVentas;
-    // Geometría combinada (ST_Union) de las direcciones de entrega de la comuna,
-    // ya como GeoJSON crudo, lista para pintar en un mapa.
+    // Geometría combinada de las direcciones de entrega de la comuna
     private String geomEntregasGeoJson;
 }

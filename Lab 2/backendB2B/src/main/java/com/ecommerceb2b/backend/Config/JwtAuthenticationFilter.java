@@ -36,7 +36,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (jwtMiddlewareService.validateToken(token)) {
                 String correo = jwtMiddlewareService.getCorreoFromToken(token);
                 String rol = jwtMiddlewareService.getRolFromToken(token);
-
                 Collection<SimpleGrantedAuthority> authorities = new ArrayList<>();
                 authorities.add(new SimpleGrantedAuthority("ROLE_" + rol));
 

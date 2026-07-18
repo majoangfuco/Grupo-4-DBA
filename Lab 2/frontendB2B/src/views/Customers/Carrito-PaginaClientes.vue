@@ -11,6 +11,7 @@ import { carritoServicio, type CarritoEntidad } from '@/services/carritoServicio
 import { carritoProductoServicio, type CarritoProductoEntidad } from '@/services/carritoProductoServicio'
 import { obtenerEntregasPorUsuario, crearEntrega, type InformacionEntregaEntidad } from '@/services/entregaServicio'
 import { obtenerDatosPagoPorUsuario, crearDatosPago, type DatosDePagoEntidad } from '@/services/datosPagoServicio'
+import { ordenesServicio } from '@/services/ordenesServicio'
 
 type SelectOptionId = number | 'new' | null
 
@@ -33,9 +34,13 @@ const modalAbierto = ref(false)
 const modalAccion = ref<'agregar' | 'eliminar'>('eliminar')
 const modalItem = ref<CarritoProductoEntidad | null>(null)
 
+// Mostrar al cliente la confirmacion del pedido y logística asignada.
+const almacenAsignado = ref<string | null>(null)
+
 // New: modals for crear entrega / datos de pago
 const showAddressModal = ref(false)
 const showPaymentModal = ref(false)
+const showAddressErrors = ref(false)
 
 const newAddress = ref<Partial<InformacionEntregaEntidad>>({
   direccion: '',
@@ -50,59 +55,83 @@ const newPayment = ref<Partial<DatosDePagoEntidad>>({ metodo_Pago: '', numero_Ta
 const newPaymentMonth = ref<string>('')
 const newPaymentYear = ref<string>('')
 
+// Autocompletado de lat/lng sin que el usuario tenga que buscarlas manualmente.
+const obteniendoUbicacion = ref(false)
+
+const usarUbicacionActual = () => {
+  if (!navigator.geolocation) {
+    notificar('Tu navegador no soporta geolocalización', 'error')
+    return
+  }
+  obteniendoUbicacion.value = true
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      newAddress.value.latitud = Number(position.coords.latitude.toFixed(6))
+      newAddress.value.longitud = Number(position.coords.longitude.toFixed(6))
+      obteniendoUbicacion.value = false
+      notificar('Ubicación detectada correctamente', 'ok')
+    },
+    (err) => {
+      console.error('Error de geolocalización:', err)
+      obteniendoUbicacion.value = false
+      notificar('No se pudo obtener tu ubicación. Revisa los permisos del navegador.', 'error')
+    },
+    { enableHighAccuracy: true, timeout: 8000 },
+  )
+}
+
+// Facilita Google Maps para que el usuario busque la dirección que desea e ingrese manualmente
+const abrirGoogleMaps = () => {
+  const query = [newAddress.value.direccion, newAddress.value.numero, newAddress.value.comuna]
+    .filter(Boolean)
+    .join(' ')
+  const url = query
+    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
+    : 'https://www.google.com/maps'
+  window.open(url, '_blank')
+}
+
 const crearNuevaEntrega = async () => {
+  showAddressErrors.value = true // Activar la validación visual de los campos
+  
   try {
-    if (!authStore.userId) {
+if (!authStore.userId) {
       throw new Error('Usuario no validado')
     }
 
+    // 1. Validar campos de texto requeridos
     if (
       !newAddress.value.direccion?.trim() ||
       !newAddress.value.numero?.trim() ||
       !newAddress.value.comuna?.trim()
     ) {
-      notificar(
-        'Completa dirección, número y comuna',
-        'error'
-      )
+      notificar('Completa dirección, número y comuna', 'error')
       return
     }
 
+    // 2. Validar que las coordenadas existan y sean números
     if (
-      newAddress.value.latitud === undefined ||
-      newAddress.value.longitud === undefined ||
+      newAddress.value.latitud === undefined || 
+      newAddress.value.longitud === undefined || 
       !Number.isFinite(newAddress.value.latitud) ||
       !Number.isFinite(newAddress.value.longitud)
     ) {
-      notificar(
-        'Ingresa coordenadas válidas',
-        'error'
-      )
+      notificar('Ingresa coordenadas válidas', 'error')
       return
     }
 
-    if (
-      newAddress.value.latitud < -90 ||
-      newAddress.value.latitud > 90
-    ) {
-      notificar(
-        'La latitud debe estar entre -90 y 90',
-        'error'
-      )
+    // 3. Validar límites geográficos reales
+    if (newAddress.value.latitud < -90 || newAddress.value.latitud > 90) {
+      notificar('La latitud debe estar entre -90 y 90', 'error')
       return
     }
 
-    if (
-      newAddress.value.longitud < -180 ||
-      newAddress.value.longitud > 180
-    ) {
-      notificar(
-        'La longitud debe estar entre -180 y 180',
-        'error'
-      )
+    if (newAddress.value.longitud < -180 || newAddress.value.longitud > 180) {
+      notificar('La longitud debe estar entre -180 y 180', 'error')
       return
     }
 
+    // 4. Armar el payload con los valores por defecto
     const payload: Partial<InformacionEntregaEntidad> = {
       ...newAddress.value,
       usuarioId: Number(authStore.userId),
@@ -111,19 +140,19 @@ const crearNuevaEntrega = async () => {
     }
 
     await crearEntrega(payload)
-
+    
+    // 5. Resetear formulario y variables
     showAddressModal.value = false
-
+    showAddressErrors.value = false // <- Tu aporte para limpiar la UI
     newAddress.value = {
       direccion: '',
       numero: '',
       rut_Recibe_Entrega: '',
       rut_Empresa: '',
       comuna: '',
-      latitud: undefined,
+      latitud: undefined, // Ajustado al tipado de tus compañeros
       longitud: undefined
     }
-
     await cargarCarrito()
     notificar('Dirección guardada', 'ok')
   } catch (err) {
@@ -169,7 +198,7 @@ const notificar = (mensaje: string, tipo: 'ok' | 'error') => {
   if (toastTimer) window.clearTimeout(toastTimer)
   toastTimer = window.setTimeout(() => {
     toastMensaje.value = null
-  }, 5000)
+  }, tipo === 'error' ? 4500 : 1800)
 }
 
 const actualizarCantidad = async (item: CarritoProductoEntidad, nuevaCantidad: number) => {
@@ -276,6 +305,7 @@ const navigateToPerfil = () => {
 const handleEntregaChange = () => {
   if (selectedEntregaId.value === 'new') {
     selectedEntregaId.value = null
+    showAddressErrors.value = false // Resetear errores al abrir modal
     showAddressModal.value = true
   }
 }
@@ -285,6 +315,18 @@ const handlePagoChange = () => {
     selectedPagoId.value = null
     showPaymentModal.value = true
   }
+}
+
+const extraerMensajeError = (err: unknown, mensajePorDefecto: string): string => {
+  const axiosErr = err as { response?: { status?: number; data?: unknown } }
+  const data = axiosErr.response?.data
+  if (typeof data === 'string' && data.trim().length > 0) {
+    return data
+  }
+  if (data && typeof data === 'object' && 'error' in data) {
+    return String((data as Record<string, unknown>).error)
+  }
+  return mensajePorDefecto
 }
 
 const solicitarOrden = async () => {
@@ -305,16 +347,32 @@ const solicitarOrden = async () => {
 
   try {
     cargando.value = true
+    almacenAsignado.value = null
+    
+    // 1. Ejecutamos el checkout asegurando el tipado numérico (aporte de tus compañeros)
+    const resp = await carritoServicio.checkout(carrito.value.carrito_ID, {
+      infoEntregaId: Number(selectedEntregaId.value),
+      datosPagoId: Number(selectedPagoId.value),
+    })
 
-    await carritoServicio.checkout(
-      carrito.value.carrito_ID,
-      {
-        infoEntregaId: Number(selectedEntregaId.value),
-        datosPagoId: Number(selectedPagoId.value),
+    // 2. Buscamos el almacén asignado a la orden (tu aporte)
+    const ordenId = (resp.data as { ordenId?: number })?.ordenId
+    if (ordenId) {
+      try {
+        const ordenResp = await ordenesServicio.obtenerPorId(ordenId)
+        almacenAsignado.value = ordenResp.data.almacen_Nombre ?? null
+      } catch (e) {
+        console.warn('No se pudo obtener el almacén asignado:', e)
       }
-    )
+    }
 
-    notificar('Orden solicitada correctamente', 'ok')
+    // 3. Mostramos la notificación dinámica (tu aporte)
+    notificar(
+      almacenAsignado.value
+        ? `Orden solicitada. Se despachará desde ${almacenAsignado.value}.`
+        : 'Orden solicitada correctamente',
+      'ok'
+    )
     await cargarCarrito()
 
   } catch (err: unknown) {
@@ -379,7 +437,6 @@ onMounted(cargarCarrito)
     </div>
     <div class="encabezado">
       <h1 class="titulo-pagina">Mi carrito</h1>
-      <button class="btn-primario" @click="cargarCarrito">Actualizar</button>
     </div>
 
     <div v-if="cargando" class="estado">Cargando carrito...</div>
@@ -458,6 +515,11 @@ onMounted(cargarCarrito)
           </div>
         </div>
 
+        <div v-if="almacenAsignado" class="almacen-asignado">
+          Su pedido fue realizado correctamente. <br />
+          📦 Se despachará desde: <strong>{{ almacenAsignado }}</strong>
+        </div>
+
         <button class="btn-primario btn-amplio" :disabled="!items.length || !selectedEntregaId || !selectedPagoId" @click="solicitarOrden">
           Solicitar orden
         </button>
@@ -468,11 +530,11 @@ onMounted(cargarCarrito)
   </div>
 
   <!-- Modal: Crear dirección -->
-  <div v-if="showAddressModal" class="modal-overlay" @click.self="showAddressModal = false">
+  <div v-if="showAddressModal" class="modal-overlay" @click.self="showAddressModal = false; showAddressErrors = false">
     <div class="modal-box" role="dialog" aria-modal="true">
       <div class="modal-header">
         <h3 class="modal-title">Agregar nueva dirección</h3>
-        <button class="modal-close" @click="showAddressModal = false">×</button>
+        <button class="modal-close" @click="showAddressModal = false; showAddressErrors = false">×</button>
       </div>
       <div class="modal-body">
         <div class="form-grid">
@@ -485,31 +547,63 @@ onMounted(cargarCarrito)
           <label>RUT empresa</label>
           <input type="text" v-model="newAddress.rut_Empresa" />
           <label>Comuna</label>
+
           <input
             type="text"
             v-model.trim="newAddress.comuna"
             placeholder="Ejemplo: Providencia"
           />
-
-          <label>Latitud</label>
-          <input
-            type="number"
-            step="any"
-            v-model.number="newAddress.latitud"
-            placeholder="-33.4450"
-          />
-
-          <label>Longitud</label>
-          <input
-            type="number"
-            step="any"
-            v-model.number="newAddress.longitud"
-            placeholder="-70.6400"
-          />
         </div>
+
+        <div class="form-grid" style="margin-top: 10px;">
+          <!-- LATITUD MODIFICADA CON MENSAJE DE ERROR -->
+          <label>Latitud</label>
+          <div class="input-con-error">
+            <input 
+              type="number" 
+              step="0.000001" 
+              v-model.number="newAddress.latitud" 
+              placeholder="Ej: -33.4489" 
+              :class="{ 'input-rojo': showAddressErrors && !Number.isFinite(newAddress.latitud) }" 
+            />
+            <span v-if="showAddressErrors && !Number.isFinite(newAddress.latitud)" class="texto-error-inline">
+              Campo obligatorio
+            </span>
+          </div>
+
+          <!-- LONGITUD MODIFICADA CON MENSAJE DE ERROR -->
+          <label>Longitud</label>
+          <div class="input-con-error">
+            <input 
+              type="number" 
+              step="0.000001" 
+              v-model.number="newAddress.longitud" 
+              placeholder="Ej: -70.6693" 
+              :class="{ 'input-rojo': showAddressErrors && !Number.isFinite(newAddress.longitud) }" 
+            />
+            <span v-if="showAddressErrors && !Number.isFinite(newAddress.longitud)" class="texto-error-inline">
+              Campo obligatorio
+            </span>
+          </div>
+        </div>
+
+        <!-- Botones liberados de la grilla -->
+        <div class="coordenadas-acciones">
+          <button type="button" class="btn-ubicacion" :disabled="obteniendoUbicacion" @click="usarUbicacionActual">
+            📍 {{ obteniendoUbicacion ? 'Obteniendo ubicación...' : 'Usar mi ubicación actual' }}
+          </button>
+          <button type="button" class="btn-link" @click="abrirGoogleMaps">
+            🗺️ Buscar en Google Maps
+          </button>
+        </div>
+        
+        <p class="ayuda-coordenadas">
+          Tip: en Google Maps, haz clic derecho sobre el punto exacto y copia las
+          dos coordenadas que aparecen arriba del menú.
+        </p>
       </div>
       <div class="modal-actions">
-        <button class="btn-link" @click="showAddressModal = false">Cancelar</button>
+        <button class="btn-link" @click="showAddressModal = false; showAddressErrors = false">Cancelar</button>
         <button class="btn-solid" @click="crearNuevaEntrega">Guardar dirección</button>
       </div>
     </div>
@@ -574,6 +668,7 @@ onMounted(cargarCarrito)
   font-size: 0.9rem;
   box-shadow: 0 6px 18px rgba(0,0,0,0.18);
   animation: fadeout 1.8s ease-in-out;
+  max-width: 360px;
 }
 .toast.ok { background: #156895; }
 .toast.error { background: #b00020; }
@@ -597,6 +692,14 @@ onMounted(cargarCarrito)
 .campo select { width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 10px; background: #fff; color: #222; }
 .resumen-info { display: grid; gap: 10px; padding: 14px 0; border-top: 1px solid #f2f2f2; border-bottom: 1px solid #f2f2f2; }
 .resumen-info div { display: flex; justify-content: space-between; align-items: center; }
+.almacen-asignado {
+  background: #eef7ff;
+  border: 1px solid #cfe6f7;
+  color: #0f4c75;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
 .btn-amplio { width: 100%; padding: 12px 16px; }
 .btn-primario { background: #156895; color: #fff; border: none; padding: 8px 12px; border-radius: 8px; cursor: pointer; }
 .btn-primario:hover { background: #1b76a5; }
@@ -626,15 +729,63 @@ onMounted(cargarCarrito)
 .btn-link { background: none; border: none; color: #156895; cursor: pointer; }
 .btn-solid { background: #156895; color: #fff; border: none; border-radius: 22px; padding: 8px 16px; cursor: pointer; }
 .btn-solid:hover { background: #1b76a5; }
+.ayuda-coordenadas { font-size: 0.78rem; color: #888; margin-top: 8px; }
 
-/* Forms inside modals */
+.coordenadas-acciones { 
+  display: flex; 
+  align-items: center;
+  gap: 15px; 
+  margin-top: 12px; 
+}
+.btn-ubicacion {
+  background: #eef7ff;
+  border: 1px solid #cfe6f7;
+  color: #0f4c75;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.btn-ubicacion:hover { background: #dcecf9; }
+.btn-ubicacion:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* ======== CSS MODIFICADO PARA LOS ERRORES ======== */
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 .form-grid label { font-size: 0.85rem; color: #444; }
-.form-grid input, .form-grid select { padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; }
+
+/* Contenedor que agrupa el input y su mensaje de error */
+.input-con-error {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* Se aseguró que el input ocupe el 100% de la celda de la grilla */
+.form-grid input, .form-grid select { 
+  width: 100%; 
+  padding: 10px 12px; 
+  border: 1px solid #d1d5db; 
+  border-radius: 8px; 
+  box-sizing: border-box;
+}
 .form-grid input[type="month"] { padding: 8px 10px; }
+
+/* Clases para pintar de rojo y mostrar el texto */
+.input-rojo {
+  border-color: #b00020 !important;
+  background-color: #fff9fa;
+}
+.texto-error-inline {
+  color: #b00020;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding-left: 2px;
+}
+
 .modal-box .modal-title { font-size: 1.05rem; }
 
 @media (max-width: 600px) {
   .form-grid { grid-template-columns: 1fr; }
+  .coordenadas-acciones { flex-wrap: wrap; }
 }
 </style>

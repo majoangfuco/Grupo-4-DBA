@@ -60,5 +60,3 @@ export const ordenesServicio = {
   cancelar,
   eliminar,
 }
-
-

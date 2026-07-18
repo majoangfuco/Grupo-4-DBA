@@ -35,9 +35,6 @@ public class ReporteVentasPorComunaControlador {
         return ResponseEntity.ok(repositorio.findAllAsGeoJson());
     }
 
-    // POST /api/reportes/ventas-por-comuna/refrescar
-    // La vista materializada no se actualiza sola: hay que refrescarla
-    // manualmente (o vía un job programado) después de nuevas órdenes.
     @PostMapping("/refrescar")
     public ResponseEntity<Map<String, String>> refrescar() {
         repositorio.refrescar();

@@ -1,6 +1,7 @@
 import httpClient from '@/http-common'
 
 export interface InformacionEntregaEntidad {
+
   info_Entrega_ID: number
   usuarioId: number
   ordenId: number
@@ -22,7 +23,6 @@ export const obtenerEntregasPorUsuario = (
     `/api/entregas/usuario/${usuarioId}`
   )
 }
-
 export const crearEntrega = (
   entrega: Partial<InformacionEntregaEntidad>
 ) => {

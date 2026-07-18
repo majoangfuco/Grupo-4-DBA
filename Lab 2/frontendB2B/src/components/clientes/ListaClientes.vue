@@ -159,67 +159,20 @@ const navegarOrdenes = (cliente: Cliente) => {
 </template>
 
 <style scoped>
-/* ===== TABLA ===== */
-.tabla-contenedor {
-  width: 100%;
-  overflow-x: auto;
-  border-radius: 10px;
-  border: 1px solid #e0e0e0;
-}
 
-.tabla {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.9rem;
-  min-width: 700px;
-}
+.tabla-contenedor {width: 100%;overflow-x: auto;border-radius: 10px;border: 1px solid #e0e0e0;}
+.tabla {width: 100%;border-collapse: collapse;font-size: 0.9rem;min-width: 700px;}
+.tabla-encabezado {background-color: #156895;color: white;}
+.celda-encabezado {padding: 14px 16px;text-align: center;font-weight: 600;user-select: none;white-space: nowrap;}
+.celda-encabezado:hover {background-color: #0f5070;}
+.encabezado-contenido {display: inline-flex;align-items: center;gap: 6px;}
+.icono-orden {font-size: 0.8rem;opacity: 0.8;}
 
-.tabla-encabezado {
-  background-color: #156895;
-  color: white;
-}
 
-.celda-encabezado {
-  padding: 14px 16px;
-  text-align: center;
-  font-weight: 600;
-  user-select: none;
-  white-space: nowrap;
-}
-
-.celda-encabezado:hover {
-  background-color: #0f5070;
-}
-
-.encabezado-contenido {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.icono-orden {
-  font-size: 0.8rem;
-  opacity: 0.8;
-}
-
-/* ===== FILAS ===== */
-.fila-cliente {
-  border-bottom: 1px solid #f0f0f0;
-  transition: background-color 0.15s;
-}
-
-.fila-cliente:hover {
-  background-color: #f0f7ff;
-}
-
-.fila-clickable {
-  cursor: pointer;
-}
-
-.fila-clickable:focus {
-  outline: 2px solid #156895;
-  outline-offset: -2px;
-}
+.fila-cliente {border-bottom: 1px solid #f0f0f0;transition: background-color 0.15s;}
+.fila-cliente:hover {background-color: #f0f7ff;}
+.fila-clickable {cursor: pointer;}
+.fila-clickable:focus {outline: 2px solid #156895;outline-offset: -2px;}
 
 .celda {
   padding: 12px 16px;
