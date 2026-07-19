@@ -1042,33 +1042,11 @@ CREATE INDEX idx_vw_ventas_mes_ano   ON vw_ventas_mensuales_por_categoria (mes_a
 CREATE INDEX idx_vw_ventas_categoria ON vw_ventas_mensuales_por_categoria (nombre_categoria);
 CREATE INDEX idx_vw_ventas_anio      ON vw_ventas_mensuales_por_categoria (anio);
 
--- Ventas agrupadas por comuna, con uso de funciones espaciales de PostGIS muestra en un mapa vía GeoJSON.
-
-CREATE MATERIALIZED VIEW vw_ventas_por_comuna AS
-SELECT
-    ie.comuna,
-    COUNT(DISTINCT o.orden_id)                     AS cantidad_ordenes,
-    ROUND(SUM(f.precio_total)::NUMERIC, 2)         AS volumen_ventas,
-    ST_Buffer(ST_Union(ie.ubicacion), 0.02)        AS geom_entregas
-FROM ordenes_entidad o
-JOIN informacion_entrega_entidad ie ON ie.info_entrega_id = o.informacion_info_entrega_id
-JOIN factura_entidad f              ON f.orden_orden_id   = o.orden_id
-WHERE ie.comuna IS NOT NULL
-GROUP BY ie.comuna
-ORDER BY volumen_ventas DESC;
-
-CREATE INDEX idx_vw_ventas_comuna_nombre ON vw_ventas_por_comuna (comuna);
-CREATE INDEX idx_vw_ventas_comuna_geom   ON vw_ventas_por_comuna USING GIST (geom_entregas);
-
--- Función de refresco
-CREATE OR REPLACE FUNCTION refrescar_vw_ventas_por_comuna()
-RETURNS VOID
-LANGUAGE plpgsql
-AS $$
-BEGIN
-    REFRESH MATERIALIZED VIEW vw_ventas_por_comuna;
-END;
-$$;
+-- Ventas agrupadas por comuna: reemplazada por ventas_por_comuna /
+-- ventas_por_distrito, basadas en los polígonos reales de comuna_entidad
+-- (ver sección "CHOROPLETH COMUNA/DISTRITO" al final de este archivo).
+-- La vista anterior (vw_ventas_por_comuna) usaba un blob ST_Buffer(ST_Union(...))
+-- de los puntos de entrega en vez del polígono administrativo real.
 
 -- ─── 7. ÍNDICES PARA OPTIMIZACIÓN (Req. 8) ──────────────────
 
@@ -1997,5 +1975,180 @@ ORDER BY
     a.almacen_id,
     p.producto_id;
 
+-- ============================================================
+-- CHOROPLETH COMUNA/DISTRITO — REGIÓN METROPOLITANA (52 comunas)
+-- ============================================================
+-- comuna_entidad guarda los polígonos reales (OpenStreetMap/Overpass) de
+-- las 52 comunas de la Región Metropolitana que cubre el área comercial.
+-- La carga de datos la hace ComunaOverpassLoader (Java, job de ejecución
+-- única) — este script SOLO define el esquema, nunca inserta comunas.
+
+CREATE TABLE IF NOT EXISTS comuna_entidad (
+    id              BIGSERIAL PRIMARY KEY,
+    nombre          VARCHAR(100) NOT NULL,
+    distrito_postal VARCHAR(3)   NOT NULL CHECK (distrito_postal IN ('7xx', '8xx', '9xx')),
+    geom            GEOMETRY(MultiPolygon, 4326) NOT NULL,
+    CONSTRAINT uq_comuna_nombre UNIQUE (nombre)
+);
+
+CREATE INDEX IF NOT EXISTS idx_comuna_geom      ON comuna_entidad USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_comuna_distrito  ON comuna_entidad (distrito_postal);
+
+-- Enlace de cada dirección de entrega a su comuna real (join espacial,
+-- nunca por texto — ver comuna_id vs. comuna en informacion_entrega_entidad).
+ALTER TABLE informacion_entrega_entidad
+    ADD COLUMN IF NOT EXISTS comuna_id BIGINT;
+
+COMMENT ON COLUMN informacion_entrega_entidad.comuna IS
+    'DEPRECADO: texto libre no confiable (valores sucios como "Providencia-Test", "Santiago Centro"). Usar comuna_id.';
+COMMENT ON COLUMN informacion_entrega_entidad.comuna_id IS
+    'FK a comuna_entidad.id, calculada por join espacial ST_Contains(comuna_entidad.geom, ubicacion). NULL si la ubicación cae fuera de las 52 comunas de la RM.';
+
 -- Prueba de checkout:
 -- CALL procesar_checkout(<carrito_activo>, <entrega_del_mismo_usuario>, <pago_del_mismo_usuario>);
+
+-- 1) Backfill de filas existentes (no-op en una BD recién creada, ya que
+--    comuna_entidad recién se puebla al correr ComunaOverpassLoader).
+UPDATE informacion_entrega_entidad ie
+SET comuna_id = c.id
+FROM comuna_entidad c
+WHERE ST_Contains(c.geom, ie.ubicacion);
+
+-- 2) Trigger para que direcciones nuevas (o con ubicación editada) queden
+--    clasificadas automáticamente, mismo patrón que los demás triggers de
+--    ordenes_entidad (trg_validar_cobertura_entrega, etc).
+CREATE OR REPLACE FUNCTION trg_asignar_comuna_id()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.ubicacion IS NULL THEN
+        NEW.comuna_id := NULL;
+        RETURN NEW;
+    END IF;
+
+    SELECT c.id INTO NEW.comuna_id
+    FROM comuna_entidad c
+    WHERE ST_Contains(c.geom, NEW.ubicacion)
+    LIMIT 1;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS asignar_comuna_id ON informacion_entrega_entidad;
+CREATE TRIGGER asignar_comuna_id
+    BEFORE INSERT OR UPDATE OF ubicacion ON informacion_entrega_entidad
+    FOR EACH ROW EXECUTE FUNCTION trg_asignar_comuna_id();
+
+-- 3) FK nullable: impide asociar a futuro una comuna que no sea una de las 52.
+ALTER TABLE informacion_entrega_entidad
+    DROP CONSTRAINT IF EXISTS fk_informacion_entrega_comuna;
+ALTER TABLE informacion_entrega_entidad
+    ADD CONSTRAINT fk_informacion_entrega_comuna
+    FOREIGN KEY (comuna_id) REFERENCES comuna_entidad(id);
+
+CREATE INDEX IF NOT EXISTS idx_informacion_entrega_comuna_id
+    ON informacion_entrega_entidad (comuna_id);
+
+-- ── ventas_por_comuna ──────────────────────────────────────
+-- "Confirmado/pagado" = tiene factura_entidad (solo se crea al aprobar
+-- una orden, y una orden aprobada ya no puede cancelarse — OrdenesServicio).
+CREATE MATERIALIZED VIEW ventas_por_comuna AS
+WITH base AS (
+    SELECT
+        c.id                AS comuna_id,
+        c.nombre            AS nombre_comuna,
+        c.distrito_postal,
+        c.geom,
+        COUNT(DISTINCT o.orden_id) FILTER (WHERE f.factura_id IS NOT NULL) AS total_pedidos,
+        COALESCE(ROUND(SUM(f.precio_total) FILTER (WHERE f.factura_id IS NOT NULL)::NUMERIC, 2), 0) AS monto_total_ventas
+    FROM comuna_entidad c
+    LEFT JOIN informacion_entrega_entidad ie ON ie.comuna_id = c.id
+    LEFT JOIN ordenes_entidad o             ON o.informacion_info_entrega_id = ie.info_entrega_id
+    LEFT JOIN factura_entidad f             ON f.orden_orden_id = o.orden_id
+    GROUP BY c.id, c.nombre, c.distrito_postal, c.geom
+),
+-- Terciles calculados SOLO sobre comunas con ventas > 0, para que las
+-- comunas sin ventas no distorsionen el corte y siempre queden en SIN_VENTAS.
+terciles AS (
+    SELECT
+        PERCENTILE_CONT(0.333) WITHIN GROUP (ORDER BY monto_total_ventas) AS p33,
+        PERCENTILE_CONT(0.667) WITHIN GROUP (ORDER BY monto_total_ventas) AS p66
+    FROM base
+    WHERE monto_total_ventas > 0
+)
+SELECT
+    b.comuna_id,
+    b.nombre_comuna,
+    b.distrito_postal,
+    b.total_pedidos,
+    b.monto_total_ventas,
+    b.geom,
+    (b.monto_total_ventas > 0) AS tiene_ventas,
+    CASE
+        WHEN b.monto_total_ventas <= 0    THEN 'SIN_VENTAS'
+        WHEN b.monto_total_ventas <= t.p33 THEN 'BAJO'
+        WHEN b.monto_total_ventas <= t.p66 THEN 'MEDIO'
+        ELSE 'ALTO'
+    END AS nivel_semaforo
+FROM base b
+CROSS JOIN terciles t;
+
+CREATE UNIQUE INDEX idx_ventas_por_comuna_id   ON ventas_por_comuna (comuna_id);
+CREATE INDEX        idx_ventas_por_comuna_geom ON ventas_por_comuna USING GIST (geom);
+
+-- ── ventas_por_distrito ────────────────────────────────────
+CREATE MATERIALIZED VIEW ventas_por_distrito AS
+WITH agregado AS (
+    SELECT
+        distrito_postal,
+        SUM(total_pedidos)      AS total_pedidos,
+        SUM(monto_total_ventas) AS monto_total_ventas
+    FROM ventas_por_comuna
+    GROUP BY distrito_postal
+),
+geom_por_distrito AS (
+    SELECT distrito_postal, ST_Union(geom) AS geom_union
+    FROM comuna_entidad
+    GROUP BY distrito_postal
+),
+terciles AS (
+    SELECT
+        PERCENTILE_CONT(0.333) WITHIN GROUP (ORDER BY monto_total_ventas) AS p33,
+        PERCENTILE_CONT(0.667) WITHIN GROUP (ORDER BY monto_total_ventas) AS p66
+    FROM agregado
+    WHERE monto_total_ventas > 0
+)
+SELECT
+    a.distrito_postal,
+    a.total_pedidos,
+    a.monto_total_ventas,
+    g.geom_union,
+    (a.monto_total_ventas > 0) AS tiene_ventas,
+    CASE
+        WHEN a.monto_total_ventas <= 0    THEN 'SIN_VENTAS'
+        WHEN a.monto_total_ventas <= t.p33 THEN 'BAJO'
+        WHEN a.monto_total_ventas <= t.p66 THEN 'MEDIO'
+        ELSE 'ALTO'
+    END AS nivel_semaforo
+FROM agregado a
+JOIN geom_por_distrito g ON g.distrito_postal = a.distrito_postal
+CROSS JOIN terciles t;
+
+CREATE UNIQUE INDEX idx_ventas_por_distrito_id   ON ventas_por_distrito (distrito_postal);
+CREATE INDEX        idx_ventas_por_distrito_geom ON ventas_por_distrito USING GIST (geom_union);
+
+-- ── Refresco ────────────────────────────────────────────────
+-- Orden importa: ventas_por_distrito depende de ventas_por_comuna.
+-- Se dispara automáticamente cada 6h (LogisticaMapaScheduler) o a mano
+-- vía POST /api/logistica/mapa/refrescar.
+CREATE OR REPLACE FUNCTION refrescar_ventas_por_comuna_y_distrito()
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    REFRESH MATERIALIZED VIEW CONCURRENTLY ventas_por_comuna;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY ventas_por_distrito;
+END;
+$$;
