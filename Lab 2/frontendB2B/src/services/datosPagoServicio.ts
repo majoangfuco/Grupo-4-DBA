@@ -15,3 +15,11 @@ export const obtenerDatosPagoPorUsuario = (usuarioId: string | number) => {
 export const crearDatosPago = (datos: Partial<DatosDePagoEntidad>) => {
   return httpClient.post(`/api/datos-pago`, datos)
 }
+
+export const actualizarDatosPago = (id: number, datos: Partial<DatosDePagoEntidad>) => {
+  return httpClient.put(`/api/datos-pago/${id}`, datos)
+}
+
+export const eliminarDatosPago = (id: number) => {
+  return httpClient.delete(`/api/datos-pago/${id}`)
+}

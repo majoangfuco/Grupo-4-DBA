@@ -82,6 +82,13 @@ public class UsuarioRepositorio {
         return count != null && count > 0;
     }
 
+    /** Verifica si el RUT de la empresa ya está registrado. */
+    public boolean existeRutEmpresa(String rutEmpresa) {
+        String sql = "SELECT COUNT(*) FROM usuario_entidad WHERE rut_empresa = ?";
+        Integer count = jdbcTemplate.queryForObject(sql, Integer.class, rutEmpresa);
+        return count != null && count > 0;
+    }
+
     /**
      * Actualiza los datos editables del usuario. La contraseña solo se cambia
      * cuando se entrega una nueva (ya codificada); si es null, se conserva.

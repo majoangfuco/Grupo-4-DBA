@@ -63,6 +63,10 @@ public class UsuarioServicio {
             throw new Exception("El correo ya está registrado");
         }
 
+        if (usuarioRepositorio.existeRutEmpresa(rutEmpresa)) {
+            throw new Exception("El RUT de la empresa ya está registrado");
+        }
+
         UsuarioEntidad usuario = new UsuarioEntidad();
         usuario.setNombre_Usuario(nombre);
         usuario.setCorreo(correoNormalizado);
@@ -92,6 +96,9 @@ public class UsuarioServicio {
         }
         if (rutEmpresa == null || !RutValidador.esValido(rutEmpresa)) {
             throw new Exception("El RUT de empresa no es válido");
+        }
+        if (!actual.getRut_Empresa().equals(rutEmpresa.trim())) {
+            throw new Exception("El RUT de la empresa no puede ser editado");
         }
         if (usuarioRepositorio.existeCorreoEnOtroUsuario(correoNormalizado, usuarioId)) {
             throw new Exception("El correo ya está registrado por otro usuario");

@@ -54,14 +54,77 @@
         </div>
 
         <div v-else class="payment-list">
-          <div v-for="pago in datosPago" :key="pago.datos_Pago_ID" class="payment-item">
+          <!-- Primer método siempre visible -->
+          <div class="payment-item">
             <div class="payment-item-header">
-              <span class="payment-method-badge">{{ pago.metodo_Pago }}</span>
-              <span class="payment-expiry">Vence: {{ pago.fecha_Expiracion }}</span>
+              <span class="payment-method-badge">{{ primerPago.metodo_Pago }}</span>
+              <div class="payment-item-actions">
+                <span class="payment-expiry">Vence: {{ primerPago.fecha_Expiracion }}</span>
+                <button class="icon-btn icon-btn-edit" title="Editar" @click="abrirEdicionPago(primerPago)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                    <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                  </svg>
+                </button>
+                <button class="icon-btn icon-btn-delete" title="Eliminar" @click="confirmarEliminarPago(primerPago)">
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="3 6 5 6 21 6"></polyline>
+                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  </svg>
+                </button>
+              </div>
             </div>
-            <div class="card-number">{{ maskCardNumber(pago.numero_Tarjeta) }}</div>
+            <div class="card-number">{{ maskCardNumber(primerPago.numero_Tarjeta) }}</div>
+          </div>
+
+          <!-- Botón y dropdown flotante (solo si hay más de 1) -->
+          <div v-if="datosPago.length > 1" class="dropdown-pagos-wrapper">
+            <button
+              class="btn-expandir-pagos"
+              @click.stop="pagosExpandidos = !pagosExpandidos"
+            >
+              <span>{{ pagosExpandidos ? 'Ocultar' : 'Ver' }} otros {{ datosPago.length - 1 }} método{{ datosPago.length - 1 > 1 ? 's' : '' }}</span>
+              <svg
+                class="chevron-icon"
+                :class="{ rotated: pagosExpandidos }"
+                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+              >
+                <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </button>
+
+            <!-- Dropdown flotante -->
+            <Transition name="dropdown-fade">
+              <div v-if="pagosExpandidos" class="dropdown-pagos-panel" @click.stop>
+                <div v-for="pago in datosPago.slice(1)" :key="pago.datos_Pago_ID" class="payment-item">
+                  <div class="payment-item-header">
+                    <span class="payment-method-badge">{{ pago.metodo_Pago }}</span>
+                    <div class="payment-item-actions">
+                      <span class="payment-expiry">Vence: {{ pago.fecha_Expiracion }}</span>
+                      <button class="icon-btn icon-btn-edit" title="Editar" @click="abrirEdicionPago(pago)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                        </svg>
+                      </button>
+                      <button class="icon-btn icon-btn-delete" title="Eliminar" @click="confirmarEliminarPago(pago)">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <polyline points="3 6 5 6 21 6"></polyline>
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <div class="card-number">{{ maskCardNumber(pago.numero_Tarjeta) }}</div>
+                </div>
+              </div>
+            </Transition>
           </div>
         </div>
+
+        <button class="btn-agregar-pago" @click="abrirCrearPago">
+          + Agregar método de pago
+        </button>
       </div>
 
 
@@ -106,7 +169,7 @@
               <input v-model="form.correo" type="email" required />
             </label>
             <label>RUT empresa
-              <input v-model="form.rut_empresa" type="text" placeholder="76.123.456-7" required />
+              <input v-model="form.rut_empresa" type="text" placeholder="76.123.456-7" required disabled />
             </label>
             <label>Nueva contraseña <small>(opcional)</small>
               <input v-model="form.contrasena" type="password" placeholder="Dejar en blanco para no cambiar" />
@@ -146,15 +209,73 @@
       </div>
     </Teleport>
 
+    <!-- ===== MODAL: CREAR/EDITAR MÉTODO DE PAGO ===== -->
+    <Teleport to="body">
+      <div v-if="modalPago" class="modal-overlay" @click.self="modalPago = false">
+        <div class="modal-box">
+          <button class="modal-cerrar" @click="modalPago = false">✕</button>
+          <h3 class="modal-titulo">{{ editandoPagoId ? 'Editar método de pago' : 'Agregar método de pago' }}</h3>
+
+          <form class="modal-form" @submit.prevent="guardarPago">
+            <label>Método de pago
+              <select v-model="formPago.metodo_Pago" required>
+                <option value="" disabled>Selecciona un método</option>
+                <option value="Visa">Visa</option>
+                <option value="MasterCard">MasterCard</option>
+                <option value="Débito">Débito</option>
+                <option value="Transferencia">Transferencia</option>
+              </select>
+            </label>
+            <label>Número de tarjeta
+              <input v-model="formPago.numero_Tarjeta" type="text" placeholder="1234 5678 9012 3456" required />
+            </label>
+            <label>Fecha de expiración
+              <input v-model="formPago.fecha_Expiracion" type="text" placeholder="MM/AA" required />
+            </label>
+
+            <p v-if="errorPago" class="msg-error">{{ errorPago }}</p>
+            <p v-if="okPago" class="msg-ok">{{ okPago }}</p>
+
+            <div class="modal-acciones">
+              <button type="button" class="btn-secundario" @click="modalPago = false">Cancelar</button>
+              <button type="submit" class="btn-primario" :disabled="guardandoPago">
+                {{ guardandoPago ? 'Guardando...' : (editandoPagoId ? 'Actualizar' : 'Agregar') }}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- ===== MODAL: CONFIRMAR ELIMINAR MÉTODO DE PAGO ===== -->
+    <Teleport to="body">
+      <div v-if="confirmarElimPago" class="modal-overlay" @click.self="confirmarElimPago = false">
+        <div class="modal-box">
+          <h3 class="modal-titulo">Eliminar método de pago</h3>
+          <p class="modal-texto">
+            ¿Seguro que deseas eliminar este método de pago?
+            Esta acción no se puede deshacer.
+          </p>
+          <p v-if="errorPago" class="msg-error">{{ errorPago }}</p>
+          <div class="modal-acciones">
+            <button class="btn-secundario" @click="confirmarElimPago = false">Cancelar</button>
+            <button class="btn-peligro" :disabled="eliminandoPago" @click="ejecutarEliminarPago">
+              {{ eliminandoPago ? 'Eliminando...' : 'Sí, eliminar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted, onUnmounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/auth';
 import { obtenerEntregasPorUsuario, type InformacionEntregaEntidad } from '@/services/entregaServicio';
-import { obtenerDatosPagoPorUsuario, type DatosDePagoEntidad } from '@/services/datosPagoServicio';
+import { obtenerDatosPagoPorUsuario, crearDatosPago, actualizarDatosPago, eliminarDatosPago, type DatosDePagoEntidad } from '@/services/datosPagoServicio';
 import { usuarioServicio } from '@/services/usuarioServicio';
 import { validarRut } from '@/utils/rut';
 
@@ -180,6 +301,9 @@ const cargandoEntregas = ref(false);
 
 const datosPago = ref<DatosDePagoEntidad[]>([]);
 const cargandoPago = ref(false);
+const pagosExpandidos = ref(false);
+
+const primerPago = computed(() => datosPago.value[0] as DatosDePagoEntidad);
 
 // ===================== EDICIÓN / ELIMINACIÓN DE CUENTA =====================
 const editando = ref(false);
@@ -284,6 +408,115 @@ const maskCardNumber = (numero: string): string => {
   return full.match(/.{1,4}/g)?.join(' ') ?? full;
 };
 
+// ===================== CRUD MÉTODOS DE PAGO =====================
+const modalPago = ref(false);
+const guardandoPago = ref(false);
+const editandoPagoId = ref<number | null>(null);
+const confirmarElimPago = ref(false);
+const eliminandoPago = ref(false);
+const pagoAEliminar = ref<DatosDePagoEntidad | null>(null);
+const errorPago = ref('');
+const okPago = ref('');
+
+const formPago = reactive({
+  metodo_Pago: '',
+  numero_Tarjeta: '',
+  fecha_Expiracion: '',
+});
+
+const cargarDatosPago = async () => {
+  if (!authStore.userId || isAdmin.value) return;
+  cargandoPago.value = true;
+  try {
+    const resp = await obtenerDatosPagoPorUsuario(authStore.userId);
+    datosPago.value = resp.data;
+  } catch (error) {
+    console.error('Error cargando datos de pago:', error);
+  } finally {
+    cargandoPago.value = false;
+  }
+};
+
+const abrirCrearPago = () => {
+  editandoPagoId.value = null;
+  formPago.metodo_Pago = '';
+  formPago.numero_Tarjeta = '';
+  formPago.fecha_Expiracion = '';
+  errorPago.value = '';
+  okPago.value = '';
+  modalPago.value = true;
+};
+
+const abrirEdicionPago = (pago: DatosDePagoEntidad) => {
+  editandoPagoId.value = pago.datos_Pago_ID;
+  formPago.metodo_Pago = pago.metodo_Pago;
+  formPago.numero_Tarjeta = pago.numero_Tarjeta;
+  formPago.fecha_Expiracion = pago.fecha_Expiracion;
+  errorPago.value = '';
+  okPago.value = '';
+  modalPago.value = true;
+};
+
+const guardarPago = async () => {
+  errorPago.value = '';
+  okPago.value = '';
+
+  if (!formPago.metodo_Pago || !formPago.numero_Tarjeta || !formPago.fecha_Expiracion) {
+    errorPago.value = 'Todos los campos son requeridos.';
+    return;
+  }
+
+  guardandoPago.value = true;
+  try {
+    if (editandoPagoId.value) {
+      await actualizarDatosPago(editandoPagoId.value, {
+        usuario_ID: Number(authStore.userId),
+        metodo_Pago: formPago.metodo_Pago,
+        numero_Tarjeta: formPago.numero_Tarjeta,
+        fecha_Expiracion: formPago.fecha_Expiracion,
+      });
+      okPago.value = 'Método de pago actualizado.';
+    } else {
+      await crearDatosPago({
+        usuario_ID: Number(authStore.userId),
+        metodo_Pago: formPago.metodo_Pago,
+        numero_Tarjeta: formPago.numero_Tarjeta,
+        fecha_Expiracion: formPago.fecha_Expiracion,
+      });
+      okPago.value = 'Método de pago agregado.';
+    }
+    await cargarDatosPago();
+    setTimeout(() => { modalPago.value = false; }, 600);
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { error?: string } } };
+    errorPago.value = axiosErr.response?.data?.error ?? 'No se pudo guardar el método de pago.';
+  } finally {
+    guardandoPago.value = false;
+  }
+};
+
+const confirmarEliminarPago = (pago: DatosDePagoEntidad) => {
+  pagoAEliminar.value = pago;
+  errorPago.value = '';
+  confirmarElimPago.value = true;
+};
+
+const ejecutarEliminarPago = async () => {
+  if (!pagoAEliminar.value) return;
+  errorPago.value = '';
+  eliminandoPago.value = true;
+  try {
+    await eliminarDatosPago(pagoAEliminar.value.datos_Pago_ID);
+    await cargarDatosPago();
+    confirmarElimPago.value = false;
+  } catch (err: unknown) {
+    const axiosErr = err as { response?: { data?: { error?: string } } };
+    errorPago.value = axiosErr.response?.data?.error ?? 'No se pudo eliminar el método de pago.';
+  } finally {
+    eliminandoPago.value = false;
+  }
+};
+
 onMounted(async () => {
   if (authStore.userId) {
     // Cargar direcciones de entrega
@@ -298,19 +531,14 @@ onMounted(async () => {
     }
 
     // Cargar métodos de pago
-    if (!isAdmin.value) {
-      cargandoPago.value = true;
-      try {
-        const responsePago = await obtenerDatosPagoPorUsuario(authStore.userId);
-        datosPago.value = responsePago.data;
-      } catch (error) {
-        console.error('Error cargando datos de pago:', error);
-      } finally {
-        cargandoPago.value = false;
-      }
-    }
+    await cargarDatosPago();
   }
 });
+
+// Cerrar dropdown al hacer clic fuera
+const cerrarDropdownPagos = () => { pagosExpandidos.value = false; };
+onMounted(() => { document.addEventListener('click', cerrarDropdownPagos); });
+onUnmounted(() => { document.removeEventListener('click', cerrarDropdownPagos); });
 </script>
 
 <style scoped>
@@ -625,6 +853,135 @@ onMounted(async () => {
   letter-spacing: 2px;
 }
 
+
+.payment-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.icon-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 6px;
+  transition: background 0.2s, transform 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover {
+  transform: scale(1.1);
+}
+
+.icon-btn-edit {
+  color: #6b4ba3;
+}
+.icon-btn-edit:hover {
+  background: #f0eaff;
+}
+
+.icon-btn-delete {
+  color: #d64545;
+}
+.icon-btn-delete:hover {
+  background: #fdecec;
+}
+
+.dropdown-pagos-wrapper {
+  position: relative;
+}
+
+.btn-expandir-pagos {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 8px;
+  margin-top: 4px;
+  background: #f8f9fb;
+  border: 1px solid #e8ecf1;
+  border-radius: 10px;
+  color: #5a6a7d;
+  font-weight: 600;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: background 0.2s, color 0.2s;
+}
+.btn-expandir-pagos:hover {
+  background: #eef3f8;
+  color: #136692;
+}
+
+.chevron-icon {
+  transition: transform 0.3s ease;
+}
+.chevron-icon.rotated {
+  transform: rotate(180deg);
+}
+
+.dropdown-pagos-panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 50;
+  background: #ffffff;
+  border: 1px solid #e8ecf1;
+  border-radius: 14px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+/* Transición del dropdown */
+.dropdown-fade-enter-active,
+.dropdown-fade-leave-active {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.dropdown-fade-enter-from,
+.dropdown-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+
+.btn-agregar-pago {
+  margin-top: 16px;
+  width: 100%;
+  padding: 10px;
+  background: transparent;
+  border: 2px dashed #c5ccd6;
+  border-radius: 12px;
+  color: #6b7a8d;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s, background 0.2s;
+}
+.btn-agregar-pago:hover {
+  border-color: #136692;
+  color: #136692;
+  background: #f0f8ff;
+}
+
+.modal-form select {
+  width: 100%;
+  margin-top: 6px;
+  padding: 10px 12px;
+  border: 1px solid #d6e2ed;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+  background: #fff;
+  color: #2b2d42;
+  appearance: auto;
+}
 
 /* ===== Bottom Left: Delivery Card ===== */
 .delivery-card {
