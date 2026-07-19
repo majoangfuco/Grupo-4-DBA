@@ -307,35 +307,37 @@ onMounted(() => {
         <p v-if="stockError" class="form-error">{{ stockError }}</p>
         <div v-if="stockCargando" class="estado">Cargando stock…</div>
 
-        <table v-else class="tabla-stock">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Stock en almacén</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in stockItems" :key="item.productoId">
-              <td>{{ item.nombreProducto }}</td>
-              <td>
-                <input v-model.number="item.stockDisponible" type="number" min="0" step="1" class="stock-input" />
-              </td>
-              <td>
-                <button
-                  class="btn-mini btn-stock"
-                  :disabled="stockGuardandoId === item.productoId"
-                  @click="guardarStockItem(item)"
-                >
-                  {{ stockGuardandoId === item.productoId ? '…' : 'Guardar' }}
-                </button>
-              </td>
-            </tr>
-            <tr v-if="stockItems.length === 0">
-              <td colspan="3" class="vacio">No hay productos.</td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="tabla-stock-wrapper">
+          <table class="tabla-stock">
+            <thead>
+              <tr>
+                <th>Producto</th>
+                <th>Stock en almacén</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in stockItems" :key="item.productoId">
+                <td>{{ item.nombreProducto }}</td>
+                <td>
+                  <input v-model.number="item.stockDisponible" type="number" min="0" step="1" class="stock-input" />
+                </td>
+                <td>
+                  <button
+                    class="btn-mini btn-stock"
+                    :disabled="stockGuardandoId === item.productoId"
+                    @click="guardarStockItem(item)"
+                  >
+                    {{ stockGuardandoId === item.productoId ? '…' : 'Guardar' }}
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="stockItems.length === 0">
+                <td colspan="3" class="vacio">No hay productos.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   </div>
@@ -391,7 +393,8 @@ onMounted(() => {
 .modal-acciones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 .btn-secundario { padding: 10px 18px; background: #eef2f7; color: #334155; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
 
-.tabla-stock { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.tabla-stock-wrapper { max-height: 400px; overflow-y: auto; margin-top: 8px; }
+.tabla-stock { width: 100%; border-collapse: collapse; }
 .tabla-stock th, .tabla-stock td { padding: 9px 12px; border-bottom: 1px solid #eee; text-align: left; font-size: 0.88rem; }
 .stock-input { width: 110px; padding: 6px 8px; border: 1px solid #ccc; border-radius: 6px; }
 </style>
