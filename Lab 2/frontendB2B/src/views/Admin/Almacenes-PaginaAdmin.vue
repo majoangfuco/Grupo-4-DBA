@@ -13,6 +13,7 @@ import {
   type StockAlmacenProducto,
 } from '@/services/almacenServicio'
 import { configEnvioServicio } from '@/services/configEnvioServicio'
+import SelectorUbicacion from '@/components/SelectorUbicacion.vue'
 
 const almacenes = ref<AlmacenEntidad[]>([])
 const cargando = ref(true)
@@ -25,6 +26,7 @@ const valorKmMensaje = ref<string | null>(null)
 
 // ─── Modal crear/editar almacén ──────────────────────
 const modalAbierto = ref(false)
+const modalMapaAbierto = ref(false)
 const editandoId = ref<number | null>(null)
 const guardando = ref(false)
 const formError = ref<string | null>(null)
@@ -41,6 +43,7 @@ const almacenStock = ref<AlmacenEntidad | null>(null)
 const stockItems = ref<StockAlmacenProducto[]>([])
 const stockCargando = ref(false)
 const stockError = ref<string | null>(null)
+const stockOk = ref<string | null>(null)
 const stockGuardandoId = ref<number | null>(null)
 
 // ============ Carga de datos ============
@@ -107,6 +110,39 @@ const abrirEditar = (a: AlmacenEntidad) => {
 
 const cerrarModal = () => {
   modalAbierto.value = false
+  modalMapaAbierto.value = false
+}
+
+interface UbicacionMapa {
+  latitud: number
+  longitud: number
+  direccion: string
+  numero: string
+  comuna: string
+  textoCompleto: string
+}
+
+const abrirSelectorMapa = () => {
+  modalMapaAbierto.value = true
+}
+
+const aplicarUbicacionMapa = (ubicacion: UbicacionMapa) => {
+  form.latitud = ubicacion.latitud
+  form.longitud = ubicacion.longitud
+
+  const direccionCompleta = [
+    ubicacion.direccion,
+    ubicacion.numero,
+  ]
+    .filter(Boolean)
+    .join(' ')
+    .trim()
+
+  if (direccionCompleta) {
+    form.direccion = direccionCompleta
+  }
+
+  modalMapaAbierto.value = false
 }
 
 const guardarAlmacen = async () => {
@@ -184,7 +220,7 @@ const guardarStockItem = async (item: StockAlmacenProducto) => {
     return
   }
   stockGuardandoId.value = item.productoId
-  stockError.value = null
+  stockOk.value = 'El stock fue actualizado.'
   try {
     await almacenServicio.actualizarStock(
       almacenStock.value.almacenId,
@@ -287,6 +323,14 @@ onMounted(() => {
           </div>
         </div>
 
+        <button
+          type="button"
+          class="btn-seleccionar-mapa"
+          @click="abrirSelectorMapa"
+        >
+          Seleccionar ubicación en mapa
+        </button>
+
         <p v-if="formError" class="form-error">{{ formError }}</p>
 
         <div class="modal-acciones">
@@ -298,6 +342,31 @@ onMounted(() => {
       </div>
     </div>
 
+    <!-- Modal seleccionar ubicación -->
+    <div
+      v-if="modalMapaAbierto"
+      class="modal-overlay modal-mapa-overlay"
+      @click.self="modalMapaAbierto = false"
+    >
+      <div class="modal-contenido modal-mapa" @click.stop>
+        <button
+          class="modal-cerrar"
+          @click="modalMapaAbierto = false"
+        >
+          ✕
+        </button>
+
+        <h2 class="modal-titulo">Seleccionar ubicación del almacén</h2>
+
+        <SelectorUbicacion
+          :latitud-inicial="form.latitud !== 0 ? form.latitud : undefined"
+          :longitud-inicial="form.longitud !== 0 ? form.longitud : undefined"
+          @seleccionar="aplicarUbicacionMapa"
+          @cancelar="modalMapaAbierto = false"
+        />
+      </div>
+    </div>
+
     <!-- Modal stock -->
     <div v-if="modalStockAbierto" class="modal-overlay" @click="cerrarStock">
       <div class="modal-contenido modal-ancho" @click.stop>
@@ -305,6 +374,7 @@ onMounted(() => {
         <h2 class="modal-titulo">Stock — {{ almacenStock?.nombre }}</h2>
 
         <p v-if="stockError" class="form-error">{{ stockError }}</p>
+        <p v-if="stockOk" class="form-ok">{{ stockOk }}</p>
         <div v-if="stockCargando" class="estado">Cargando stock…</div>
 
         <div v-else class="tabla-stock-wrapper">
@@ -390,8 +460,29 @@ onMounted(() => {
 .campo input { padding: 9px 11px; border: 1px solid #ccc; border-radius: 8px; font-size: 0.9rem; }
 .campo-fila { display: flex; gap: 12px; }
 .form-error { color: #b00020; font-size: 0.85rem; margin: 4px 0 12px; }
+.form-ok{ color: #2768bd; font-size: 0.85rem; margin: 4px 0 12px; }
 .modal-acciones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 8px; }
 .btn-secundario { padding: 10px 18px; background: #eef2f7; color: #334155; border: none; border-radius: 8px; font-weight: 600; cursor: pointer; }
+
+.btn-seleccionar-mapa {
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid #b6d4fe;
+  border-radius: 8px;
+  background: #e8f0fe;
+  color: #156895;
+  font-weight: 600;
+  cursor: pointer;
+}
+.btn-seleccionar-mapa:hover { background: #dce9fc; }
+
+.modal-mapa-overlay { z-index: 260; }
+.modal-mapa {
+  max-width: 850px;
+  max-height: 92vh;
+  overflow-y: auto;
+}
 
 .tabla-stock-wrapper { max-height: 400px; overflow-y: auto; margin-top: 8px; }
 .tabla-stock { width: 100%; border-collapse: collapse; }
