@@ -62,6 +62,27 @@ public class LogisticaMapaRepositorio {
         return jdbc.queryForObject(sql, String.class);
     }
 
+    // FeatureCollection GeoJSON con la fila activa de zona_cobertura_entidad
+    // (contorno fijo de la RM real, ver ST_Union en Parte 1 de la tarea
+    // anterior). 0 o 1 feature — nunca más de una fila activa a la vez.
+    public String coberturaGeoJson() {
+        String sql = """
+                SELECT json_build_object(
+                    'type', 'FeatureCollection',
+                    'features', COALESCE(json_agg(
+                        json_build_object(
+                            'type', 'Feature',
+                            'geometry', ST_AsGeoJSON(geom)::json,
+                            'properties', json_build_object('nombre', nombre)
+                        )
+                    ), '[]')
+                )::text
+                FROM zona_cobertura_entidad
+                WHERE activa = true
+                """;
+        return jdbc.queryForObject(sql, String.class);
+    }
+
     // El orden importa: ventas_por_distrito se calcula a partir de ventas_por_comuna.
     public void refrescar() {
         jdbc.execute("SELECT refrescar_ventas_por_comuna_y_distrito()");

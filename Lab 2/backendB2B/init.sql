@@ -2274,3 +2274,57 @@ BEGIN
     REFRESH MATERIALIZED VIEW CONCURRENTLY ventas_por_distrito;
 END;
 $$;
+
+-- ============================================================
+-- UNIDADES VECINALES (INE) — base para Zona Residencial Protegida
+-- Fuente: Ministerio de Desarrollo Social y Familia, shapefile
+-- "Unidades Vecinales", actualizado a agosto 2024.
+-- Cobertura: Región Metropolitana.
+-- Unidades vecinales sin comuna de cobertura asociada (zonas
+-- "SIN DEF COMUNAL", territorio rural) son excluidas deliberadamente
+-- por no aplicar al área de servicio de la empresa.
+--
+-- Carga vía UnidadVecinalGeoJsonLoader (Java, job de ejecución puntual
+-- disparado por POST /api/admin/unidades-vecinales/cargar) a partir de
+-- resources/data/unidades_vecinales_rm.geojson. Este script SOLO
+-- define el esquema, nunca inserta unidades vecinales.
+-- ============================================================
+CREATE TABLE IF NOT EXISTS unidad_vecinal_entidad (
+    id                 BIGSERIAL PRIMARY KEY,
+    comuna_id          BIGINT NOT NULL REFERENCES comuna_entidad(id),
+    codigo_uv          VARCHAR(20),
+    nombre_uv          VARCHAR(255) NOT NULL,
+    geom               geometry(Polygon, 4326) NOT NULL,
+    es_zona_protegida  BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (comuna_id, codigo_uv)
+);
+
+COMMENT ON TABLE unidad_vecinal_entidad IS
+    'Fuente: Ministerio de Desarrollo Social y Familia, shapefile "Unidades Vecinales", actualizado a agosto 2024. Cobertura: Región Metropolitana. Unidades vecinales sin comuna de cobertura asociada (zonas "SIN DEF COMUNAL", territorio rural) son excluidas deliberadamente por no aplicar al área de servicio de la empresa.';
+
+CREATE INDEX IF NOT EXISTS idx_unidad_vecinal_geom
+    ON unidad_vecinal_entidad USING GIST (geom);
+CREATE INDEX IF NOT EXISTS idx_unidad_vecinal_comuna
+    ON unidad_vecinal_entidad (comuna_id);
+
+-- ============================================================
+-- ZONA DE COBERTURA — reemplazo del polígono aproximado por
+-- ST_Union real de las 52 comunas de comuna_entidad.
+-- trg_validar_cobertura_entrega() ya soporta múltiples filas
+-- (EXISTS ... WHERE activa = TRUE), así que en vez de sobreescribir
+-- la fila original se desactiva (respaldo recuperable con un simple
+-- UPDATE activa=true, sin transcribir WKT a mano) y se inserta una
+-- fila nueva activa con la unión real.
+-- ============================================================
+UPDATE zona_cobertura_entidad
+SET activa = FALSE,
+    nombre = 'Región Metropolitana (respaldo — polígono aproximado, reemplazado por ST_Union real el 2026-07-19)'
+WHERE zona_id = 1 AND activa = TRUE;
+
+INSERT INTO zona_cobertura_entidad (nombre, geom, activa)
+SELECT 'Región Metropolitana (unión real de las 52 comunas)', ST_Union(geom), TRUE
+FROM comuna_entidad
+WHERE NOT EXISTS (
+    SELECT 1 FROM zona_cobertura_entidad
+    WHERE nombre = 'Región Metropolitana (unión real de las 52 comunas)'
+);

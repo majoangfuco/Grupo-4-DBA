@@ -32,6 +32,13 @@ public class LogisticaMapaControlador {
         return ResponseEntity.ok(repositorio.distritosGeoJson());
     }
 
+    // Contorno fijo de la RM (fila activa de zona_cobertura_entidad), para
+    // dibujar el borde real de la unión de las 52 comunas en el mapa.
+    @GetMapping(value = "/cobertura", produces = MediaType.APPLICATION_JSON_VALUE)
+    public ResponseEntity<String> cobertura() {
+        return ResponseEntity.ok(repositorio.coberturaGeoJson());
+    }
+
     @PostMapping("/refrescar")
     public ResponseEntity<Map<String, String>> refrescar() {
         repositorio.refrescar();
