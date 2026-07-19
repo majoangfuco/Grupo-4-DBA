@@ -355,7 +355,7 @@ const navItems = computed(() => {
 }
 
 .btn-cart {
-  background: #befeff;
+  background: #156895;
   color: #fff;
   border: none;
   width: 36px;

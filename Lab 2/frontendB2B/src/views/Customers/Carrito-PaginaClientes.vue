@@ -5,11 +5,19 @@
 // =====================================================
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
+import SelectorUbicacion, {
+  type UbicacionSeleccionada,
+} from '@/components/SelectorUbicacion.vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { carritoServicio, type CarritoEntidad } from '@/services/carritoServicio'
 import { carritoProductoServicio, type CarritoProductoEntidad } from '@/services/carritoProductoServicio'
-import { obtenerEntregasPorUsuario, crearEntrega, type InformacionEntregaEntidad } from '@/services/entregaServicio'
+import {
+  obtenerEntregasPorUsuario,
+  crearEntrega,
+  obtenerDireccionDesdeCoordenadas,
+  type InformacionEntregaEntidad,
+} from '@/services/entregaServicio'
 import { obtenerDatosPagoPorUsuario, crearDatosPago, type DatosDePagoEntidad } from '@/services/datosPagoServicio'
 import { ordenesServicio } from '@/services/ordenesServicio'
 
@@ -39,23 +47,406 @@ const almacenAsignado = ref<string | null>(null)
 
 // New: modals for crear entrega / datos de pago
 const showAddressModal = ref(false)
+const showMapModal = ref(false)
 const showPaymentModal = ref(false)
 const showAddressErrors = ref(false)
+
+const COMUNAS_CHILE = [
+  'Algarrobo',
+  'Alhué',
+  'Alto Biobío',
+  'Alto del Carmen',
+  'Alto Hospicio',
+  'Ancud',
+  'Andacollo',
+  'Angol',
+  'Antofagasta',
+  'Antuco',
+  'Antártica',
+  'Arauco',
+  'Arica',
+  'Aysén',
+  'Buin',
+  'Bulnes',
+  'Cabildo',
+  'Cabo de Hornos',
+  'Cabrero',
+  'Calama',
+  'Calbuco',
+  'Caldera',
+  'Calera de Tango',
+  'Calle Larga',
+  'Camarones',
+  'Camiña',
+  'Canela',
+  'Carahue',
+  'Cartagena',
+  'Casablanca',
+  'Castro',
+  'Catemu',
+  'Cauquenes',
+  'Cañete',
+  'Cerrillos',
+  'Cerro Navia',
+  'Chaitén',
+  'Chanco',
+  'Chañaral',
+  'Chiguayante',
+  'Chile Chico',
+  'Chillán',
+  'Chillán Viejo',
+  'Chimbarongo',
+  'Cholchol',
+  'Chonchi',
+  'Chépica',
+  'Cisnes',
+  'Cobquecura',
+  'Cochamó',
+  'Cochrane',
+  'Codegua',
+  'Coelemu',
+  'Coihueco',
+  'Coinco',
+  'Colbún',
+  'Colchane',
+  'Colina',
+  'Collipulli',
+  'Coltauco',
+  'Combarbalá',
+  'Concepción',
+  'Conchalí',
+  'Concón',
+  'Constitución',
+  'Contulmo',
+  'Copiapó',
+  'Coquimbo',
+  'Coronel',
+  'Corral',
+  'Coyhaique',
+  'Cunco',
+  'Curacautín',
+  'Curacaví',
+  'Curaco de Vélez',
+  'Curanilahue',
+  'Curarrehue',
+  'Curepto',
+  'Curicó',
+  'Dalcahue',
+  'Diego de Almagro',
+  'Doñihue',
+  'El Bosque',
+  'El Carmen',
+  'El Monte',
+  'El Quisco',
+  'El Tabo',
+  'Empedrado',
+  'Ercilla',
+  'Estación Central',
+  'Florida',
+  'Freire',
+  'Freirina',
+  'Fresia',
+  'Frutillar',
+  'Futaleufú',
+  'Futrono',
+  'Galvarino',
+  'General Lagos',
+  'Gorbea',
+  'Graneros',
+  'Guaitecas',
+  'Hijuelas',
+  'Hualaihué',
+  'Hualañé',
+  'Hualpén',
+  'Hualqui',
+  'Huara',
+  'Huasco',
+  'Huechuraba',
+  'Illapel',
+  'Independencia',
+  'Iquique',
+  'Isla de Maipo',
+  'Isla de Pascua',
+  'Juan Fernández',
+  'La Calera',
+  'La Cisterna',
+  'La Cruz',
+  'La Estrella',
+  'La Florida',
+  'La Granja',
+  'La Higuera',
+  'La Ligua',
+  'La Pintana',
+  'La Reina',
+  'La Serena',
+  'La Unión',
+  'Lago Ranco',
+  'Lago Verde',
+  'Laguna Blanca',
+  'Laja',
+  'Lampa',
+  'Lanco',
+  'Las Cabras',
+  'Las Condes',
+  'Lautaro',
+  'Lebu',
+  'Licantén',
+  'Limache',
+  'Linares',
+  'Litueche',
+  'Llaillay',
+  'Llanquihue',
+  'Lo Barnechea',
+  'Lo Espejo',
+  'Lo Prado',
+  'Lolol',
+  'Loncoche',
+  'Longaví',
+  'Lonquimay',
+  'Los Alamos',
+  'Los Andes',
+  'Los Angeles',
+  'Los Lagos',
+  'Los Muermos',
+  'Los Sauces',
+  'Los Vilos',
+  'Lota',
+  'Lumaco',
+  'Machalí',
+  'Macul',
+  'Maipú',
+  'Malloa',
+  'Marchihue',
+  'Mariquina',
+  'María Elena',
+  'María Pinto',
+  'Maule',
+  'Maullín',
+  'Mejillones',
+  'Melipeuco',
+  'Melipilla',
+  'Molina',
+  'Monte Patria',
+  'Mostazal',
+  'Mulchén',
+  'Máfil',
+  'Nacimiento',
+  'Nancagua',
+  'Natales',
+  'Navidad',
+  'Negrete',
+  'Ninhue',
+  'Nogales',
+  'Nueva Imperial',
+  "O'Higgins",
+  'Olivar',
+  'Ollagüe',
+  'Olmué',
+  'Osorno',
+  'Ovalle',
+  'Padre Hurtado',
+  'Padre Las Casas',
+  'Paihuano',
+  'Paillaco',
+  'Paine',
+  'Palena',
+  'Palmilla',
+  'Panguipulli',
+  'Panquehue',
+  'Papudo',
+  'Paredones',
+  'Parral',
+  'Pedro Aguirre Cerda',
+  'Pelarco',
+  'Pelluhue',
+  'Pemuco',
+  'Pencahue',
+  'Penco',
+  'Peralillo',
+  'Perquenco',
+  'Petorca',
+  'Peumo',
+  'Peñaflor',
+  'Peñalolén',
+  'Pica',
+  'Pichidegua',
+  'Pichilemu',
+  'Pinto',
+  'Pirque',
+  'Pitrufquén',
+  'Placilla',
+  'Portezuelo',
+  'Porvenir',
+  'Pozo Almonte',
+  'Primavera',
+  'Providencia',
+  'Puchuncaví',
+  'Pucón',
+  'Pudahuel',
+  'Puente Alto',
+  'Puerto Montt',
+  'Puerto Octay',
+  'Puerto Varas',
+  'Pumanque',
+  'Punitaqui',
+  'Punta Arenas',
+  'Puqueldón',
+  'Purranque',
+  'Purén',
+  'Putaendo',
+  'Putre',
+  'Puyehue',
+  'Queilén',
+  'Quellón',
+  'Quemchi',
+  'Quilaco',
+  'Quilicura',
+  'Quilleco',
+  'Quillota',
+  'Quillón',
+  'Quilpué',
+  'Quinchao',
+  'Quinta de Tilcoco',
+  'Quinta Normal',
+  'Quintero',
+  'Quirihue',
+  'Rancagua',
+  'Rauco',
+  'Recoleta',
+  'Renaico',
+  'Renca',
+  'Rengo',
+  'Requínoa',
+  'Retiro',
+  'Rinconada',
+  'Romeral',
+  'Ránquil',
+  'Río Bueno',
+  'Río Claro',
+  'Río Hurtado',
+  'Río Ibáñez',
+  'Río Negro',
+  'Río Verde',
+  'Saavedra',
+  'Sagrada Familia',
+  'Salamanca',
+  'San Antonio',
+  'San Bernardo',
+  'San Carlos',
+  'San Clemente',
+  'San Esteban',
+  'San Fabián',
+  'San Felipe',
+  'San Fernando',
+  'San Gregorio',
+  'San Ignacio',
+  'San Javier',
+  'San Joaquín',
+  'San José de Maipo',
+  'San Juan de la Costa',
+  'San Miguel',
+  'San Nicolás',
+  'San Pablo',
+  'San Pedro',
+  'San Pedro de Atacama',
+  'San Pedro de la Paz',
+  'San Rafael',
+  'San Ramón',
+  'San Rosendo',
+  'San Vicente',
+  'Santa Bárbara',
+  'Santa Cruz',
+  'Santa Juana',
+  'Santa María',
+  'Santiago',
+  'Santo Domingo',
+  'Sierra Gorda',
+  'Talagante',
+  'Talca',
+  'Talcahuano',
+  'Taltal',
+  'Temuco',
+  'Teno',
+  'Teodoro Schmidt',
+  'Tierra Amarilla',
+  'Tiltil',
+  'Timaukel',
+  'Tirúa',
+  'Tocopilla',
+  'Toltén',
+  'Tomé',
+  'Torres del Paine',
+  'Tortel',
+  'Traiguén',
+  'Treguaco',
+  'Tucapel',
+  'Valdivia',
+  'Vallenar',
+  'Valparaíso',
+  'Vichuquén',
+  'Victoria',
+  'Vicuña',
+  'Vilcún',
+  'Villa Alegre',
+  'Villa Alemana',
+  'Villarrica',
+  'Vitacura',
+  'Viña del Mar',
+  'Yerbas Buenas',
+  'Yumbel',
+  'Yungay',
+  'Zapallar',
+  'Ñiquén',
+  'Ñuñoa',
+] as const
 
 const newAddress = ref<Partial<InformacionEntregaEntidad>>({
   direccion: '',
   numero: '',
   rut_Recibe_Entrega: '',
-  rut_Empresa: '',
   comuna: '',
   latitud: undefined,
-  longitud: undefined
+  longitud: undefined,
 })
+
+const mostrarSugerenciasComuna = ref(false)
+
+const normalizarComuna = (valor: string): string =>
+  valor
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim()
+
+const comunasFiltradas = computed(() => {
+  const texto = normalizarComuna(
+    newAddress.value.comuna ?? '',
+  )
+
+  if (!texto) {
+    return COMUNAS_CHILE
+  }
+
+  return COMUNAS_CHILE.filter((comuna) =>
+    normalizarComuna(comuna).includes(texto),
+  )
+})
+
+const seleccionarComuna = (comuna: string) => {
+  newAddress.value.comuna = comuna
+  mostrarSugerenciasComuna.value = false
+}
+
+const ocultarSugerenciasComuna = () => {
+  window.setTimeout(() => {
+    mostrarSugerenciasComuna.value = false
+  }, 150)
+}
 const newPayment = ref<Partial<DatosDePagoEntidad>>({ metodo_Pago: '', numero_Tarjeta: '', fecha_Expiracion: '' })
 const newPaymentMonth = ref<string>('')
 const newPaymentYear = ref<string>('')
 
-// Autocompletado de lat/lng sin que el usuario tenga que buscarlas manualmente.
+// Autocompletado de coordenadas y dirección mediante geolocalización.
 const obteniendoUbicacion = ref(false)
 
 const usarUbicacionActual = () => {
@@ -63,32 +454,109 @@ const usarUbicacionActual = () => {
     notificar('Tu navegador no soporta geolocalización', 'error')
     return
   }
+
   obteniendoUbicacion.value = true
+
   navigator.geolocation.getCurrentPosition(
-    (position) => {
-      newAddress.value.latitud = Number(position.coords.latitude.toFixed(6))
-      newAddress.value.longitud = Number(position.coords.longitude.toFixed(6))
-      obteniendoUbicacion.value = false
-      notificar('Ubicación detectada correctamente', 'ok')
+    async (position) => {
+      const latitud = Number(position.coords.latitude.toFixed(6))
+      const longitud = Number(position.coords.longitude.toFixed(6))
+
+      newAddress.value.latitud = latitud
+      newAddress.value.longitud = longitud
+
+      try {
+        const direccionDetectada =
+          await obtenerDireccionDesdeCoordenadas(latitud, longitud)
+
+        newAddress.value.direccion = direccionDetectada.direccion
+        newAddress.value.numero = direccionDetectada.numero
+        newAddress.value.comuna =
+          direccionDetectada.comuna.trim()
+
+        if (!newAddress.value.direccion) {
+          notificar(
+            'Se detectaron las coordenadas, pero no fue posible identificar la calle.',
+            'error',
+          )
+        } else if (!newAddress.value.numero) {
+          notificar(
+            'Ubicación detectada. Completa el número de la dirección.',
+            'error',
+          )
+        } else if (!newAddress.value.comuna) {
+          notificar(
+            'Ubicación detectada. Selecciona la comuna correspondiente.',
+            'error',
+          )
+        } else {
+          notificar('Dirección actual completada correctamente', 'ok')
+        }
+      } catch (err) {
+        console.error('Error de geocodificación inversa:', err)
+        notificar(
+          'Se detectaron las coordenadas, pero no fue posible completar la dirección automáticamente.',
+          'error',
+        )
+      } finally {
+        obteniendoUbicacion.value = false
+      }
     },
     (err) => {
       console.error('Error de geolocalización:', err)
       obteniendoUbicacion.value = false
-      notificar('No se pudo obtener tu ubicación. Revisa los permisos del navegador.', 'error')
+      notificar(
+        'No se pudo obtener tu ubicación. Revisa los permisos del navegador.',
+        'error',
+      )
     },
-    { enableHighAccuracy: true, timeout: 8000 },
+    {
+      enableHighAccuracy: true,
+      timeout: 12000,
+      maximumAge: 0,
+    },
   )
 }
 
-// Facilita Google Maps para que el usuario busque la dirección que desea e ingrese manualmente
-const abrirGoogleMaps = () => {
-  const query = [newAddress.value.direccion, newAddress.value.numero, newAddress.value.comuna]
-    .filter(Boolean)
-    .join(' ')
-  const url = query
-    ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`
-    : 'https://www.google.com/maps'
-  window.open(url, '_blank')
+const abrirSelectorMapa = () => {
+  showMapModal.value = true
+}
+
+const aplicarUbicacionSeleccionada = (
+  ubicacion: UbicacionSeleccionada,
+) => {
+  newAddress.value.latitud = ubicacion.latitud
+  newAddress.value.longitud = ubicacion.longitud
+
+  if (ubicacion.direccion) {
+    newAddress.value.direccion = ubicacion.direccion
+  }
+
+  if (ubicacion.numero) {
+    newAddress.value.numero = ubicacion.numero
+  }
+
+  const comunaDetectada = ubicacion.comuna.trim()
+
+  if (comunaDetectada) {
+    newAddress.value.comuna = comunaDetectada
+  }
+
+  showMapModal.value = false
+
+  if (!ubicacion.numero) {
+    notificar(
+      'Ubicación seleccionada. Completa el número de la dirección.',
+      'error',
+    )
+  } else if (!comunaDetectada) {
+    notificar(
+      'Ubicación seleccionada. Selecciona la comuna correspondiente.',
+      'error',
+    )
+  } else {
+    notificar('Ubicación seleccionada correctamente', 'ok')
+  }
 }
 
 const crearNuevaEntrega = async () => {
@@ -103,9 +571,13 @@ if (!authStore.userId) {
     if (
       !newAddress.value.direccion?.trim() ||
       !newAddress.value.numero?.trim() ||
+      !newAddress.value.rut_Recibe_Entrega?.trim() ||
       !newAddress.value.comuna?.trim()
     ) {
-      notificar('Completa dirección, número y comuna', 'error')
+      notificar(
+        'Completa dirección, número, RUT de quien recibe y comuna',
+        'error',
+      )
       return
     }
 
@@ -148,16 +620,18 @@ if (!authStore.userId) {
       direccion: '',
       numero: '',
       rut_Recibe_Entrega: '',
-      rut_Empresa: '',
       comuna: '',
-      latitud: undefined, // Ajustado al tipado de tus compañeros
-      longitud: undefined
+      latitud: undefined,
+      longitud: undefined,
     }
     await cargarCarrito()
     notificar('Dirección guardada', 'ok')
-  } catch (err) {
+  } catch (err: unknown) {
     console.error('Error creando entrega:', err)
-    notificar('No se pudo guardar la dirección', 'error')
+    notificar(
+      extraerMensajeError(err, 'No se pudo guardar la dirección'),
+      'error',
+    )
   }
 }
 
@@ -404,7 +878,9 @@ const solicitarOrden = async () => {
   }
 }
 
-onMounted(cargarCarrito)
+onMounted(async () => {
+  await cargarCarrito()
+})
 </script>
 
 <template>
@@ -539,20 +1015,60 @@ onMounted(cargarCarrito)
       <div class="modal-body">
         <div class="form-grid">
           <label>Dirección</label>
-          <input type="text" v-model="newAddress.direccion" />
-          <label>Número</label>
-          <input type="text" v-model="newAddress.numero" />
-          <label>RUT quien recibe</label>
-          <input type="text" v-model="newAddress.rut_Recibe_Entrega" />
-          <label>RUT empresa</label>
-          <input type="text" v-model="newAddress.rut_Empresa" />
-          <label>Comuna</label>
-
           <input
             type="text"
-            v-model.trim="newAddress.comuna"
-            placeholder="Ejemplo: Providencia"
+            v-model.trim="newAddress.direccion"
+            placeholder="Ejemplo: Av. Providencia"
           />
+
+          <label>Número</label>
+          <input
+            type="text"
+            v-model.trim="newAddress.numero"
+            placeholder="Ejemplo: 1234"
+          />
+
+          <label>RUT quien recibe</label>
+          <input
+            type="text"
+            v-model.trim="newAddress.rut_Recibe_Entrega"
+            placeholder="Ejemplo: 12.345.678-9"
+          />
+
+          <label>Comuna</label>
+          <div class="comuna-autocompletar">
+            <input
+              type="text"
+              v-model.trim="newAddress.comuna"
+              placeholder="Escribe o selecciona una comuna"
+              autocomplete="off"
+              @focus="mostrarSugerenciasComuna = true"
+              @input="mostrarSugerenciasComuna = true"
+              @blur="ocultarSugerenciasComuna"
+            />
+
+            <div
+              v-if="mostrarSugerenciasComuna"
+              class="comuna-sugerencias"
+            >
+              <button
+                v-for="comuna in comunasFiltradas"
+                :key="comuna"
+                type="button"
+                class="comuna-opcion"
+                @mousedown.prevent="seleccionarComuna(comuna)"
+              >
+                {{ comuna }}
+              </button>
+
+              <div
+                v-if="comunasFiltradas.length === 0"
+                class="comuna-sin-resultados"
+              >
+                No se encontraron comunas
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="form-grid" style="margin-top: 10px;">
@@ -590,21 +1106,55 @@ onMounted(cargarCarrito)
         <!-- Botones liberados de la grilla -->
         <div class="coordenadas-acciones">
           <button type="button" class="btn-ubicacion" :disabled="obteniendoUbicacion" @click="usarUbicacionActual">
-            📍 {{ obteniendoUbicacion ? 'Obteniendo ubicación...' : 'Usar mi ubicación actual' }}
+            📍 {{ obteniendoUbicacion ? 'Ubicando y completando...' : 'Usar mi ubicación actual' }}
           </button>
-          <button type="button" class="btn-link" @click="abrirGoogleMaps">
-            🗺️ Buscar en Google Maps
+          <button type="button" class="btn-link" @click="abrirSelectorMapa">
+            🗺️ Seleccionar en mapa
           </button>
         </div>
         
         <p class="ayuda-coordenadas">
-          Tip: en Google Maps, haz clic derecho sobre el punto exacto y copia las
-          dos coordenadas que aparecen arriba del menú.
+          La ubicación actual completa automáticamente la calle, el número
+          cuando está disponible, la comuna y las coordenadas. El RUT de quien
+          recibe debe ingresarse manualmente.
         </p>
       </div>
       <div class="modal-actions">
         <button class="btn-link" @click="showAddressModal = false; showAddressErrors = false">Cancelar</button>
         <button class="btn-solid" @click="crearNuevaEntrega">Guardar dirección</button>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- Modal: Seleccionar ubicación en mapa -->
+  <div
+    v-if="showMapModal"
+    class="modal-overlay modal-mapa-overlay"
+    @click.self="showMapModal = false"
+  >
+    <div
+      class="modal-box modal-mapa"
+      role="dialog"
+      aria-modal="true"
+    >
+      <div class="modal-header">
+        <h3 class="modal-title">Seleccionar ubicación</h3>
+        <button
+          class="modal-close"
+          @click="showMapModal = false"
+        >
+          ×
+        </button>
+      </div>
+
+      <div class="modal-body">
+        <SelectorUbicacion
+          :latitud-inicial="newAddress.latitud"
+          :longitud-inicial="newAddress.longitud"
+          @seleccionar="aplicarUbicacionSeleccionada"
+          @cancelar="showMapModal = false"
+        />
       </div>
     </div>
   </div>
@@ -770,6 +1320,47 @@ onMounted(cargarCarrito)
 }
 .form-grid input[type="month"] { padding: 8px 10px; }
 
+.comuna-autocompletar {
+  position: relative;
+  width: 100%;
+}
+
+.comuna-sugerencias {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 360;
+  max-height: 180px;
+  overflow-y: auto;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
+}
+
+.comuna-opcion {
+  display: block;
+  width: 100%;
+  padding: 9px 11px;
+  border: none;
+  border-bottom: 1px solid #f0f0f0;
+  background: #fff;
+  color: #222;
+  text-align: left;
+  cursor: pointer;
+}
+
+.comuna-opcion:hover {
+  background: #eef7ff;
+}
+
+.comuna-sin-resultados {
+  padding: 10px 11px;
+  color: #777;
+  font-size: 0.8rem;
+}
+
 /* Clases para pintar de rojo y mostrar el texto */
 .input-rojo {
   border-color: #b00020 !important;
@@ -783,6 +1374,16 @@ onMounted(cargarCarrito)
 }
 
 .modal-box .modal-title { font-size: 1.05rem; }
+
+.modal-mapa-overlay {
+  z-index: 320;
+}
+.modal-mapa {
+  width: 650px;
+  max-width: 94vw;
+  max-height: 92vh;
+  overflow-y: auto;
+}
 
 @media (max-width: 600px) {
   .form-grid { grid-template-columns: 1fr; }

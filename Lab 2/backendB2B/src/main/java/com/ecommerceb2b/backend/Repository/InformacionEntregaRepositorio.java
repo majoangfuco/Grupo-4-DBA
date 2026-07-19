@@ -17,96 +17,177 @@ public class InformacionEntregaRepositorio {
         this.jdbc = jdbc;
     }
 
-    // Columnas base + coordenadas extraídas de la geometría.
     private static final String SELECT_COLUMNAS = """
-            SELECT info_entrega_id, usuario_usuario, orden_orden_id, direccion, numero,
-                   rut_recibe_entrega, rut_empresa, comuna,
-                   ST_X(ubicacion) AS longitud, ST_Y(ubicacion) AS latitud
+            SELECT info_entrega_id, usuario_usuario, orden_orden_id,
+                   direccion, numero, rut_recibe_entrega, rut_empresa,
+                   estado_entrega, activa, comuna,
+                   ST_X(ubicacion) AS longitud,
+                   ST_Y(ubicacion) AS latitud
             FROM informacion_entrega_entidad
             """;
 
     private final RowMapper<InformacionEntregaEntidad> rowMapper = (rs, rowNum) -> {
-        InformacionEntregaEntidad e = new InformacionEntregaEntidad();
-        e.setInfo_Entrega_ID(rs.getLong("info_entrega_id"));
-        e.setUsuarioId(rs.getLong("usuario_usuario"));
-        e.setOrdenId(rs.getLong("orden_orden_id"));
-        e.setDireccion(rs.getString("direccion"));
-        e.setNumero(rs.getString("numero"));
-        e.setRut_Recibe_Entrega(rs.getString("rut_recibe_entrega"));
-        e.setRut_Empresa(rs.getString("rut_empresa"));
-        e.setEstado_Entrega(null);
-        e.setActiva(true);
-        e.setComuna(rs.getString("comuna"));
+        InformacionEntregaEntidad entrega = new InformacionEntregaEntidad();
+
+        entrega.setInfo_Entrega_ID(rs.getLong("info_entrega_id"));
+        entrega.setUsuarioId(rs.getLong("usuario_usuario"));
+
+        long ordenId = rs.getLong("orden_orden_id");
+        entrega.setOrdenId(rs.wasNull() ? null : ordenId);
+
+        entrega.setDireccion(rs.getString("direccion"));
+        entrega.setNumero(rs.getString("numero"));
+        entrega.setRut_Recibe_Entrega(rs.getString("rut_recibe_entrega"));
+        entrega.setRut_Empresa(rs.getString("rut_empresa"));
+        entrega.setEstado_Entrega(rs.getString("estado_entrega"));
+
+        boolean activa = rs.getBoolean("activa");
+        entrega.setActiva(rs.wasNull() ? null : activa);
+
+        entrega.setComuna(rs.getString("comuna"));
 
         double longitud = rs.getDouble("longitud");
-        e.setLongitud(rs.wasNull() ? null : longitud);
-        double latitud = rs.getDouble("latitud");
-        e.setLatitud(rs.wasNull() ? null : latitud);
+        entrega.setLongitud(rs.wasNull() ? null : longitud);
 
-        return e;
+        double latitud = rs.getDouble("latitud");
+        entrega.setLatitud(rs.wasNull() ? null : latitud);
+
+        return entrega;
     };
 
     public List<InformacionEntregaEntidad> findAllActivas() {
-        return jdbc.query(SELECT_COLUMNAS, rowMapper);
+        return jdbc.query(
+                SELECT_COLUMNAS + " WHERE activa = TRUE ORDER BY info_entrega_id",
+                rowMapper
+        );
     }
 
     public Optional<InformacionEntregaEntidad> findById(Long id) {
         List<InformacionEntregaEntidad> result = jdbc.query(
                 SELECT_COLUMNAS + " WHERE info_entrega_id = ?",
-                rowMapper, id
+                rowMapper,
+                id
         );
         return result.stream().findFirst();
     }
 
     public List<InformacionEntregaEntidad> findByUsuarioId(Long usuarioId) {
         return jdbc.query(
-                SELECT_COLUMNAS + " WHERE usuario_usuario = ?",
-                rowMapper, usuarioId
+                SELECT_COLUMNAS
+                        + " WHERE usuario_usuario = ? AND activa = TRUE "
+                        + "ORDER BY info_entrega_id",
+                rowMapper,
+                usuarioId
         );
     }
 
-    public int save(InformacionEntregaEntidad e) {
-        // ST_MakePoint es STRICT: si longitud o latitud vienen null,
-        // el resultado es null y "ubicacion" queda sin coordenadas.
+    public List<String> findComunasDisponibles() {
+        return jdbc.query(
+                "SELECT nombre FROM comuna_entidad ORDER BY nombre",
+                (rs, rowNum) -> rs.getString("nombre")
+        );
+    }
+
+    public boolean estaDentroCobertura(Double longitud, Double latitud) {
+        Boolean resultado = jdbc.queryForObject(
+                """
+                SELECT EXISTS (
+                    SELECT 1
+                    FROM zona_cobertura_entidad z
+                    WHERE z.activa = TRUE
+                      AND ST_Covers(
+                          z.geom,
+                          ST_SetSRID(ST_MakePoint(?, ?), 4326)
+                      )
+                )
+                """,
+                Boolean.class,
+                longitud,
+                latitud
+        );
+
+        return Boolean.TRUE.equals(resultado);
+    }
+
+    public int save(InformacionEntregaEntidad entrega) {
         return jdbc.update(
                 """
-                INSERT INTO informacion_entrega_entidad
-                    (usuario_usuario, orden_orden_id, direccion, numero,
-                     rut_recibe_entrega, rut_empresa, comuna, ubicacion)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ST_SetSRID(ST_MakePoint(?, ?), 4326))
+                INSERT INTO informacion_entrega_entidad (
+                    usuario_usuario,
+                    orden_orden_id,
+                    direccion,
+                    numero,
+                    rut_recibe_entrega,
+                    rut_empresa,
+                    estado_entrega,
+                    activa,
+                    comuna,
+                    ubicacion
+                )
+                VALUES (
+                    ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                    ST_SetSRID(ST_MakePoint(?, ?), 4326)
+                )
                 """,
-                e.getUsuarioId(), e.getOrdenId(), e.getDireccion(), e.getNumero(),
-                e.getRut_Recibe_Entrega(), e.getRut_Empresa(), e.getComuna(),
-                e.getLongitud(), e.getLatitud()
+                entrega.getUsuarioId(),
+                entrega.getOrdenId(),
+                entrega.getDireccion(),
+                entrega.getNumero(),
+                entrega.getRut_Recibe_Entrega(),
+                entrega.getRut_Empresa(),
+                entrega.getEstado_Entrega(),
+                entrega.getActiva(),
+                entrega.getComuna(),
+                entrega.getLongitud(),
+                entrega.getLatitud()
         );
     }
 
-    public int update(InformacionEntregaEntidad e) {
+    public int update(InformacionEntregaEntidad entrega) {
         return jdbc.update(
                 """
                 UPDATE informacion_entrega_entidad
-                SET direccion = ?, numero = ?, rut_recibe_entrega = ?,
-                    rut_empresa = ?, comuna = ?,
+                SET direccion = ?,
+                    numero = ?,
+                    rut_recibe_entrega = ?,
+                    rut_empresa = ?,
+                    estado_entrega = ?,
+                    activa = ?,
+                    comuna = ?,
                     ubicacion = ST_SetSRID(ST_MakePoint(?, ?), 4326)
                 WHERE info_entrega_id = ?
                 """,
-                e.getDireccion(), e.getNumero(), e.getRut_Recibe_Entrega(),
-                e.getRut_Empresa(), e.getComuna(), e.getLongitud(), e.getLatitud(),
-                e.getInfo_Entrega_ID()
+                entrega.getDireccion(),
+                entrega.getNumero(),
+                entrega.getRut_Recibe_Entrega(),
+                entrega.getRut_Empresa(),
+                entrega.getEstado_Entrega(),
+                entrega.getActiva(),
+                entrega.getComuna(),
+                entrega.getLongitud(),
+                entrega.getLatitud(),
+                entrega.getInfo_Entrega_ID()
         );
     }
 
     public int softDelete(Long id) {
         return jdbc.update(
-                "DELETE FROM informacion_entrega_entidad WHERE info_entrega_id = ?",
+                """
+                UPDATE informacion_entrega_entidad
+                SET activa = FALSE
+                WHERE info_entrega_id = ?
+                """,
                 id
         );
     }
 
-    // Devuelve la ubicación como formatos geoespaciales como GeoJSON.
     public Optional<String> findUbicacionGeoJson(Long id) {
         List<String> result = jdbc.query(
-                "SELECT ST_AsGeoJSON(ubicacion) AS geojson FROM informacion_entrega_entidad WHERE info_entrega_id = ?",
+                """
+                SELECT ST_AsGeoJSON(ubicacion) AS geojson
+                FROM informacion_entrega_entidad
+                WHERE info_entrega_id = ?
+                """,
                 (rs, rowNum) -> rs.getString("geojson"),
                 id
         );
@@ -117,22 +198,28 @@ public class InformacionEntregaRepositorio {
         String sql = """
                 SELECT json_build_object(
                     'type', 'FeatureCollection',
-                    'features', COALESCE(json_agg(
-                        json_build_object(
-                            'type', 'Feature',
-                            'geometry', ST_AsGeoJSON(ubicacion)::json,
-                            'properties', json_build_object(
-                                'info_entrega_id', info_entrega_id,
-                                'direccion', direccion,
-                                'usuario_id', usuario_usuario,
-                                'rut_empresa', rut_empresa
+                    'features', COALESCE(
+                        json_agg(
+                            json_build_object(
+                                'type', 'Feature',
+                                'geometry', ST_AsGeoJSON(ubicacion)::json,
+                                'properties', json_build_object(
+                                    'info_entrega_id', info_entrega_id,
+                                    'direccion', direccion,
+                                    'numero', numero,
+                                    'comuna', comuna,
+                                    'usuario_id', usuario_usuario
+                                )
                             )
-                        )
-                    ), '[]')
+                        ),
+                        '[]'::json
+                    )
                 )::text AS geojson
                 FROM informacion_entrega_entidad
-                WHERE activa = TRUE AND ubicacion IS NOT NULL
+                WHERE activa = TRUE
+                  AND ubicacion IS NOT NULL
                 """;
+
         return jdbc.queryForObject(sql, String.class);
     }
 }

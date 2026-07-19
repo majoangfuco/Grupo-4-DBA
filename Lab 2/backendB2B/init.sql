@@ -2080,6 +2080,48 @@ CREATE TRIGGER asignar_comuna_id
     BEFORE INSERT OR UPDATE OF ubicacion ON informacion_entrega_entidad
     FOR EACH ROW EXECUTE FUNCTION trg_asignar_comuna_id();
 
+
+-- ============================================================
+-- VALIDACIÓN DE COBERTURA AL CREAR O EDITAR UNA DIRECCIÓN
+-- ============================================================
+-- Se define después de cargar los datos iniciales porque los INSERT de
+-- prueba crean primero la dirección y luego asignan su geometría.
+-- Desde este punto, toda dirección nueva debe incluir una ubicación válida
+-- dentro de una zona de cobertura activa.
+
+CREATE OR REPLACE FUNCTION trg_validar_cobertura_direccion()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.ubicacion IS NULL THEN
+        RAISE EXCEPTION
+            'No se puede guardar la dirección sin coordenadas geográficas';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM zona_cobertura_entidad z
+        WHERE z.activa = TRUE
+          AND ST_Covers(z.geom, NEW.ubicacion)
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede guardar la dirección: está fuera del área de cobertura';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS validar_cobertura_direccion
+ON informacion_entrega_entidad;
+
+CREATE TRIGGER validar_cobertura_direccion
+    BEFORE INSERT OR UPDATE OF ubicacion
+    ON informacion_entrega_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_validar_cobertura_direccion();
+
 -- 3) FK nullable: impide asociar a futuro una comuna que no sea una de las 52.
 ALTER TABLE informacion_entrega_entidad
     DROP CONSTRAINT IF EXISTS fk_informacion_entrega_comuna;
@@ -2177,6 +2219,47 @@ CROSS JOIN terciles t;
 
 CREATE UNIQUE INDEX idx_ventas_por_distrito_id   ON ventas_por_distrito (distrito_postal);
 CREATE INDEX        idx_ventas_por_distrito_geom ON ventas_por_distrito USING GIST (geom_union);
+
+-- ============================================================
+-- VALIDACIÓN DE COBERTURA AL CREAR O EDITAR UNA DIRECCIÓN
+-- ============================================================
+-- Se define después de cargar los datos iniciales porque los INSERT de
+-- prueba crean primero la dirección y luego asignan su geometría.
+-- Desde este punto, toda dirección nueva debe incluir una ubicación válida
+-- dentro de una zona de cobertura activa.
+
+CREATE OR REPLACE FUNCTION trg_validar_cobertura_direccion()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.ubicacion IS NULL THEN
+        RAISE EXCEPTION
+            'No se puede guardar la dirección sin coordenadas geográficas';
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1
+        FROM zona_cobertura_entidad z
+        WHERE z.activa = TRUE
+          AND ST_Covers(z.geom, NEW.ubicacion)
+    ) THEN
+        RAISE EXCEPTION
+            'No se puede guardar la dirección: está fuera del área de cobertura';
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS validar_cobertura_direccion
+ON informacion_entrega_entidad;
+
+CREATE TRIGGER validar_cobertura_direccion
+    BEFORE INSERT OR UPDATE OF ubicacion
+    ON informacion_entrega_entidad
+    FOR EACH ROW
+    EXECUTE FUNCTION trg_validar_cobertura_direccion();
 
 -- ── Refresco ────────────────────────────────────────────────
 -- Orden importa: ventas_por_distrito depende de ventas_por_comuna.
