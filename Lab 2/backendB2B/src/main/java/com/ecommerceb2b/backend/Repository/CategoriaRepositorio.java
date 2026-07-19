@@ -22,6 +22,7 @@ public class CategoriaRepositorio {
 		c.setCategoria_ID(rs.getInt("categoria_id"));
 		c.setNombre_Categoria(rs.getString("nombre_categoria"));
 		c.setEstado_Categoria(rs.getBoolean("estado_categoria"));
+		c.setRestringida_Zona_Residencial(rs.getBoolean("restringida_zona_residencial"));
 		return c;
 	};
 
@@ -87,5 +88,26 @@ public class CategoriaRepositorio {
 			""";
 		String patron = "%" + nombre + "%";
 		return jdbcTemplate.query(sql, rowMapper, patron);
+	}
+
+	public int actualizarRestringidaZonaResidencial(Long id, boolean restringida) {
+		String sql = """
+			UPDATE categoria_entidad
+			SET restringida_zona_residencial = ?
+			WHERE categoria_id = ?
+			""";
+		return jdbcTemplate.update(sql, restringida, id);
+	}
+
+	// Categorías activas marcadas como restringidas en zona residencial —
+	// usado por la verificación de dirección (Parte 4) para listar qué
+	// categorías quedarían bloqueadas si el punto cae en una zona protegida.
+	public List<CategoriaEntidad> listarRestringidasZonaResidencial() {
+		String sql = """
+			SELECT * FROM categoria_entidad
+			WHERE restringida_zona_residencial = true
+			  AND estado_categoria = true
+			""";
+		return jdbcTemplate.query(sql, rowMapper);
 	}
 }

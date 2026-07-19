@@ -25,6 +25,9 @@ const creando = ref(false)
 const editandoId = ref<number | null>(null)
 const nombreEditado = ref('')
 
+// Toggle de restringida_zona_residencial
+const actualizandoRestriccionId = ref<number | null>(null)
+
 const cargarCategorias = async () => {
   cargando.value = true
   error.value = ''
@@ -97,6 +100,20 @@ const eliminar = async (cat: CategoriaEntidad) => {
   }
 }
 
+const toggleRestringida = async (cat: CategoriaEntidad) => {
+  error.value = ''
+  const nuevoValor = !cat.restringida_Zona_Residencial
+  actualizandoRestriccionId.value = cat.categoria_ID
+  try {
+    await categoriaServicio.actualizarRestringidaZonaResidencial(cat.categoria_ID, nuevoValor)
+    cat.restringida_Zona_Residencial = nuevoValor
+  } catch (err: unknown) {
+    error.value = extraerError(err, 'No se pudo actualizar la restricción de zona residencial.')
+  } finally {
+    actualizandoRestriccionId.value = null
+  }
+}
+
 const extraerError = (err: unknown, fallback: string): string => {
   const e = err as { response?: { data?: unknown } }
   const data = e.response?.data
@@ -153,10 +170,21 @@ onMounted(cargarCategorias)
 
         <!-- Modo lectura -->
         <template v-else>
-          <span class="nombre">
-            {{ cat.nombre_Categoria }}
-            <span v-if="!cat.estado_Categoria" class="badge-inactiva">inactiva</span>
-          </span>
+          <div class="info">
+            <span class="nombre">
+              {{ cat.nombre_Categoria }}
+              <span v-if="!cat.estado_Categoria" class="badge-inactiva">inactiva</span>
+            </span>
+            <label class="chk-restringida" title="Bloquea esta categoría en zonas residenciales protegidas">
+              <input
+                type="checkbox"
+                :checked="cat.restringida_Zona_Residencial"
+                :disabled="actualizandoRestriccionId === cat.categoria_ID"
+                @change="toggleRestringida(cat)"
+              />
+              Restringida en zona residencial
+            </label>
+          </div>
           <div class="acciones">
             <button class="btn-mini btn-editar" @click="empezarEdicion(cat)">Editar</button>
             <button
@@ -190,8 +218,11 @@ onMounted(cargarCategorias)
 .estado { color: #888; font-style: italic; text-align: center; padding: 16px 0; }
 .item { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 12px; border: 1px solid #eee; border-radius: 8px; }
 .item.inactiva { background: #f7f7f7; }
+.info { display: flex; flex-direction: column; gap: 4px; }
 .nombre { font-size: 0.92rem; color: #333; }
 .badge-inactiva { font-size: 0.72rem; color: #a33; background: #fdecec; border-radius: 10px; padding: 2px 8px; margin-left: 8px; }
+.chk-restringida { display: flex; align-items: center; gap: 5px; font-size: 0.76rem; color: #5b21b6; cursor: pointer; }
+.chk-restringida input { cursor: pointer; }
 .entrada-edicion { flex: 1; }
 
 .acciones { display: flex; gap: 6px; }

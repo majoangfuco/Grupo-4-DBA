@@ -115,6 +115,18 @@ public class CategoriaServicio {
 		return categoriaRepositorio.buscarPorNombre(nombre.trim());
 	}
 
+	// Entradas: idCategoria, restringida
+	// Salida: void
+	// Descripcion: togglea el flag restringida_zona_residencial de una categoria.
+	@Transactional
+	public void actualizarRestringidaZonaResidencial(Long idCategoria, boolean restringida) {
+		obtenerCategoriaPorId(idCategoria);
+		int filasAfectadas = categoriaRepositorio.actualizarRestringidaZonaResidencial(idCategoria, restringida);
+		if (filasAfectadas == 0) {
+			throw new IllegalStateException("No se pudo actualizar la categoria: " + idCategoria);
+		}
+	}
+
 	private void validarCategoria(CategoriaEntidad categoria) {
 		if (categoria == null) {
 			throw new IllegalArgumentException("La categoria es obligatoria");

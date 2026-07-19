@@ -16,4 +16,6 @@ public class CategoriaEntidad {
     private String nombre_Categoria;
 
     private boolean estado_Categoria;
+
+    private boolean restringida_Zona_Residencial;
 }

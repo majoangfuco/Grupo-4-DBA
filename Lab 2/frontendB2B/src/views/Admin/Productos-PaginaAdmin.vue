@@ -162,10 +162,10 @@ onMounted(cargarProductos)
       <h1 class="titulo-pagina">Gestión de productos</h1>
       <div class="botones-acciones">
         <button class="btn-categorias" @click="modalCategoriasAbierto = true">
-          🏷️ Gestionar Categorías
+          Gestionar Categorías
         </button>
         <button class="btn-descuentos" @click="modalDescuentoAbierto = true">
-          💰 Aplicar Descuento
+          Aplicar Descuento
         </button>
         <button class="btn-agregar" @click="modalAbierto = true">
           + Agregar Nuevo Producto
