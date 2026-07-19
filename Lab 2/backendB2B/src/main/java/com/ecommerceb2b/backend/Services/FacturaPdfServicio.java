@@ -99,7 +99,9 @@ public class FacturaPdfServicio {
             ? new SimpleDateFormat("dd/MM/yyyy HH:mm").format(factura.getFecha_Emision())
             : "—";
 
-        agregarParInfoGeneral(tabla, "ID Cliente:", String.valueOf(factura.getUsuarioId()), fLabel, fValor);
+        String rutEmpresa = factura.getRut_Empresa() != null && !factura.getRut_Empresa().isBlank()
+            ? factura.getRut_Empresa() : "—";
+        agregarParInfoGeneral(tabla, "RUT Empresa:", rutEmpresa, fLabel, fValor);
         agregarParInfoGeneral(tabla, "N° Orden:", String.valueOf(factura.getOrdenId()), fLabel, fValor);
         agregarParInfoGeneral(tabla, "Fecha de emisión:", fechaFormateada, fLabel, fValor);
         agregarParInfoGeneral(tabla, "Estado:", "EMITIDA", fLabel, fValor);
@@ -211,10 +213,13 @@ public class FacturaPdfServicio {
         Font fTotalLabel = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Color.WHITE);
         Font fTotalValor = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, Color.WHITE);
 
+        float costoEnvio = factura.getCosto_Envio() != null ? factura.getCosto_Envio() : 0f;
         agregarFilaTotales(tablaTotales, "Total Neto:", formatearMoneda(factura.getTotal_Neto()),
             fLabel, fValor, Color.WHITE);
-        agregarFilaTotales(tablaTotales, "IVA (19%):", formatearMoneda(factura.getIva()),
+        agregarFilaTotales(tablaTotales, "Envío:", formatearMoneda(costoEnvio),
             fLabel, fValor, COLOR_FILA_PAR);
+        agregarFilaTotales(tablaTotales, "IVA (19%):", formatearMoneda(factura.getIva()),
+            fLabel, fValor, Color.WHITE);
         agregarFilaTotales(tablaTotales, "TOTAL A PAGAR:", formatearMoneda(factura.getPrecio_Total()),
             fTotalLabel, fTotalValor, COLOR_PRIMARIO);
 

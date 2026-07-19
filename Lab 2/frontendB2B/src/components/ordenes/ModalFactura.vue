@@ -112,6 +112,10 @@ const formatearFecha = (fecha: string) => {
                 <span class="valor destacado">{{ factura.factura_ID }}</span>
               </div>
               <div class="info-item">
+                <span class="etiqueta">RUT Empresa:</span>
+                <span class="valor">{{ factura.rut_Empresa || '—' }}</span>
+              </div>
+              <div class="info-item">
                 <span class="etiqueta">Fecha de Emisión:</span>
                 <span class="valor">{{ formatearFecha(factura.fecha_Emision) }}</span>
               </div>
@@ -151,6 +155,10 @@ const formatearFecha = (fecha: string) => {
               <div class="resumen-fila">
                 <span>Total Neto:</span>
                 <span>{{ formatearMoneda(factura.total_Neto) }}</span>
+              </div>
+              <div class="resumen-fila">
+                <span>Envío:</span>
+                <span>{{ formatearMoneda(factura.costo_Envio || 0) }}</span>
               </div>
               <div class="resumen-fila">
                 <span>IVA (19%):</span>

@@ -20,5 +20,7 @@ public class FacturaEntidad {
     private Date fecha_Emision;
     private Float total_Neto;
     private Float iva;
+    private Float costo_Envio;
+    private String rut_Empresa;
     private List<CarritoProductoEntidad> items;
 }

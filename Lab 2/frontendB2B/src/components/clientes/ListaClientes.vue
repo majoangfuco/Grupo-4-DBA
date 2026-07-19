@@ -11,7 +11,7 @@ interface Cliente {
   nombre_Usuario: string
   correo: string
   rut_Empresa: string
-  ultima_Compra: string | null
+  ultima_Compra: string | number | null
   ordenes_Pendiente: number
   ordenes_Aprobada: number
   ordenes_Cancelada: number

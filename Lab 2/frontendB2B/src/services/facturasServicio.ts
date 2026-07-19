@@ -13,11 +13,13 @@ export interface ItemFactura {
 export interface Factura {
   factura_ID: number
   usuarioId: number
+  rut_Empresa: string | null
   ordenId: number
   precio_Total: number
   fecha_Emision: string
   total_Neto: number
   iva: number
+  costo_Envio: number
   items: ItemFactura[]
 }
 

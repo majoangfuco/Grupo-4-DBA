@@ -1,10 +1,13 @@
 package com.ecommerceb2b.backend.Controllers;
 
 import com.ecommerceb2b.backend.Entities.AlmacenEntidad;
+import com.ecommerceb2b.backend.Entities.StockAlmacenProductoDto;
 import com.ecommerceb2b.backend.Repository.AlmacenRepositorio;
+import com.ecommerceb2b.backend.Repository.StockAlmacenRepositorio;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -16,9 +19,12 @@ import java.util.Map;
 public class AlmacenControlador {
 
     private final AlmacenRepositorio almacenRepositorio;
+    private final StockAlmacenRepositorio stockAlmacenRepositorio;
 
-    public AlmacenControlador(AlmacenRepositorio almacenRepositorio) {
+    public AlmacenControlador(AlmacenRepositorio almacenRepositorio,
+                              StockAlmacenRepositorio stockAlmacenRepositorio) {
         this.almacenRepositorio = almacenRepositorio;
+        this.stockAlmacenRepositorio = stockAlmacenRepositorio;
     }
 
     // Listado normal (para tablas/administración)
@@ -67,5 +73,60 @@ public class AlmacenControlador {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Almacén no encontrado"));
         }
         return ResponseEntity.ok(Map.of("mensaje", "Almacén eliminado exitosamente"));
+    }
+
+    // ── Stock por almacén ──────────────────────────────────────────────────────
+
+    // Lista los productos con el stock que tienen en este almacén.
+    @GetMapping("/{id}/stock")
+    public ResponseEntity<?> listarStock(@PathVariable Long id) {
+        if (!stockAlmacenRepositorio.existeAlmacen(id)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Almacén no encontrado"));
+        }
+        List<StockAlmacenProductoDto> stock = stockAlmacenRepositorio.listarPorAlmacen(id);
+        return ResponseEntity.ok(stock);
+    }
+
+    // Fija el stock de un producto en este almacén y recalcula el stock global
+    // del producto (invariante: stock_global = SUMA de stock por almacén).
+    @PutMapping("/{id}/stock")
+    @Transactional
+    public ResponseEntity<Map<String, Object>> actualizarStock(
+            @PathVariable Long id,
+            @RequestBody StockAlmacenProductoDto body) {
+
+        if (!stockAlmacenRepositorio.existeAlmacen(id)) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Almacén no encontrado"));
+        }
+        if (body.getProductoId() == null || !stockAlmacenRepositorio.existeProducto(body.getProductoId())) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", "Producto no encontrado"));
+        }
+        Integer nuevoStock = body.getStockDisponible();
+        if (nuevoStock == null || nuevoStock < 0) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST)
+                    .body(Map.of("error", "El stock disponible debe ser un número mayor o igual a 0"));
+        }
+
+        // Verifica que el nuevo stock global no quede por debajo de lo ya reservado.
+        int stockOtros = stockAlmacenRepositorio.sumarStockOtrosAlmacenes(id, body.getProductoId());
+        int nuevoGlobal = stockOtros + nuevoStock;
+        int reservado = stockAlmacenRepositorio.obtenerStockReservado(body.getProductoId());
+        if (nuevoGlobal < reservado) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                    "error", "El stock resultante (" + nuevoGlobal
+                            + ") es menor al stock reservado (" + reservado + ") del producto"
+            ));
+        }
+
+        stockAlmacenRepositorio.upsertStock(id, body.getProductoId(), nuevoStock);
+        stockAlmacenRepositorio.recalcularStockGlobal(body.getProductoId());
+
+        return ResponseEntity.ok(Map.of(
+                "mensaje", "Stock actualizado exitosamente",
+                "almacen_id", id,
+                "producto_id", body.getProductoId(),
+                "stock_disponible", nuevoStock,
+                "stock_global", nuevoGlobal
+        ));
     }
 }

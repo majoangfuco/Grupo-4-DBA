@@ -23,17 +23,20 @@ public class OrdenesServicio {
     private final CarritoProductoServicio carritoProductoServicio;
     private final DatosDePagoServicio datosDePagoServicio;
     private final FacturaServicio facturaServicio;
+    private final com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio;
 
     public OrdenesServicio(OrdenesRepositorio ordenesRepositorio,
                            CarritoServicio carritoServicio,
                            CarritoProductoServicio carritoProductoServicio,
                            DatosDePagoServicio datosDePagoServicio,
-                           FacturaServicio facturaServicio) {
+                           FacturaServicio facturaServicio,
+                           com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio) {
         this.ordenesRepositorio = ordenesRepositorio;
         this.carritoServicio = carritoServicio;
         this.carritoProductoServicio = carritoProductoServicio;
         this.datosDePagoServicio = datosDePagoServicio;
         this.facturaServicio = facturaServicio;
+        this.configuracionEnvioRepositorio = configuracionEnvioRepositorio;
     }
 
 
@@ -224,8 +227,17 @@ public class OrdenesServicio {
             return;
         }
 
-        float precioTotal = subtotal.floatValue();
-        float totalNeto = subtotal.divide(BigDecimal.valueOf(1.19), 2, RoundingMode.HALF_UP).floatValue();
+        // Tarifa de envío: valor por km (config global) * distancia de la orden.
+        BigDecimal valorKm = BigDecimal.valueOf(
+                configuracionEnvioRepositorio.obtener().getValorKm() != null
+                        ? configuracionEnvioRepositorio.obtener().getValorKm() : 0.0);
+        BigDecimal distanciaKm = orden.getDistancia_envio_km() != null
+                ? BigDecimal.valueOf(orden.getDistancia_envio_km()) : BigDecimal.ZERO;
+        BigDecimal costoEnvio = valorKm.multiply(distanciaKm).setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal total = subtotal.add(costoEnvio);
+        float precioTotal = total.floatValue();
+        float totalNeto = total.divide(BigDecimal.valueOf(1.19), 2, RoundingMode.HALF_UP).floatValue();
         float iva = precioTotal - totalNeto;
 
         FacturaEntidad factura = new FacturaEntidad();
@@ -234,6 +246,7 @@ public class OrdenesServicio {
         factura.setPrecio_Total(precioTotal);
         factura.setTotal_Neto(totalNeto);
         factura.setIva(iva);
+        factura.setCosto_Envio(costoEnvio.floatValue());
         factura.setFecha_Emision(new Date());
 
         var pagos = datosDePagoServicio.obtenerPorUsuario(orden.getUsuario_ID());

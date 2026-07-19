@@ -22,6 +22,13 @@ public class FacturaRepositorio {
         this.jdbc = jdbc;
     }
 
+    // Se une con usuario_entidad para exponer el RUT de la empresa en la factura.
+    private static final String SELECT_BASE = """
+            SELECT f.*, u.rut_empresa
+            FROM factura_entidad f
+            JOIN usuario_entidad u ON u.usuario_id = f.usuario_usuario
+            """;
+
     private final RowMapper<FacturaEntidad> rowMapper = (rs, rowNum) -> {
         FacturaEntidad f = new FacturaEntidad();
         f.setFactura_ID(rs.getLong("factura_id"));
@@ -31,6 +38,8 @@ public class FacturaRepositorio {
         f.setFecha_Emision(rs.getTimestamp("fecha_emision"));
         f.setTotal_Neto(rs.getFloat("total_neto"));
         f.setIva(rs.getFloat("iva"));
+        f.setCosto_Envio(rs.getFloat("costo_envio"));
+        f.setRut_Empresa(rs.getString("rut_empresa"));
         long datosPagoId = rs.getLong("datos_pago_id");
         if (!rs.wasNull()) {
             f.setDatos_Pago_ID(datosPagoId);
@@ -39,12 +48,12 @@ public class FacturaRepositorio {
     };
 
     public List<FacturaEntidad> findAll() {
-        return jdbc.query("SELECT * FROM factura_entidad", rowMapper);
+        return jdbc.query(SELECT_BASE, rowMapper);
     }
 
     public Optional<FacturaEntidad> findById(Long id) {
         List<FacturaEntidad> result = jdbc.query(
-                "SELECT * FROM factura_entidad WHERE factura_id = ?",
+                SELECT_BASE + " WHERE f.factura_id = ?",
                 rowMapper, id
         );
         return result.stream().findFirst();
@@ -52,21 +61,21 @@ public class FacturaRepositorio {
 
     public List<FacturaEntidad> findByUsuarioId(Long usuarioId) {
         return jdbc.query(
-                "SELECT * FROM factura_entidad WHERE usuario_usuario = ? ORDER BY fecha_emision DESC",
+                SELECT_BASE + " WHERE f.usuario_usuario = ? ORDER BY f.fecha_emision DESC",
                 rowMapper, usuarioId
         );
     }
 
     public Optional<FacturaEntidad> findByOrdenId(Long ordenId) {
         List<FacturaEntidad> result = jdbc.query(
-                "SELECT * FROM factura_entidad WHERE orden_orden_id = ?",
+                SELECT_BASE + " WHERE f.orden_orden_id = ?",
                 rowMapper, ordenId
         );
         return result.stream().findFirst();
     }
 
     public Long crear(FacturaEntidad factura) {
-        String sql = "INSERT INTO factura_entidad (usuario_usuario, datos_pago_id, orden_orden_id, precio_total, fecha_emision, total_neto, iva) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO factura_entidad (usuario_usuario, datos_pago_id, orden_orden_id, precio_total, fecha_emision, total_neto, iva, costo_envio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         KeyHolder keyHolder = new GeneratedKeyHolder();
         PreparedStatementCreator psc = connection -> {
             PreparedStatement ps = connection.prepareStatement(sql, new String[]{"factura_id"});
@@ -81,6 +90,7 @@ public class FacturaRepositorio {
             ps.setTimestamp(5, new java.sql.Timestamp(factura.getFecha_Emision().getTime()));
             ps.setFloat(6, factura.getTotal_Neto());
             ps.setFloat(7, factura.getIva());
+            ps.setFloat(8, factura.getCosto_Envio() != null ? factura.getCosto_Envio() : 0f);
             return ps;
         };
         jdbc.update(psc, keyHolder);

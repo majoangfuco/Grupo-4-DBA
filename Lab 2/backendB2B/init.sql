@@ -1093,6 +1093,22 @@ ALTER TABLE categoria_entidad
 ALTER TABLE ordenes_entidad
     ADD COLUMN IF NOT EXISTS distancia_envio_km NUMERIC(12,3);
 
+-- Costo de envío calculado en el checkout (valor_km * distancia), incluido en el total.
+ALTER TABLE factura_entidad
+    ADD COLUMN IF NOT EXISTS costo_envio NUMERIC(14,2) NOT NULL DEFAULT 0;
+
+-- Configuración global de la tarifa de envío: valor cobrado por kilómetro.
+-- Tabla de una sola fila que el administrador puede editar.
+CREATE TABLE IF NOT EXISTS configuracion_envio_entidad (
+    config_id BIGSERIAL PRIMARY KEY,
+    valor_km  NUMERIC(14,2) NOT NULL DEFAULT 0
+);
+
+-- Valor por km por defecto (solo si la tabla está vacía).
+INSERT INTO configuracion_envio_entidad (valor_km)
+SELECT 500
+WHERE NOT EXISTS (SELECT 1 FROM configuracion_envio_entidad);
+
 CREATE TABLE IF NOT EXISTS stock_almacen_producto_entidad (
     stock_almacen_id BIGSERIAL PRIMARY KEY,
     almacen_id       BIGINT NOT NULL
@@ -1613,6 +1629,9 @@ DECLARE
     v_total_neto        NUMERIC(14,2);
     v_iva               NUMERIC(14,2);
     v_precio_total      NUMERIC(14,2);
+    v_subtotal_productos NUMERIC(14,2);
+    v_valor_km          NUMERIC(14,2);
+    v_costo_envio       NUMERIC(14,2);
     v_orden_id          INT;
     v_factura_id        BIGINT;
 BEGIN
@@ -1815,16 +1834,27 @@ BEGIN
         COALESCE(SUM(cp.unidad_producto * p.precio), 0)::NUMERIC,
         2
     )
-    INTO v_precio_total
+    INTO v_subtotal_productos
     FROM carrito_producto_entidad cp
     JOIN producto_entidad p
       ON p.producto_id = cp.producto_producto_id
     WHERE cp.carrito_carrito_id = p_carrito_id;
 
-    IF v_precio_total <= 0 THEN
+    IF v_subtotal_productos <= 0 THEN
         RAISE EXCEPTION 'El total del carrito es inválido';
     END IF;
 
+    -- Tarifa de última milla: valor por km (config global) * distancia al almacén asignado.
+    SELECT valor_km INTO v_valor_km
+    FROM configuracion_envio_entidad
+    ORDER BY config_id
+    LIMIT 1;
+
+    v_valor_km := COALESCE(v_valor_km, 0);
+    v_costo_envio := ROUND(v_valor_km * COALESCE(v_distancia_km, 0), 2);
+
+    -- El total incluye productos + envío; el IVA se recalcula sobre ese total.
+    v_precio_total := v_subtotal_productos + v_costo_envio;
     v_total_neto := ROUND(v_precio_total / 1.19, 2);
     v_iva := ROUND(v_precio_total - v_total_neto, 2);
 
@@ -1855,7 +1885,8 @@ BEGIN
         precio_total,
         fecha_emision,
         total_neto,
-        iva
+        iva,
+        costo_envio
     )
     VALUES (
         v_usuario_id,
@@ -1864,7 +1895,8 @@ BEGIN
         v_precio_total,
         NOW(),
         v_total_neto,
-        v_iva
+        v_iva,
+        v_costo_envio
     )
     RETURNING factura_id INTO v_factura_id;
 
@@ -1906,6 +1938,13 @@ BEGIN
     SET estado = 'PAGADO',
         ultima_actualizacion = NOW()
     WHERE carrito_id = p_carrito_id;
+
+    -- Registra el momento real de la compra. La orden se crea en estado
+    -- PENDIENTE, por lo que el trigger de ultima_compra (que solo actúa sobre
+    -- estados posteriores) no se dispara aquí; se actualiza explícitamente.
+    UPDATE usuario_entidad
+    SET ultima_compra = NOW()
+    WHERE usuario_id = v_usuario_id;
 
     UPDATE informacion_entrega_entidad
     SET orden_orden_id = v_orden_id
