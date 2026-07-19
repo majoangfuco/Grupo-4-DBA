@@ -70,6 +70,12 @@ const router = createRouter({
           meta: { requiresRole: 'ADMIN' },
         },
         {
+          path: 'zonasProtegidasAdmin',
+          name: 'Admin-ZonasProtegidas',
+          component: () => import('@/views/Admin/GestionZonasProtegidas.vue'),
+          meta: { requiresRole: 'ADMIN' },
+        },
+        {
           path: 'productosCliente',
           name: 'Cliente-Productos',
           component: () => import('@/views/Customers/Productos-PaginaClientes.vue'),
