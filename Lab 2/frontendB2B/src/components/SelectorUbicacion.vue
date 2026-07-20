@@ -9,7 +9,7 @@ interface ResultadoBusqueda {
   lon: string
 }
 
-interface DireccionMapa {
+export interface UbicacionSeleccionada {
   latitud: number
   longitud: number
   direccion: string
@@ -24,7 +24,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  seleccionar: [ubicacion: DireccionMapa]
+  seleccionar: [ubicacion: UbicacionSeleccionada]
   cancelar: []
 }>()
 
@@ -33,7 +33,7 @@ const consulta = ref('')
 const buscando = ref(false)
 const mensaje = ref('Haz clic en el mapa o busca una dirección.')
 const resultados = ref<ResultadoBusqueda[]>([])
-const seleccion = ref<DireccionMapa | null>(null)
+const seleccion = ref<UbicacionSeleccionada | null>(null)
 
 let map: L.Map | null = null
 let marcador: L.CircleMarker | null = null
@@ -43,7 +43,7 @@ const CENTRO_SANTIAGO: L.LatLngExpression = [-33.4489, -70.6693]
 const obtenerDireccion = async (
   latitud: number,
   longitud: number,
-): Promise<DireccionMapa> => {
+): Promise<UbicacionSeleccionada> => {
   const response = await axios.get(
     'https://nominatim.openstreetmap.org/reverse',
     {
