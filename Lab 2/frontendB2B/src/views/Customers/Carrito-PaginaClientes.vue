@@ -561,7 +561,7 @@ const aplicarUbicacionSeleccionada = (
 
 const crearNuevaEntrega = async () => {
   showAddressErrors.value = true // Activar la validación visual de los campos
-  
+
   try {
 if (!authStore.userId) {
       throw new Error('Usuario no validado')
@@ -583,8 +583,8 @@ if (!authStore.userId) {
 
     // 2. Validar que las coordenadas existan y sean números
     if (
-      newAddress.value.latitud === undefined || 
-      newAddress.value.longitud === undefined || 
+      newAddress.value.latitud === undefined ||
+      newAddress.value.longitud === undefined ||
       !Number.isFinite(newAddress.value.latitud) ||
       !Number.isFinite(newAddress.value.longitud)
     ) {
@@ -612,7 +612,7 @@ if (!authStore.userId) {
     }
 
     await crearEntrega(payload)
-    
+
     // 5. Resetear formulario y variables
     showAddressModal.value = false
     showAddressErrors.value = false // <- Tu aporte para limpiar la UI
@@ -822,7 +822,7 @@ const solicitarOrden = async () => {
   try {
     cargando.value = true
     almacenAsignado.value = null
-    
+
     // 1. Ejecutamos el checkout asegurando el tipado numérico (aporte de tus compañeros)
     const resp = await carritoServicio.checkout(carrito.value.carrito_ID, {
       infoEntregaId: Number(selectedEntregaId.value),
@@ -1075,12 +1075,12 @@ onMounted(async () => {
           <!-- LATITUD MODIFICADA CON MENSAJE DE ERROR -->
           <label>Latitud</label>
           <div class="input-con-error">
-            <input 
-              type="number" 
-              step="0.000001" 
-              v-model.number="newAddress.latitud" 
-              placeholder="Ej: -33.4489" 
-              :class="{ 'input-rojo': showAddressErrors && !Number.isFinite(newAddress.latitud) }" 
+            <input
+              type="number"
+              step="0.000001"
+              v-model.number="newAddress.latitud"
+              placeholder="Ej: -33.4489"
+              :class="{ 'input-rojo': showAddressErrors && !Number.isFinite(newAddress.latitud) }"
             />
             <span v-if="showAddressErrors && !Number.isFinite(newAddress.latitud)" class="texto-error-inline">
               Campo obligatorio
@@ -1090,12 +1090,12 @@ onMounted(async () => {
           <!-- LONGITUD MODIFICADA CON MENSAJE DE ERROR -->
           <label>Longitud</label>
           <div class="input-con-error">
-            <input 
-              type="number" 
-              step="0.000001" 
-              v-model.number="newAddress.longitud" 
-              placeholder="Ej: -70.6693" 
-              :class="{ 'input-rojo': showAddressErrors && !Number.isFinite(newAddress.longitud) }" 
+            <input
+              type="number"
+              step="0.000001"
+              v-model.number="newAddress.longitud"
+              placeholder="Ej: -70.6693"
+              :class="{ 'input-rojo': showAddressErrors && !Number.isFinite(newAddress.longitud) }"
             />
             <span v-if="showAddressErrors && !Number.isFinite(newAddress.longitud)" class="texto-error-inline">
               Campo obligatorio
@@ -1112,7 +1112,7 @@ onMounted(async () => {
             🗺️ Seleccionar en mapa
           </button>
         </div>
-        
+
         <p class="ayuda-coordenadas">
           La ubicación actual completa automáticamente la calle, el número
           cuando está disponible, la comuna y las coordenadas. El RUT de quien
@@ -1169,7 +1169,12 @@ onMounted(async () => {
       <div class="modal-body">
         <div class="form-grid">
           <label>Método</label>
-          <input type="text" v-model="newPayment.metodo_Pago" placeholder="Tarjeta Crédito / Débito" />
+          <select v-model="newPayment.metodo_Pago">
+            <option value="" disabled>Selecciona un método</option>
+            <option value="Débito">Débito</option>
+            <option value="Crédito">Crédito</option>
+            <option value="Crédito">MasterCard</option>
+          </select>
           <label>Número de tarjeta</label>
           <input type="text" v-model="newPayment.numero_Tarjeta" placeholder="1234 5678 9012 3456" />
           <label>Fecha expiración</label>
@@ -1281,11 +1286,11 @@ onMounted(async () => {
 .btn-solid:hover { background: #1b76a5; }
 .ayuda-coordenadas { font-size: 0.78rem; color: #888; margin-top: 8px; }
 
-.coordenadas-acciones { 
-  display: flex; 
+.coordenadas-acciones {
+  display: flex;
   align-items: center;
-  gap: 15px; 
-  margin-top: 12px; 
+  gap: 15px;
+  margin-top: 12px;
 }
 .btn-ubicacion {
   background: #eef7ff;
@@ -1311,11 +1316,11 @@ onMounted(async () => {
 }
 
 /* Se aseguró que el input ocupe el 100% de la celda de la grilla */
-.form-grid input, .form-grid select { 
-  width: 100%; 
-  padding: 10px 12px; 
-  border: 1px solid #d1d5db; 
-  border-radius: 8px; 
+.form-grid input, .form-grid select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
   box-sizing: border-box;
 }
 .form-grid input[type="month"] { padding: 8px 10px; }
