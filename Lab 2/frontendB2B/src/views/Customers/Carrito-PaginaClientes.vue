@@ -5,6 +5,7 @@
 // =====================================================
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
+import { CheckCircle2, Map, MapPin, Package, X } from 'lucide-vue-next'
 import SelectorUbicacion, {
   type UbicacionSeleccionada,
 } from '@/components/SelectorUbicacion.vue'
@@ -888,11 +889,15 @@ onMounted(async () => {
     <div v-if="modalAbierto" class="modal-overlay" @click.self="cerrarModal">
       <div class="modal-box" role="dialog" aria-modal="true">
         <div class="modal-header">
-          <span class="modal-check">✓</span>
+          <span class="modal-check" aria-hidden="true">
+            <CheckCircle2 :size="18" />
+          </span>
           <h3 class="modal-title">
             {{ modalAccion === 'agregar' ? 'Producto agregado a tu Carro' : 'Eliminar producto del Carro' }}
           </h3>
-          <button class="modal-close" @click="cerrarModal">×</button>
+          <button class="modal-close" @click="cerrarModal" aria-label="Cerrar modal">
+            <X :size="18" />
+          </button>
         </div>
         <div class="modal-body">
           <div class="modal-info">
@@ -993,7 +998,11 @@ onMounted(async () => {
 
         <div v-if="almacenAsignado" class="almacen-asignado">
           Su pedido fue realizado correctamente. <br />
-          📦 Se despachará desde: <strong>{{ almacenAsignado }}</strong>
+          <span class="linea-icono">
+            <Package :size="16" />
+            <span>Se despachará desde:</span>
+          </span>
+          <strong>{{ almacenAsignado }}</strong>
         </div>
 
         <button class="btn-primario btn-amplio" :disabled="!items.length || !selectedEntregaId || !selectedPagoId" @click="solicitarOrden">
@@ -1106,10 +1115,12 @@ onMounted(async () => {
         <!-- Botones liberados de la grilla -->
         <div class="coordenadas-acciones">
           <button type="button" class="btn-ubicacion" :disabled="obteniendoUbicacion" @click="usarUbicacionActual">
-            📍 {{ obteniendoUbicacion ? 'Ubicando y completando...' : 'Usar mi ubicación actual' }}
+            <MapPin :size="16" />
+            <span>{{ obteniendoUbicacion ? 'Ubicando y completando...' : 'Usar mi ubicación actual' }}</span>
           </button>
           <button type="button" class="btn-link" @click="abrirSelectorMapa">
-            🗺️ Seleccionar en mapa
+            <Map :size="16" />
+            <span>Seleccionar en mapa</span>
           </button>
         </div>
 
@@ -1143,8 +1154,9 @@ onMounted(async () => {
         <button
           class="modal-close"
           @click="showMapModal = false"
+          aria-label="Cerrar modal"
         >
-          ×
+          <X :size="18" />
         </button>
       </div>
 
@@ -1164,7 +1176,9 @@ onMounted(async () => {
     <div class="modal-box" role="dialog" aria-modal="true">
       <div class="modal-header">
         <h3 class="modal-title">Agregar método de pago</h3>
-        <button class="modal-close" @click="showPaymentModal = false">×</button>
+        <button class="modal-close" @click="showPaymentModal = false" aria-label="Cerrar modal">
+          <X :size="18" />
+        </button>
       </div>
       <div class="modal-body">
         <div class="form-grid">

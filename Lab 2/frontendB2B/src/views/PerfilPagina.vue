@@ -150,8 +150,16 @@
             <div v-if="entrega.activa" class="active-badge">Activa</div>
           </div>
         </div>
+
+        <button class="btn-agregar-pago" @click="showModalDireccion = true" style="margin-top: 16px;">
+          + Agregar dirección de entrega
+        </button>
       </div>
 
+    </div>
+
+    <div v-if="toastMensaje" class="toast" :class="toastTipo">
+      {{ toastMensaje }}
     </div>
 
     <!-- ===== MODAL: EDITAR CUENTA ===== -->
@@ -267,6 +275,16 @@
       </div>
     </Teleport>
 
+    <!-- ===== MODAL: AGREGAR DIRECCIÓN ===== -->
+    <Teleport to="body">
+      <ModalAgregarDireccion 
+        :show="showModalDireccion" 
+        @close="showModalDireccion = false" 
+        @saved="cargarEntregas" 
+        @notificar="manejarNotificacion" 
+      />
+    </Teleport>
+
   </div>
 </template>
 
@@ -278,6 +296,7 @@ import { obtenerEntregasPorUsuario, type InformacionEntregaEntidad } from '@/ser
 import { obtenerDatosPagoPorUsuario, crearDatosPago, actualizarDatosPago, eliminarDatosPago, type DatosDePagoEntidad } from '@/services/datosPagoServicio';
 import { usuarioServicio } from '@/services/usuarioServicio';
 import { validarRut } from '@/utils/rut';
+import ModalAgregarDireccion from '@/components/ModalAgregarDireccion.vue';
 
 const authStore = useAuthStore();
 const router = useRouter();
@@ -520,15 +539,7 @@ const ejecutarEliminarPago = async () => {
 onMounted(async () => {
   if (authStore.userId) {
     // Cargar direcciones de entrega
-    cargandoEntregas.value = true;
-    try {
-      const response = await obtenerEntregasPorUsuario(authStore.userId);
-      entregas.value = response.data;
-    } catch (error) {
-      console.error('Error cargando direcciones de entrega:', error);
-    } finally {
-      cargandoEntregas.value = false;
-    }
+    await cargarEntregas();
 
     // Cargar métodos de pago
     await cargarDatosPago();
@@ -539,6 +550,33 @@ onMounted(async () => {
 const cerrarDropdownPagos = () => { pagosExpandidos.value = false; };
 onMounted(() => { document.addEventListener('click', cerrarDropdownPagos); });
 onUnmounted(() => { document.removeEventListener('click', cerrarDropdownPagos); });
+
+const showModalDireccion = ref(false);
+
+const cargarEntregas = async () => {
+  if (!authStore.userId) return;
+  cargandoEntregas.value = true;
+  try {
+    const response = await obtenerEntregasPorUsuario(authStore.userId);
+    entregas.value = response.data;
+  } catch (error) {
+    console.error('Error cargando direcciones de entrega:', error);
+  } finally {
+    cargandoEntregas.value = false;
+  }
+};
+
+const toastMensaje = ref<string | null>(null);
+const toastTipo = ref<'ok' | 'error'>('ok');
+let toastTimer: number | null = null;
+const manejarNotificacion = (mensaje: string, tipo: 'ok' | 'error') => {
+  toastTipo.value = tipo;
+  toastMensaje.value = mensaje;
+  if (toastTimer) window.clearTimeout(toastTimer);
+  toastTimer = window.setTimeout(() => {
+    toastMensaje.value = null;
+  }, tipo === 'error' ? 4500 : 1800);
+};
 </script>
 
 <style scoped>
@@ -560,6 +598,28 @@ onUnmounted(() => { document.removeEventListener('click', cerrarDropdownPagos); 
   grid-template-columns: 2fr 1fr;
   grid-template-rows: auto auto;
   gap: 20px;
+}
+
+.toast {
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 1000;
+  padding: 10px 14px;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 0.9rem;
+  box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+  animation: fadeout 1.8s ease-in-out;
+  max-width: 360px;
+}
+.toast.ok { background: #156895; }
+.toast.error { background: #b00020; }
+@keyframes fadeout {
+  0% { opacity: 0; transform: translateY(-6px); }
+  10% { opacity: 1; transform: translateY(0); }
+  80% { opacity: 1; }
+  100% { opacity: 0; }
 }
 
 /* Base Card Styles */
