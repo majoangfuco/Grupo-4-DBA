@@ -38,9 +38,17 @@ public class DatosDePagoRepositorio {
     };
 
     public Optional<DatosDePagoEntidad> findById(Long id) {
-        String sql = "SELECT * FROM datos_pago_entidad WHERE datos_pago_id = ?";
+        String sql = """
+            SELECT *
+            FROM datos_pago_entidad
+            WHERE datos_pago_id = ?
+              AND activo = TRUE
+            """;
+
         try {
-            DatosDePagoEntidad datos = jdbcTemplate.queryForObject(sql, rowMapper, id);
+            DatosDePagoEntidad datos =
+                    jdbcTemplate.queryForObject(sql, rowMapper, id);
+
             return Optional.of(datos);
         } catch (Exception e) {
             return Optional.empty();
@@ -48,7 +56,14 @@ public class DatosDePagoRepositorio {
     }
 
     public List<DatosDePagoEntidad> findByUsuarioId(Long usuarioId) {
-        String sql = "SELECT * FROM datos_pago_entidad WHERE usuario_usuario = ? ORDER BY datos_pago_id DESC";
+        String sql = """
+            SELECT *
+            FROM datos_pago_entidad
+            WHERE usuario_usuario = ?
+              AND activo = TRUE
+            ORDER BY datos_pago_id DESC
+            """;
+
         return jdbcTemplate.query(sql, rowMapper, usuarioId);
     }
 
@@ -80,7 +95,13 @@ public class DatosDePagoRepositorio {
     }
 
     public void deleteById(Long id) {
-        String sql = "DELETE FROM datos_pago_entidad WHERE datos_pago_id = ?";
+        String sql = """
+            UPDATE datos_pago_entidad
+            SET activo = FALSE
+            WHERE datos_pago_id = ?
+              AND activo = TRUE
+            """;
+
         jdbcTemplate.update(sql, id);
     }
 }

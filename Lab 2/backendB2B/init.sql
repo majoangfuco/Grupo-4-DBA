@@ -51,7 +51,8 @@ CREATE TABLE datos_pago_entidad (
     usuario_usuario BIGINT REFERENCES usuario_entidad(usuario_id),
     metodo_pago     VARCHAR(255),
     numero_tarjeta  VARCHAR(255),
-    fecha_expiracion VARCHAR(255)
+    fecha_expiracion VARCHAR(255),
+    activo           BOOLEAN NOT NULL DEFAULT TRUE
 );
 
 CREATE TABLE categoria_entidad (
@@ -1582,6 +1583,8 @@ CREATE TRIGGER validar_cobertura_direccion
     BEFORE INSERT OR UPDATE OF ubicacion ON informacion_entrega_entidad
     FOR EACH ROW
     EXECUTE FUNCTION trg_validar_cobertura_direccion();
+
+
 
 -- ═══════════════════════════════════════════════════════════════
 -- FIN DEL SCRIPT
