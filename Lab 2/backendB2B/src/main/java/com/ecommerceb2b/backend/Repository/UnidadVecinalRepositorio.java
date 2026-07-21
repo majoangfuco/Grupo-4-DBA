@@ -59,6 +59,13 @@ public class UnidadVecinalRepositorio {
         return jdbc.query(SELECT_COLUMNAS + " WHERE comuna_id = ? ORDER BY nombre_uv", rowMapper, comunaId);
     }
 
+    // Usado por UnidadVecinalStartupLoader para decidir si la carga inicial
+    // desde el GeoJSON ya corrió en esta base de datos.
+    public long contar() {
+        Long total = jdbc.queryForObject("SELECT COUNT(*) FROM unidad_vecinal_entidad", Long.class);
+        return total != null ? total : 0L;
+    }
+
     public int actualizarZonaProtegida(Long id, boolean esZonaProtegida) {
         return jdbc.update(
                 "UPDATE unidad_vecinal_entidad SET es_zona_protegida = ? WHERE id = ?",

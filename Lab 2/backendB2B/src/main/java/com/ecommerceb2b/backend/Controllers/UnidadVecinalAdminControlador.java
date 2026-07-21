@@ -13,9 +13,10 @@ import java.util.Map;
 
 /**
  * Administración de unidad_vecinal_entidad. La carga desde el GeoJSON local
- * es un job de ejecución puntual: se dispara a mano una sola vez (o cuando
- * se actualice el archivo fuente) — no corre en el arranque de la app.
- * Protegido con rol ADMIN, ver SecurityConfig ("/api/admin/**").
+ * ya corre sola una vez al arrancar la app si la tabla está vacía (ver
+ * Loader/UnidadVecinalStartupLoader); este endpoint queda para recargar a
+ * mano si se actualiza el archivo fuente. Protegido con rol ADMIN, ver
+ * SecurityConfig ("/api/admin/**").
  *
  * A diferencia de ComunaAdminControlador (que usa JdbcTemplate crudo, una
  * excepción puntual del proyecto), este controlador usa exclusivamente

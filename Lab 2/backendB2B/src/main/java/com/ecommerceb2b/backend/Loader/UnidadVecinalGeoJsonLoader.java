@@ -18,14 +18,16 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Job de ejecución puntual (NO se ejecuta en el arranque normal de la app).
  * Lee el shapefile de Unidades Vecinales (Ministerio de Desarrollo Social y
  * Familia, RM, agosto 2024) ya convertido a GeoJSON en
  * resources/data/unidades_vecinales_rm.geojson, y lo persiste en
  * unidad_vecinal_entidad vía UnidadVecinalRepositorio.
  *
- * Se dispara solo vía POST /api/admin/unidades-vecinales/cargar (rol ADMIN)
- * — ver Controllers/UnidadVecinalAdminControlador.
+ * Se dispara automáticamente una vez si la tabla está vacía (ver
+ * Loader/UnidadVecinalStartupLoader), y también se puede disparar a mano vía
+ * POST /api/admin/unidades-vecinales/cargar (rol ADMIN) — ver
+ * Controllers/UnidadVecinalAdminControlador — por ejemplo para recargar tras
+ * actualizar el archivo fuente.
  *
  * A diferencia de ComunaOverpassLoader (que compone SQL crudo directamente),
  * este loader usa exclusivamente UnidadVecinalRepositorio para leer/escribir
