@@ -4,6 +4,7 @@ import com.ecommerceb2b.backend.Entities.InformacionEntregaEntidad;
 import com.ecommerceb2b.backend.Entities.UsuarioEntidad;
 import com.ecommerceb2b.backend.Repository.InformacionEntregaRepositorio;
 import com.ecommerceb2b.backend.Repository.UsuarioRepositorio;
+import com.ecommerceb2b.backend.Util.CoordenadasNormalizador;
 import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -172,6 +173,17 @@ public class InformacionEntregaServicio {
                     "La comuna es obligatoria"
             );
         }
+
+        // Acepta tanto { latitud, longitud } plano como GeoJSON Point
+        // { type: "Point", coordinates: [lon, lat] } antes de validar rango.
+        CoordenadasNormalizador.Coordenadas coords = CoordenadasNormalizador.normalizar(
+                entrega.getLatitud(),
+                entrega.getLongitud(),
+                entrega.getType(),
+                entrega.getCoordinates()
+        );
+        entrega.setLatitud(coords.latitud());
+        entrega.setLongitud(coords.longitud());
 
         validarCoordenadas(
                 entrega.getLongitud(),

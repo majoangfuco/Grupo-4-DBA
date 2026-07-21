@@ -5,6 +5,7 @@ import com.ecommerceb2b.backend.Entities.CheckoutPedidoDto;
 import com.ecommerceb2b.backend.Entities.DatosDePagoEntidad;
 import com.ecommerceb2b.backend.Entities.FacturaEntidad;
 import com.ecommerceb2b.backend.Entities.OrdenesEntidad;
+import com.ecommerceb2b.backend.Repository.LogisticaMapaRepositorio;
 import com.ecommerceb2b.backend.Repository.OrdenesRepositorio;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,19 +25,22 @@ public class OrdenesServicio {
     private final DatosDePagoServicio datosDePagoServicio;
     private final FacturaServicio facturaServicio;
     private final com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio;
+    private final LogisticaMapaRepositorio logisticaMapaRepositorio;
 
     public OrdenesServicio(OrdenesRepositorio ordenesRepositorio,
                            CarritoServicio carritoServicio,
                            CarritoProductoServicio carritoProductoServicio,
                            DatosDePagoServicio datosDePagoServicio,
                            FacturaServicio facturaServicio,
-                           com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio) {
+                           com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio,
+                           LogisticaMapaRepositorio logisticaMapaRepositorio) {
         this.ordenesRepositorio = ordenesRepositorio;
         this.carritoServicio = carritoServicio;
         this.carritoProductoServicio = carritoProductoServicio;
         this.datosDePagoServicio = datosDePagoServicio;
         this.facturaServicio = facturaServicio;
         this.configuracionEnvioRepositorio = configuracionEnvioRepositorio;
+        this.logisticaMapaRepositorio = logisticaMapaRepositorio;
     }
 
 
@@ -108,6 +112,11 @@ public class OrdenesServicio {
                 pedido.getInfoEntregaId(),
                 datosPago.getDatos_Pago_ID()
         );
+
+        // El checkout atómico crea la factura dentro del procedimiento
+        // almacenado: refresca el choropleth de ventas por comuna/distrito
+        // para que el mapa de logística refleje esta venta de inmediato.
+        logisticaMapaRepositorio.refrescar();
 
         return facturaServicio.obtenerPorOrden(ordenId)
                 .orElseThrow(() -> new IllegalStateException(
@@ -255,6 +264,11 @@ public class OrdenesServicio {
         }
 
         facturaServicio.crearFactura(factura);
+
+        // Refresca el choropleth de ventas por comuna/distrito para que el
+        // mapa de logística muestre esta venta sin esperar al refresco
+        // automático de 6h (LogisticaMapaScheduler).
+        logisticaMapaRepositorio.refrescar();
     }
 
     @Transactional

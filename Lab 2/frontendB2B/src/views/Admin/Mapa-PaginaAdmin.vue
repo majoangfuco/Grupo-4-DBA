@@ -135,15 +135,16 @@ const cargarContornoRM = async () => {
     const geojson = typeof res.data === 'string' ? JSON.parse(res.data) : res.data
 
     capaContornoRM = L.geoJSON(geojson, {
+      // No interactivo: es solo el borde visual de la RM, no debe capturar el
+      // mouseover y tapar el tooltip de la comuna que está debajo (aunque su
+      // fillOpacity sea 0, el área rellena igual es "clickeable"/"hoverable"
+      // en el renderer SVG de Leaflet salvo que se desactive explícitamente).
+      interactive: false,
       style: {
         fillOpacity: 0,
         color: '#1d4ed8', // azul — no colisiona con la paleta magenta/cian/amarillo/gris del choropleth, y evita rojo/verde
         weight: 3,
         opacity: 0.9,
-      },
-      onEachFeature: (feature, layer) => {
-        const props = feature.properties || {}
-        layer.bindTooltip(props.nombre || 'Área de cobertura', { sticky: true })
       },
     }).addTo(map)
     mantenerContornoAlFrente()

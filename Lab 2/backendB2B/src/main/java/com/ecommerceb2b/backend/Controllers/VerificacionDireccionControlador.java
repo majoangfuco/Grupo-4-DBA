@@ -3,6 +3,7 @@ package com.ecommerceb2b.backend.Controllers;
 import com.ecommerceb2b.backend.Entities.VerificarDireccionRequestDto;
 import com.ecommerceb2b.backend.Repository.CategoriaRepositorio;
 import com.ecommerceb2b.backend.Repository.VerificacionDireccionRepositorio;
+import com.ecommerceb2b.backend.Util.CoordenadasNormalizador;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -37,16 +38,24 @@ public class VerificacionDireccionControlador {
     }
 
     // POST /api/admin/direccion/verificar
-    // body: { "lat": -33.42, "lng": -70.61 } — solo consulta, no persiste nada.
+    // body: { "lat": -33.42, "lng": -70.61 } o GeoJSON Point
+    // { "type": "Point", "coordinates": [-70.61, -33.42] } — solo consulta, no persiste nada.
     @PostMapping(value = "/verificar", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<?> verificar(@RequestBody VerificarDireccionRequestDto dto) {
-        if (dto.getLat() == null || dto.getLng() == null) {
-            return ResponseEntity.badRequest().body(Map.of("error", "lat y lng son requeridos"));
+        CoordenadasNormalizador.Coordenadas coords;
+        try {
+            coords = CoordenadasNormalizador.normalizar(
+                    dto.getLat(), dto.getLng(), dto.getType(), dto.getCoordinates()
+            );
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
         }
+        Double lat = coords.latitud();
+        Double lng = coords.longitud();
 
         Map<String, Object> respuesta = new LinkedHashMap<>();
 
-        boolean dentroCobertura = verificacionRepositorio.estaDentroCobertura(dto.getLat(), dto.getLng());
+        boolean dentroCobertura = verificacionRepositorio.estaDentroCobertura(lat, lng);
         respuesta.put("dentroCobertura", dentroCobertura);
 
         if (!dentroCobertura) {
@@ -54,14 +63,14 @@ public class VerificacionDireccionControlador {
             return ResponseEntity.ok(respuesta);
         }
 
-        verificacionRepositorio.encontrarComunaPorPunto(dto.getLat(), dto.getLng()).ifPresent(comuna -> {
+        verificacionRepositorio.encontrarComunaPorPunto(lat, lng).ifPresent(comuna -> {
             respuesta.put("comunaId", comuna.get("id"));
             respuesta.put("comunaNombre", comuna.get("nombre"));
             respuesta.put("distritoPostal", comuna.get("distrito_postal"));
         });
 
         Optional<Map<String, Object>> zonaProtegida =
-                verificacionRepositorio.encontrarZonaProtegidaPorPunto(dto.getLat(), dto.getLng());
+                verificacionRepositorio.encontrarZonaProtegidaPorPunto(lat, lng);
         boolean esZonaProtegida = zonaProtegida.isPresent();
         respuesta.put("zonaProtegida", esZonaProtegida);
 
