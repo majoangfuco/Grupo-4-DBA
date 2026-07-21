@@ -10,9 +10,11 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Administración de comuna_entidad. La carga desde Overpass es un job de
- * ejecución única: se dispara a mano una sola vez (no corre en el arranque
- * de la app). Protegido con rol ADMIN, ver SecurityConfig ("/api/admin/**").
+ * Administración de comuna_entidad. La carga desde Overpass ya corre sola
+ * en segundo plano al arrancar la app si faltan comunas con geometría real
+ * (ver Loader/StartupDataLoaderRunner); este endpoint queda para forzar un
+ * reintento a mano si alguna quedó pendiente (falló contra Overpass, etc.).
+ * Protegido con rol ADMIN, ver SecurityConfig ("/api/admin/**").
  */
 @RestController
 @RequestMapping("/api/admin/comunas")

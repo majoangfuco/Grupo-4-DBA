@@ -13,10 +13,12 @@ import java.util.Map;
 
 /**
  * Administración de unidad_vecinal_entidad. La carga desde el GeoJSON local
- * ya corre sola una vez al arrancar la app si la tabla está vacía (ver
- * Loader/UnidadVecinalStartupLoader); este endpoint queda para recargar a
- * mano si se actualiza el archivo fuente. Protegido con rol ADMIN, ver
- * SecurityConfig ("/api/admin/**").
+ * ya corre sola al arrancar la app si faltan datos, encadenada DESPUÉS de
+ * que las comunas reales terminen de cargar (ver
+ * Loader/StartupDataLoaderRunner — el matching de cada UV a su comuna
+ * depende de que comuna_entidad ya tenga el polígono real, no el cuadrado
+ * placeholder). Este endpoint queda para recargar a mano si se actualiza el
+ * archivo fuente. Protegido con rol ADMIN, ver SecurityConfig ("/api/admin/**").
  *
  * A diferencia de ComunaAdminControlador (que usa JdbcTemplate crudo, una
  * excepción puntual del proyecto), este controlador usa exclusivamente
