@@ -82,7 +82,7 @@ public class UnidadVecinalRepositorio {
                     'features', COALESCE(json_agg(
                         json_build_object(
                             'type', 'Feature',
-                            'geometry', ST_AsGeoJSON(geom)::json,
+                            'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.001))::json,
                             'properties', json_build_object(
                                 'id', id,
                                 'nombreUv', nombre_uv,
@@ -108,7 +108,7 @@ public class UnidadVecinalRepositorio {
                     'features', COALESCE(json_agg(
                         json_build_object(
                             'type', 'Feature',
-                            'geometry', ST_AsGeoJSON(geom)::json,
+                            'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.001))::json,
                             'properties', json_build_object(
                                 'id', id,
                                 'nombreUv', nombre_uv,

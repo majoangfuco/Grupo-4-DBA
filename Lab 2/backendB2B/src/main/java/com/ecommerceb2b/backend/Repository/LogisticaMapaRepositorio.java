@@ -20,7 +20,7 @@ public class LogisticaMapaRepositorio {
                     'features', COALESCE(json_agg(
                         json_build_object(
                             'type', 'Feature',
-                            'geometry', ST_AsGeoJSON(geom)::json,
+                            'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.001))::json,
                             'properties', json_build_object(
                                 'comuna_id', comuna_id,
                                 'nombre', nombre_comuna,
@@ -46,7 +46,7 @@ public class LogisticaMapaRepositorio {
                     'features', COALESCE(json_agg(
                         json_build_object(
                             'type', 'Feature',
-                            'geometry', ST_AsGeoJSON(geom_union)::json,
+                            'geometry', ST_AsGeoJSON(ST_Simplify(geom_union, 0.001))::json,
                             'properties', json_build_object(
                                 'distrito_postal', distrito_postal,
                                 'total_pedidos', total_pedidos,
@@ -72,7 +72,7 @@ public class LogisticaMapaRepositorio {
                     'features', COALESCE(json_agg(
                         json_build_object(
                             'type', 'Feature',
-                            'geometry', ST_AsGeoJSON(geom)::json,
+                            'geometry', ST_AsGeoJSON(ST_Simplify(geom, 0.001))::json,
                             'properties', json_build_object('nombre', nombre)
                         )
                     ), '[]')

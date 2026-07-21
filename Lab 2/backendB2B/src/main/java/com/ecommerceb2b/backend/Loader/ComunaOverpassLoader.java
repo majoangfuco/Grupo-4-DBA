@@ -113,7 +113,7 @@ public class ComunaOverpassLoader {
         ResultadoCarga resultado = new ResultadoCarga();
 
         Set<String> yaCargadas = new HashSet<>(
-                jdbc.queryForList("SELECT nombre FROM comuna_entidad", String.class));
+                jdbc.queryForList("SELECT nombre FROM comuna_entidad WHERE ST_NPoints(geom) > 10", String.class));
         if (!yaCargadas.isEmpty()) {
             log.info("{} comuna(s) ya presentes en comuna_entidad, se omiten: {}", yaCargadas.size(), yaCargadas);
         }

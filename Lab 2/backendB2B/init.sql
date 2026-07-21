@@ -1039,32 +1039,13 @@ INSERT INTO zona_cobertura_entidad (nombre, geom, activa) VALUES
 -- Poblamos las comunas de la RM con polígonos aproximados para
 -- que la aplicación funcione inmediatamente y las vistas de
 -- ventas muestren los mapas choropleth de Leaflet de forma consistente.
-INSERT INTO comuna_entidad (nombre, distrito_postal, geom) VALUES
-('Las Condes',       '7xx', ST_Multi(ST_GeomFromText('POLYGON((-70.63 -33.44, -70.58 -33.44, -70.58 -33.40, -70.63 -33.40, -70.63 -33.44))', 4326))),
-('Providencia',      '7xx', ST_Multi(ST_GeomFromText('POLYGON((-70.63 -33.43, -70.59 -33.43, -70.59 -33.41, -70.63 -33.41, -70.63 -33.43))', 4326))),
-('Vitacura',         '7xx', ST_Multi(ST_GeomFromText('POLYGON((-70.65 -33.41, -70.61 -33.41, -70.61 -33.38, -70.65 -33.38, -70.65 -33.41))', 4326))),
-('Ñuñoa',            '7xx', ST_Multi(ST_GeomFromText('POLYGON((-70.63 -33.46, -70.56 -33.46, -70.56 -33.43, -70.63 -33.43, -70.63 -33.46))', 4326))),
-('Peñalolén',        '7xx', ST_Multi(ST_GeomFromText('POLYGON((-70.65 -33.51, -70.55 -33.51, -70.55 -33.41, -70.65 -33.41, -70.65 -33.51))', 4326))),
-('Santiago',         '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.68 -33.48, -70.63 -33.48, -70.63 -33.43, -70.68 -33.43, -70.68 -33.48))', 4326))),
-('La Florida',       '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.64 -33.49, -70.58 -33.49, -70.58 -33.39, -70.64 -33.39, -70.64 -33.49))', 4326))),
-('Quilicura',        '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.66 -33.50, -70.61 -33.50, -70.61 -33.45, -70.66 -33.45, -70.66 -33.50))', 4326))),
-('Renca',            '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.62 -33.46, -70.57 -33.46, -70.57 -33.42, -70.62 -33.42, -70.62 -33.46))', 4326))),
-('Huechuraba',       '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.72 -33.40, -70.66 -33.40, -70.66 -33.36, -70.72 -33.36, -70.72 -33.40))', 4326))),
-('Maipú',            '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.75 -33.51, -70.69 -33.51, -70.69 -33.47, -70.75 -33.47, -70.75 -33.51))', 4326))),
-('San Miguel',       '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.68 -33.48, -70.64 -33.48, -70.64 -33.44, -70.68 -33.44, -70.68 -33.48))', 4326))),
-('San Bernardo',     '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.72 -33.63, -70.66 -33.63, -70.66 -33.59, -70.72 -33.59, -70.72 -33.63))', 4326))),
-('Independencia',    '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.69 -33.45, -70.65 -33.45, -70.65 -33.41, -70.69 -33.41, -70.69 -33.45))', 4326))),
-('Puente Alto',      '8xx', ST_Multi(ST_GeomFromText('POLYGON((-70.60 -33.63, -70.54 -33.63, -70.54 -33.59, -70.60 -33.59, -70.60 -33.63))', 4326)));
+-- (Los datos de comunas reales se cargarán automáticamente desde Overpass API en segundo plano)
 
 -- ── 7.3 Unidades Vecinales (Zonas de restricción / protegidas) ─
 -- Poblamos directamente unidades vecinales asociadas a las comunas.
 -- Marcamos varias como es_zona_protegida = TRUE para que se visualicen
 -- de inmediato como zonas residenciales protegidas/restricciones en el mapa.
-INSERT INTO unidad_vecinal_entidad (comuna_id, codigo_uv, nombre_uv, geom, es_zona_protegida) VALUES
-((SELECT id FROM comuna_entidad WHERE nombre = 'Providencia'), 'UV-PROV-01', 'UV Providencia Central (Residencial)', ST_GeomFromText('POLYGON((-70.63 -33.43, -70.61 -33.43, -70.61 -33.42, -70.63 -33.42, -70.63 -33.43))', 4326), TRUE),
-((SELECT id FROM comuna_entidad WHERE nombre = 'La Florida'),  'UV-FLOR-01', 'UV La Florida Residencial (Residencial)',  ST_GeomFromText('POLYGON((-70.61 -33.58, -70.59 -33.58, -70.59 -33.56, -70.61 -33.56, -70.61 -33.58))', 4326), TRUE),
-((SELECT id FROM comuna_entidad WHERE nombre = 'Ñuñoa'),       'UV-NUN-01',  'UV Ñuñoa Histórico (Residencial)',       ST_GeomFromText('POLYGON((-70.62 -33.46, -70.60 -33.46, -70.60 -33.45, -70.62 -33.45, -70.62 -33.46))', 4326), TRUE),
-((SELECT id FROM comuna_entidad WHERE nombre = 'Las Condes'),  'UV-COND-01', 'UV Las Condes Comercial',                ST_GeomFromText('POLYGON((-70.61 -33.42, -70.59 -33.42, -70.59 -33.41, -70.61 -33.41, -70.61 -33.42))', 4326), FALSE);
+-- (Los datos de unidades vecinales reales se cargarán automáticamente desde el archivo geojson al iniciar la app)
 
 -- ── 7.4 Almacenes ─────────────────────────────────────────────
 INSERT INTO almacen_entidad (nombre, direccion, ubicacion) VALUES
