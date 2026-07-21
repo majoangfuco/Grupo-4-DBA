@@ -10,13 +10,16 @@ import org.springframework.stereotype.Component;
 public class StartupDataLoaderRunner implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(StartupDataLoaderRunner.class);
 
+    private final ComunaGeoJsonLoader comunaGeoJsonLoader;
     private final ComunaOverpassLoader comunaOverpassLoader;
     private final UnidadVecinalGeoJsonLoader unidadVecinalGeoJsonLoader;
     private final JdbcTemplate jdbcTemplate;
 
-    public StartupDataLoaderRunner(ComunaOverpassLoader comunaOverpassLoader, 
+    public StartupDataLoaderRunner(ComunaGeoJsonLoader comunaGeoJsonLoader,
+                                   ComunaOverpassLoader comunaOverpassLoader,
                                    UnidadVecinalGeoJsonLoader unidadVecinalGeoJsonLoader,
                                    JdbcTemplate jdbcTemplate) {
+        this.comunaGeoJsonLoader = comunaGeoJsonLoader;
         this.comunaOverpassLoader = comunaOverpassLoader;
         this.unidadVecinalGeoJsonLoader = unidadVecinalGeoJsonLoader;
         this.jdbcTemplate = jdbcTemplate;
@@ -51,9 +54,28 @@ public class StartupDataLoaderRunner implements CommandLineRunner {
                 "SELECT COUNT(*) FROM comuna_entidad WHERE ST_NPoints(geom) < 10", Integer.class);
 
             if (totalComunas == null || totalComunas < 52 || (comunasConCuadrados != null && comunasConCuadrados > 0)) {
-                log.info("Faltan comunas o tienen geometrías temporales. Descargando datos reales de Overpass en segundo plano...");
+                log.info("Faltan comunas o tienen geometrías temporales. Cargando desde el GeoJSON local primero...");
 
-                comunaOverpassLoader.cargarComunas();
+                // Ruta rápida: comunas_rm.geojson ya trae las 52 con geometría
+                // real (exportadas una vez desde una base que las tenía
+                // cargadas por Overpass), así que no hay red ni rate-limit de
+                // por medio — dura segundos en vez de minutos. Overpass solo
+                // se usa como respaldo para lo que el archivo no logre cubrir
+                // (por ejemplo si el archivo quedara desactualizado o
+                // incompleto), y cargarComunas() ya es idempotente por
+                // nombre, así que no repite trabajo para las que ya quedaron
+                // con geometría real tras la carga local.
+                comunaGeoJsonLoader.cargar();
+
+                Integer totalTrasCargaLocal = jdbcTemplate.queryForObject(
+                        "SELECT COUNT(*) FROM comuna_entidad WHERE ST_NPoints(geom) > 10", Integer.class);
+                if (totalTrasCargaLocal == null || totalTrasCargaLocal < 52) {
+                    log.info("{}/52 comunas con geometría real tras la carga local, completando el resto vía Overpass...",
+                            totalTrasCargaLocal == null ? 0 : totalTrasCargaLocal);
+                    comunaOverpassLoader.cargarComunas();
+                } else {
+                    log.info("Las 52 comunas quedaron con geometría real desde el archivo local, sin necesidad de Overpass.");
+                }
 
                 // Como las comunas acaban de cargarse (y antes no estaban para enlazar con los pedidos),
                 // actualizamos las entregas para asignarles su comuna_id en base a su ubicación

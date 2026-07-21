@@ -10,11 +10,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Administración de comuna_entidad. La carga desde Overpass ya corre sola
- * en segundo plano al arrancar la app si faltan comunas con geometría real
- * (ver Loader/StartupDataLoaderRunner); este endpoint queda para forzar un
- * reintento a mano si alguna quedó pendiente (falló contra Overpass, etc.).
- * Protegido con rol ADMIN, ver SecurityConfig ("/api/admin/**").
+ * Administración de comuna_entidad. Al arrancar, si faltan comunas con
+ * geometría real, StartupDataLoaderRunner las carga solo desde el GeoJSON
+ * local (resources/data/comunas_rm.geojson, sin red ni rate-limit) y recién
+ * usa Overpass como respaldo para lo que ese archivo no logre cubrir. Este
+ * endpoint queda para forzar una recarga completa a mano vía Overpass si
+ * hace falta (por ejemplo, para regenerar el archivo local tras un cambio
+ * administrativo real). Protegido con rol ADMIN, ver SecurityConfig
+ * ("/api/admin/**").
  */
 @RestController
 @RequestMapping("/api/admin/comunas")
