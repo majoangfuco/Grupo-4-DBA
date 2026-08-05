@@ -1,0 +1,186 @@
+# ═══════════════════════════════════════════════════════════════
+# Lab 3 · Plataforma E-Commerce B2B (Grupo 4)
+#
+# Sistema híbrido:
+#   - PostgreSQL + PostGIS  -> parte funcional heredada del Lab 2
+#   - MongoDB Replica Set   -> requerimientos NoSQL del Lab 3
+#
+# El replica set (mongo1 PRIMARY + mongo2 SECONDARY) es obligatorio: sin
+# él MongoDB no permite transacciones multi-documento ni change streams.
+# ═══════════════════════════════════════════════════════════════
+services:
+  db:
+    image: postgis/postgis:15-3.3
+    container_name: b2b-db
+    environment:
+      POSTGRES_DB: b2b
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5433:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+      - ./backendB2B/init.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - b2b-network
+
+  # ─── Genera el keyfile compartido del replica set ──────────────
+  # Corre una sola vez y termina; mongo1/mongo2 esperan a que finalice.
+  mongo-keyfile:
+    image: mongo:7.0
+    container_name: b2b-mongo-keyfile
+    command: ["bash", "/scripts/keyfile-init.sh"]
+    volumes:
+      - mongo_keyfile:/keyfile
+      - ./mongo/keyfile-init.sh:/scripts/keyfile-init.sh:ro
+    networks:
+      - b2b-network
+
+  # ─── Nodo PRIMARY (priority 2 en rs-init.js) ───────────────────
+  mongo1:
+    image: mongo:7.0
+    container_name: b2b-mongo1
+    command:
+      - mongod
+      - --replSet
+      - ${MONGO_REPLICA_SET:-rs0}
+      - --keyFile
+      - /etc/mongo/keyfile/mongo-keyfile
+      - --bind_ip_all
+      - --port
+      - "27017"
+    environment:
+      # Con estas variables el entrypoint oficial levanta un mongod temporal
+      # en localhost, crea el usuario root y recién ahí arranca el nodo con
+      # --replSet y --keyFile. Es la forma soportada de tener replica set
+      # CON autenticación desde el primer arranque.
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-root}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpass}
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo1_data:/data/db
+      - mongo_keyfile:/etc/mongo/keyfile:ro
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    healthcheck:
+      # "ping" es uno de los pocos comandos permitidos sin autenticar, así
+      # que sirve como healthcheck aunque el nodo exija credenciales.
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    networks:
+      - b2b-network
+
+  # ─── Nodo SECONDARY ────────────────────────────────────────────
+  # No lleva MONGO_INITDB_ROOT_*: su base local se descarta cuando hace
+  # el initial sync desde mongo1, que es quien tiene los usuarios.
+  mongo2:
+    image: mongo:7.0
+    container_name: b2b-mongo2
+    command:
+      - mongod
+      - --replSet
+      - ${MONGO_REPLICA_SET:-rs0}
+      - --keyFile
+      - /etc/mongo/keyfile/mongo-keyfile
+      - --bind_ip_all
+      - --port
+      - "27017"
+    ports:
+      - "27018:27017"
+    volumes:
+      - mongo2_data:/data/db
+      - mongo_keyfile:/etc/mongo/keyfile:ro
+    depends_on:
+      mongo-keyfile:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping')"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 20s
+    networks:
+      - b2b-network
+
+  # ─── rs.initiate() + usuario de aplicación ─────────────────────
+  # Servicio efímero e idempotente: corre, configura y termina.
+  mongo-init:
+    image: mongo:7.0
+    container_name: b2b-mongo-init
+    depends_on:
+      mongo1:
+        condition: service_healthy
+      mongo2:
+        condition: service_healthy
+    environment:
+      MONGO_REPLICA_SET: ${MONGO_REPLICA_SET:-rs0}
+      MONGO_DB: ${MONGO_DB:-b2b}
+      MONGO_APP_USER: ${MONGO_APP_USER:-b2b_app}
+      MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:-b2b_app_pass}
+      MONGO_ROOT_USER: ${MONGO_ROOT_USER:-root}
+      MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpass}
+    volumes:
+      - ./mongo/rs-init.js:/scripts/rs-init.js:ro
+    command:
+      - bash
+      - -c
+      - >
+        mongosh --host mongo1:27017
+        -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        --file /scripts/rs-init.js
+    restart: on-failure
+    networks:
+      - b2b-network
+
+  backend:
+    build:
+      context: ./backendB2B
+    container_name: b2b-backend
+    environment:
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/b2b
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - JWT_SECRET=m1Sup3rS3cr3t0Q0P4r4JwT2026_ABCDEF
+      - JWT_EXPIRATION=86400000
+      # Se conecta a los DOS nodos por nombre de servicio + replicaSet:
+      # así el driver descubre la topología y sobrevive a un failover.
+      - MONGO_URI=mongodb://${MONGO_APP_USER:-b2b_app}:${MONGO_APP_PASSWORD:-b2b_app_pass}@mongo1:27017,mongo2:27017/${MONGO_DB:-b2b}?replicaSet=${MONGO_REPLICA_SET:-rs0}&authSource=admin
+      - MONGO_DB=${MONGO_DB:-b2b}
+    ports:
+      - "8090:8090"
+    depends_on:
+      db:
+        condition: service_started
+      mongo-init:
+        condition: service_completed_successfully
+    networks:
+      - b2b-network
+
+  frontend:
+    build:
+      context: ./frontendB2B
+      args:
+        VITE_API_BASE_URL: http://localhost:8090
+    container_name: b2b-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+    networks:
+      - b2b-network
+
+volumes:
+  db_data:
+  mongo1_data:
+  mongo2_data:
+  mongo_keyfile:
+
+networks:
+  b2b-network:
+    driver: bridge

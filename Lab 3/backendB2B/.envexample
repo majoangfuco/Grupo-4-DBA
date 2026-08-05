@@ -1,0 +1,15 @@
+# Backend environment (example)
+APP_ENV=development
+APP_PORT=8090
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=app_db
+DB_USER=app_user
+DB_PASSWORD=changeme
+JWT_SECRET=changeme
+JWT_EXPIRATION_MS=3600000
+
+# MongoDB (Lab 3). Ejecutando el backend FUERA de Docker se usa el nodo
+# publicado en localhost:27017 con directConnection=true.
+MONGO_URI=mongodb://b2b_app:b2b_app_pass@localhost:27017/b2b?authSource=admin&directConnection=true
+MONGO_DB=b2b

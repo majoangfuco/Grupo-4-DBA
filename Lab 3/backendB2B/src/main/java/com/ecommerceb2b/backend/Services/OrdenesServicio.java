@@ -1,0 +1,355 @@
+package com.ecommerceb2b.backend.Services;
+
+import com.ecommerceb2b.backend.Entities.CarritoEntidad;
+import com.ecommerceb2b.backend.Entities.CheckoutPedidoDto;
+import com.ecommerceb2b.backend.Entities.DatosDePagoEntidad;
+import com.ecommerceb2b.backend.Entities.FacturaEntidad;
+import com.ecommerceb2b.backend.Entities.OrdenesEntidad;
+import com.ecommerceb2b.backend.Repository.LogisticaMapaRepositorio;
+import com.ecommerceb2b.backend.Repository.OrdenesRepositorio;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.Date;
+import java.util.List;
+import java.util.NoSuchElementException;
+
+@Service
+public class OrdenesServicio {
+
+    private final OrdenesRepositorio ordenesRepositorio;
+    private final CarritoServicio carritoServicio;
+    private final CarritoProductoServicio carritoProductoServicio;
+    private final DatosDePagoServicio datosDePagoServicio;
+    private final FacturaServicio facturaServicio;
+    private final com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio;
+    private final LogisticaMapaRepositorio logisticaMapaRepositorio;
+
+    public OrdenesServicio(OrdenesRepositorio ordenesRepositorio,
+                           CarritoServicio carritoServicio,
+                           CarritoProductoServicio carritoProductoServicio,
+                           DatosDePagoServicio datosDePagoServicio,
+                           FacturaServicio facturaServicio,
+                           com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio,
+                           LogisticaMapaRepositorio logisticaMapaRepositorio) {
+        this.ordenesRepositorio = ordenesRepositorio;
+        this.carritoServicio = carritoServicio;
+        this.carritoProductoServicio = carritoProductoServicio;
+        this.datosDePagoServicio = datosDePagoServicio;
+        this.facturaServicio = facturaServicio;
+        this.configuracionEnvioRepositorio = configuracionEnvioRepositorio;
+        this.logisticaMapaRepositorio = logisticaMapaRepositorio;
+    }
+
+
+    @Transactional
+    public OrdenesEntidad crearOrden(OrdenesEntidad orden) {
+        validarOrden(orden);
+        orden.setFecha_Orden(new Date());
+        orden.setEstado("PENDIENTE");
+
+        Long ordenId = ordenesRepositorio.crear(orden);
+        orden.setOrden_ID(ordenId);
+        return orden;
+    }
+
+    @Transactional
+    public FacturaEntidad solicitarOrdenAtomica(
+            Long carritoId,
+            CheckoutPedidoDto pedido
+    ) {
+        if (carritoId == null || carritoId <= 0) {
+            throw new IllegalArgumentException("El carrito es obligatorio");
+        }
+
+        if (pedido == null) {
+            throw new IllegalArgumentException(
+                    "El pedido de checkout es obligatorio"
+            );
+        }
+
+        if (pedido.getInfoEntregaId() == null
+                || pedido.getInfoEntregaId() <= 0) {
+            throw new IllegalArgumentException(
+                    "La dirección de entrega es obligatoria"
+            );
+        }
+
+        /*
+         * Se obtiene el usuario únicamente para validar o crear el medio de
+         * pago. Toda la lógica crítica del checkout se ejecuta después en el
+         * procedimiento almacenado, que vuelve a validar estos datos bajo
+         * bloqueo transaccional.
+         */
+        CarritoEntidad carrito = carritoServicio.obtenerCarritoPorId(carritoId);
+
+        if (!"ACTIVO".equalsIgnoreCase(carrito.getEstado())) {
+            throw new IllegalStateException(
+                    "Solo se puede procesar la solicitud desde un carrito ACTIVO"
+            );
+        }
+
+        if (carrito.getUsuario() == null
+                || carrito.getUsuario().getUsuario_ID() == null) {
+            throw new IllegalStateException(
+                    "El carrito debe tener un usuario válido"
+            );
+        }
+
+        Long usuarioId = carrito.getUsuario().getUsuario_ID();
+        DatosDePagoEntidad datosPago = resolveDatosDePago(usuarioId, pedido);
+
+        if (datosPago == null || datosPago.getDatos_Pago_ID() == null) {
+            throw new IllegalArgumentException(
+                    "Se requiere información de pago válida para completar la solicitud"
+            );
+        }
+
+        Long ordenId = ordenesRepositorio.procesarCheckout(
+                carritoId,
+                pedido.getInfoEntregaId(),
+                datosPago.getDatos_Pago_ID()
+        );
+
+        // El checkout atómico crea la factura dentro del procedimiento
+        // almacenado: refresca el choropleth de ventas por comuna/distrito
+        // para que el mapa de logística refleje esta venta de inmediato.
+        logisticaMapaRepositorio.refrescar();
+
+        return facturaServicio.obtenerPorOrden(ordenId)
+                .orElseThrow(() -> new IllegalStateException(
+                        "El checkout creó la orden " + ordenId
+                                + " pero no fue posible recuperar su factura"
+                ));
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrdenesEntidad> listarOrdenes() {
+        return ordenesRepositorio.encontrarTodos();
+    }
+
+    @Transactional(readOnly = true)
+    public OrdenesEntidad obtenerOrdenPorId(Long ordenId) {
+        return ordenesRepositorio.encontrarPorId(ordenId)
+                .orElseThrow(() -> new NoSuchElementException(
+                        "Orden no encontrada: " + ordenId
+                ));
+    }
+
+    @Transactional
+    public OrdenesEntidad actualizarOrden(Long ordenId, OrdenesEntidad ordenActualizada) {
+        OrdenesEntidad actual = obtenerOrdenPorId(ordenId);
+        ordenActualizada.setOrden_ID(actual.getOrden_ID());
+        validarOrden(ordenActualizada);
+
+        int filasAfectadas = ordenesRepositorio.actualizar(ordenActualizada);
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException("No se pudo actualizar la orden: " + ordenId);
+        }
+        return ordenActualizada;
+    }
+
+    @Transactional
+    public void eliminarOrden(Long ordenId) {
+        obtenerOrdenPorId(ordenId);
+        int filasAfectadas = ordenesRepositorio.borrarPorId(ordenId);
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException("No se pudo eliminar la orden: " + ordenId);
+        }
+    }
+
+
+    // Req. 2 — Cliente ve sus propias órdenes
+    @Transactional(readOnly = true)
+    public List<OrdenesEntidad> listarPorUsuario(Long usuarioId) {
+        if (usuarioId == null || usuarioId <= 0) {
+            throw new IllegalArgumentException("El usuario es obligatorio");
+        }
+        return ordenesRepositorio.encontrarPorUsuarioId(usuarioId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrdenesEntidad> listarPorEstado(String estado) {
+        if (estado == null || estado.isBlank()) {
+            throw new IllegalArgumentException("El estado es obligatorio");
+        }
+        validarEstado(estado);
+        return ordenesRepositorio.encontrarPorEstado(estado);
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrdenesEntidad> listarPorFecha(Date fecha) {
+        if (fecha == null) {
+            throw new IllegalArgumentException("La fecha es obligatoria");
+        }
+        return ordenesRepositorio.encontrarPorFechaOrden(fecha);
+    }
+
+    // Req. 2 — Admin aprueba la orden (el Trigger 2 actualiza ultima_compra)
+    @Transactional
+    public OrdenesEntidad aprobarOrden(Long ordenId) {
+        OrdenesEntidad orden = obtenerOrdenPorId(ordenId);
+
+        if ("APROBADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "La orden ya está aprobada"
+            );
+        }
+
+        if ("CANCELADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "No se puede aprobar una orden cancelada"
+            );
+        }
+
+        int filasAfectadas =
+                ordenesRepositorio.actualizarEstado(
+                        ordenId,
+                        "APROBADA"
+                );
+
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException(
+                    "No se pudo aprobar la orden: " + ordenId
+            );
+        }
+
+        OrdenesEntidad ordenAprobada =
+                obtenerOrdenPorId(ordenId);
+
+        crearFacturaSiNoExiste(ordenAprobada);
+
+        return ordenAprobada;
+    }
+
+    private void crearFacturaSiNoExiste(OrdenesEntidad orden) {
+        if (facturaServicio.obtenerPorOrden(orden.getOrden_ID()).isPresent()) {
+            return;
+        }
+
+        BigDecimal subtotal = carritoProductoServicio.calcularSubtotal(orden.getCarrito_ID());
+        if (subtotal == null || subtotal.compareTo(BigDecimal.ZERO) <= 0) {
+            // El carrito no tiene items - no crear factura en este caso
+            // Esto puede ocurrir si la orden fue creada sin pasar por checkout normal
+            return;
+        }
+
+        // Tarifa de envío: valor por km (config global) * distancia de la orden.
+        BigDecimal valorKm = BigDecimal.valueOf(
+                configuracionEnvioRepositorio.obtener().getValorKm() != null
+                        ? configuracionEnvioRepositorio.obtener().getValorKm() : 0.0);
+        BigDecimal distanciaKm = orden.getDistancia_envio_km() != null
+                ? BigDecimal.valueOf(orden.getDistancia_envio_km()) : BigDecimal.ZERO;
+        BigDecimal costoEnvio = valorKm.multiply(distanciaKm).setScale(2, RoundingMode.HALF_UP);
+
+        BigDecimal total = subtotal.add(costoEnvio);
+        float precioTotal = total.floatValue();
+        float totalNeto = total.divide(BigDecimal.valueOf(1.19), 2, RoundingMode.HALF_UP).floatValue();
+        float iva = precioTotal - totalNeto;
+
+        FacturaEntidad factura = new FacturaEntidad();
+        factura.setUsuarioId(orden.getUsuario_ID());
+        factura.setOrdenId(orden.getOrden_ID());
+        factura.setPrecio_Total(precioTotal);
+        factura.setTotal_Neto(totalNeto);
+        factura.setIva(iva);
+        factura.setCosto_Envio(costoEnvio.floatValue());
+        factura.setFecha_Emision(new Date());
+
+        var pagos = datosDePagoServicio.obtenerPorUsuario(orden.getUsuario_ID());
+        if (pagos != null && !pagos.isEmpty()) {
+            factura.setDatos_Pago_ID(pagos.get(0).getDatos_Pago_ID());
+        }
+
+        facturaServicio.crearFactura(factura);
+
+        // Refresca el choropleth de ventas por comuna/distrito para que el
+        // mapa de logística muestre esta venta sin esperar al refresco
+        // automático de 6h (LogisticaMapaScheduler).
+        logisticaMapaRepositorio.refrescar();
+    }
+
+    @Transactional
+    public OrdenesEntidad cancelarOrden(Long ordenId) {
+        OrdenesEntidad orden = obtenerOrdenPorId(ordenId);
+
+        if ("APROBADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "No se puede cancelar una orden ya aprobada"
+            );
+        }
+
+        if ("CANCELADA".equalsIgnoreCase(orden.getEstado())) {
+            throw new IllegalStateException(
+                    "La orden ya está cancelada"
+            );
+        }
+
+        int filasAfectadas =
+                ordenesRepositorio.actualizarEstado(
+                        ordenId,
+                        "CANCELADA"
+                );
+
+        if (filasAfectadas == 0) {
+            throw new IllegalStateException(
+                    "No se pudo cancelar la orden: " + ordenId
+            );
+        }
+
+        return obtenerOrdenPorId(ordenId);
+    }
+
+
+    private void validarOrden(OrdenesEntidad orden) {
+        if (orden == null) {
+            throw new IllegalArgumentException("La orden es obligatoria");
+        }
+        if (orden.getCarrito_ID() == null || orden.getCarrito_ID() <= 0) {
+            throw new IllegalArgumentException("El carrito es obligatorio");
+        }
+        if (orden.getUsuario_ID() == null || orden.getUsuario_ID() <= 0) {
+            throw new IllegalArgumentException("El usuario es obligatorio");
+        }
+        if (orden.getInfo_Entrega_ID() == null || orden.getInfo_Entrega_ID() <= 0) {
+            throw new IllegalArgumentException("La información de entrega es obligatoria");
+        }
+    }
+
+    private void validarEstado(String estado) {
+        List<String> estadosValidos = List.of("PENDIENTE", "APROBADA", "CANCELADA");
+        if (!estadosValidos.contains(estado.toUpperCase())) {
+            throw new IllegalArgumentException(
+                    "Estado inválido. Valores permitidos: " + estadosValidos
+            );
+        }
+    }
+
+    @Transactional(readOnly = true)
+    public List<OrdenesEntidad> listarOrdenesConRut() {
+        return ordenesRepositorio.encontrarTodosConRut();
+    }
+
+    private DatosDePagoEntidad resolveDatosDePago(Long usuarioId, CheckoutPedidoDto pedido) {
+        if (pedido.getDatosPagoId() != null) {
+            DatosDePagoEntidad datos = datosDePagoServicio.obtenerPorId(pedido.getDatosPagoId())
+                    .orElseThrow(() -> new IllegalArgumentException("Datos de pago no encontrados: " + pedido.getDatosPagoId()));
+            if (!usuarioId.equals(datos.getUsuario_ID())) {
+                throw new IllegalArgumentException("Los datos de pago deben pertenecer al mismo usuario");
+            }
+            return datos;
+        }
+
+        DatosDePagoEntidad datosPago = pedido.getDatosPago();
+        if (datosPago != null) {
+            datosPago.setUsuario_ID(usuarioId);
+            Long idGuardado = datosDePagoServicio.guardar(datosPago);
+            datosPago.setDatos_Pago_ID(idGuardado);
+            return datosPago;
+        }
+
+        return null;
+    }
+}
