@@ -1068,7 +1068,8 @@ INSERT INTO categoria_entidad (nombre_categoria, restringida_zona_residencial) V
 ('Licencias de Software',          FALSE),  -- 5
 ('Almacenamiento y Servidores',    FALSE),  -- 6
 ('Audio y Videoconferencia',       FALSE),  -- 7
-('Seguridad Electrónica',          TRUE);   -- 8  ← restringida
+('Seguridad Electrónica',          TRUE),   -- 8  ← restringida
+('Químicos Peligrosos',            TRUE);   -- 9  ← restringida
 
 -- ── 7.7 Usuarios ─────────────────────────────────────────────
 -- Contraseñas hasheadas con BCrypt
@@ -1115,7 +1116,9 @@ INSERT INTO producto_entidad (categoria_categoria_id, nombre_producto, descripci
 (1, 'Mouse Inalámbrico Ergonómico',     'Mouse inalámbrico con precisión óptica',                    45000.0, 1500, 'SKU-COMP-006', TRUE),   -- 22
 (2, 'Armario Archivo Metal 4 Cajones',  'Armario archivador metálico con llave',                    210000.0,  250, 'SKU-OFI-004',  TRUE),   -- 23
 (6, 'UPS Online 1500VA',                'Sistema de alimentación ininterrumpida',                   450000.0,   80, 'SKU-SRV-003',  TRUE),   -- 24
-(5, 'Licencia AutoCAD 2025 (Anual)',    'Licencia suscripción AutoCAD para empresas',               850000.0,  500, 'SKU-SOFT-003', TRUE);   -- 25
+(5, 'Licencia AutoCAD 2025 (Anual)',    'Licencia suscripción AutoCAD para empresas',               850000.0,  500, 'SKU-SOFT-003', TRUE),   -- 25
+(9, 'Ácido Sulfúrico Industrial',       'Bidón de 20L de ácido sulfúrico (Peligroso)',              50000.0,   150, 'SKU-QUIM-001', TRUE),   -- 26
+(9, 'Solvente Industrial',              'Tambor de 200L de solvente químico',                      120000.0,   300, 'SKU-QUIM-002', TRUE);   -- 27   -- 25
 
 -- ── 7.9 Datos de pago ────────────────────────────────────────
 INSERT INTO datos_pago_entidad (usuario_usuario, metodo_pago, numero_tarjeta, fecha_expiracion) VALUES
