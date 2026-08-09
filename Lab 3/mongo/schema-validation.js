@@ -8,11 +8,11 @@
 
 const DB_NAME = process.env.MONGO_DB || "b2b";
 const db = db.getSiblingDB(DB_NAME);
-
+ 
 function log(msg) {
     print(`[schema-validation] ${msg}`);
 }
-
+ 
 // ─── Validador de la colección "carritos" ($jsonSchema) ────────────────────────
 // Define tipos de datos, campos requeridos y enumeradores básicos.
 const carritoValidator = {
@@ -21,7 +21,11 @@ const carritoValidator = {
         title: "Validación de estructura del carrito",
         required: ["clienteId", "estado", "items", "ultimaActividad"],
         properties: {
-            clienteId: { bsonType: "objectId" },
+            // clienteId/productoId: Long (int/long), NO objectId. Se
+            // corresponden 1:1 con usuario_ID / producto_ID de Postgres
+            // (integración real con el catálogo/clientes existentes,
+            // en vez de IDs Mongo inventados para la demo aislada).
+            clienteId: { bsonType: ["int", "long"] },
             estado: {
                 enum: ["ACTIVO", "ABANDONADO", "CONVERTIDO"],
                 description: "Debe ser uno de los 3 estados válidos del carrito"
@@ -43,7 +47,7 @@ const carritoValidator = {
                         "stockDisponibleAlAgregar"
                     ],
                     properties: {
-                        productoId: { bsonType: "objectId" },
+                        productoId: { bsonType: ["int", "long"] },
                         sku: { bsonType: "string" },
                         nombreProducto: { bsonType: "string" },
                         cantidad: {
@@ -72,7 +76,8 @@ const carritoValidator = {
         }
     }
 };
-
+ 
+// ─── Regla de negocio: comparación entre campos del MISMO ítem ──
 // $jsonSchema no permite comparar dos campos del mismo documento.
 // Por lo tanto usamos $expr para habilitar operadores lógicos ($lte, $gte) 
 // y comparar la cantidad solicitada contra el stock y el mínimo B2B.
@@ -106,8 +111,9 @@ const reglasDeNegocio = {
 // ───  Fusión de Validadores ($and) ─────────────────────────────
 // Se exige que el documento cumpla tanto la estructura estática 
 // como las reglas dinámicas para ser insertado/actualizado.
+ 
 const validator = { $and: [carritoValidator, reglasDeNegocio] };
-
+ 
 const opcionesValidacion = {
     validator: validator,
     // Validar inserts Y updates
@@ -116,11 +122,10 @@ const opcionesValidacion = {
     // (sobreventa / incumplimiento de pedido mínimo)
     validationAction: "error"
 };
-
+ 
 // ─── Aplicar validador ─────────────────────────────
-
 const coleccionesExistentes = db.getCollectionNames();
-
+ 
 if (coleccionesExistentes.includes("carritos")) {
     db.runCommand({ collMod: "carritos", ...opcionesValidacion });
     log('Validador aplicado sobre la colección "carritos" existente (collMod).');
@@ -128,8 +133,8 @@ if (coleccionesExistentes.includes("carritos")) {
     db.createCollection("carritos", opcionesValidacion);
     log('Colección "carritos" creada con validador (createCollection).');
 }
-
+ 
 // ─── Verificación rápida ─────────────────────────────────────────
-
 const info = db.getCollectionInfos({ name: "carritos" })[0];
-log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
+log(`validationLevel=${info.options.validationLevel}, validationAction=${info.options.validationAction}`);
+ 
