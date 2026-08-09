@@ -7,25 +7,16 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ecommerceb2b.backend.Entities.CarritoEntidad;
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
-import com.ecommerceb2b.backend.Exceptions.CarritoMongoValidationException;
 import com.ecommerceb2b.backend.Repository.CarritoProductoRepositorio;
-import com.ecommerceb2b.backend.Repository.CarritoRepositorio;
 
 @Service
 public class CarritoProductoServicio {
 
 	private final CarritoProductoRepositorio carritoProductoRepositorio;
-	private final CarritoRepositorio carritoRepositorio;
-	private final CarritoMongoServicio carritoMongoServicio;
 
-	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio,
-			CarritoRepositorio carritoRepositorio,
-			CarritoMongoServicio carritoMongoServicio) {
+	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio) {
 		this.carritoProductoRepositorio = carritoProductoRepositorio;
-		this.carritoRepositorio = carritoRepositorio;
-		this.carritoMongoServicio = carritoMongoServicio;
 	}
 
 	// Entradas: idCarrito, idProducto, cantidad
@@ -61,6 +52,7 @@ public class CarritoProductoServicio {
 			cantidadTotalFinal = (long) cantidad;
 		}
 
+<<<<<<< HEAD
 		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(idCarrito)
 				.orElseThrow(() -> new IllegalStateException("Carrito no encontrado: " + idCarrito));
 		Long clienteId = carrito.getUsuario().getUsuario_ID();
@@ -71,6 +63,8 @@ public class CarritoProductoServicio {
 			throw new IllegalArgumentException(e.getMessage());
 		}
 
+=======
+>>>>>>> 638e23f288e52db4d16666206d1a1975c75f4c0b
 		return resultado;
 	}
 
@@ -115,6 +109,9 @@ public class CarritoProductoServicio {
 		}
 
 		CarritoProductoEntidad actual = obtenerItemPorId(idCarritoProducto);
+		if (!carritoProductoRepositorio.carritoEstaActivo(actual.getCarrito().getCarrito_ID())) {
+			throw new IllegalStateException("Solo se pueden modificar ítems de un carrito ACTIVO");
+		}
 		Long cantidadActual = actual.getUnidad_producto();
 		int delta = nuevaCantidad - cantidadActual.intValue();
 
@@ -152,11 +149,26 @@ public class CarritoProductoServicio {
 	@Transactional
 	public void eliminarItem(Long idCarritoProducto) {
 		CarritoProductoEntidad actual = obtenerItemPorId(idCarritoProducto);
+		if (!carritoProductoRepositorio.carritoEstaActivo(actual.getCarrito().getCarrito_ID())) {
+			throw new IllegalStateException("Solo se pueden eliminar ítems de un carrito ACTIVO");
+		}
 		carritoProductoRepositorio.liberarStock(
 				actual.getProducto().getProducto_ID(),
 				actual.getUnidad_producto().intValue()
 		);
 		carritoProductoRepositorio.eliminarPorId(idCarritoProducto);
+	}
+
+	/** Usado al abandonar: libera SQL sin modificar todavía el documento. */
+	public void liberarStockPorAbandono(CarritoProductoEntidad item) {
+		carritoProductoRepositorio.liberarStock(
+				item.getProducto().getProducto_ID(), item.getUnidad_producto().intValue());
+	}
+
+	/** Usado al reactivar: reconstruye en PostgreSQL la reserva liberada. */
+	public void reservarStockParaReactivacion(CarritoProductoEntidad item) {
+		carritoProductoRepositorio.reservarStock(
+				item.getProducto().getProducto_ID(), item.getUnidad_producto().intValue());
 	}
 
 	// Entradas: idCarrito
@@ -166,8 +178,12 @@ public class CarritoProductoServicio {
 	public BigDecimal calcularSubtotal(Long idCarrito) {
 		return carritoProductoRepositorio.calcularSubtotal(idCarrito);
 	}
+<<<<<<< HEAD
 
 	private void actualizarMinimoB2B(CarritoProductoEntidad item, Long productoId) {
 		item.setCantidadMinimaB2B(carritoMongoServicio.obtenerCantidadMinima(productoId));
 	}
 }
+=======
+}
+>>>>>>> 638e23f288e52db4d16666206d1a1975c75f4c0b

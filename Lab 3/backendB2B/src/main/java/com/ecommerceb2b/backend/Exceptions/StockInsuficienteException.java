@@ -1,13 +1,16 @@
 package com.ecommerceb2b.backend.Exceptions;
 
-import org.bson.types.ObjectId;
-
 /**
  * Se lanza cuando el checkout documental (Lab 3) intenta descontar stock de
  * un producto y el {@code updateOne} condicional
  * ({@code {_id: productoId, stock: {$gte: cantidad}}}) no matchea ningún
- * documento: o el producto no existe, o no tiene stock suficiente para la
- * cantidad pedida.
+ * documento: o el producto no existe en la copia Mongo de {@code productos}
+ * (ver {@code mongo/seeders/productos-seed.js}), o no tiene stock
+ * suficiente para la cantidad pedida.
+ *
+ * {@code productoId} es {@code Long} — mismo valor que {@code producto_ID}
+ * de Postgres, igual que {@code clienteId} (ver nota en
+ * {@code mongo/schema-validation.js}, colección {@code carritos}).
  *
  * Lanzarla dentro del lambda de {@code ClientSession.withTransaction(...)}
  * es lo que dispara el abort de la transacción completa (ver
@@ -17,17 +20,17 @@ import org.bson.types.ObjectId;
  */
 public class StockInsuficienteException extends RuntimeException {
 
-    private final String productoId;
+    private final long productoId;
     private final long cantidadSolicitada;
 
-    public StockInsuficienteException(ObjectId productoId, long cantidadSolicitada) {
-        super("Stock insuficiente para el producto " + productoId.toHexString()
+    public StockInsuficienteException(long productoId, long cantidadSolicitada) {
+        super("Stock insuficiente para el producto " + productoId
                 + " (cantidad solicitada: " + cantidadSolicitada + ")");
-        this.productoId = productoId.toHexString();
+        this.productoId = productoId;
         this.cantidadSolicitada = cantidadSolicitada;
     }
 
-    public String getProductoId() {
+    public long getProductoId() {
         return productoId;
     }
 

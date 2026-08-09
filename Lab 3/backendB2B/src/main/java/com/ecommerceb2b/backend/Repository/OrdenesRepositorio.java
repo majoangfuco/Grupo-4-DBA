@@ -1,6 +1,10 @@
 package com.ecommerceb2b.backend.Repository;
 
 import com.ecommerceb2b.backend.Entities.OrdenesEntidad;
+import com.ecommerceb2b.backend.Entities.CarritoEntidad;
+import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
+import com.ecommerceb2b.backend.Entities.FacturaEntidad;
+import com.ecommerceb2b.backend.Entities.ProductoEntidad;
 
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
@@ -276,6 +280,80 @@ public class OrdenesRepositorio {
         } catch (org.springframework.dao.DataAccessException e) {
             throw new IllegalStateException(extraerMensajeAmigable(e));
         }
+    }
+
+    /**
+     * Proyección técnica del carrito Mongo requerida por el procedimiento
+     * geoespacial heredado. MongoDB sigue siendo la fuente operativa; estas
+     * filas solo permiten reutilizar, dentro del checkout, las validaciones y
+     * bloqueos de stock ya implementados en PostgreSQL.
+     */
+    public void proyectarCarritoParaCheckout(CarritoEntidad carrito,
+                                             List<CarritoProductoEntidad> items) {
+        jdbcTemplate.update("""
+                INSERT INTO carrito_entidad
+                    (carrito_id, carrito_usuario_id, estado, costo_carrito, ultima_actualizacion)
+                VALUES (?, ?, 'ACTIVO', ?, NOW())
+                ON CONFLICT (carrito_id) DO UPDATE SET
+                    carrito_usuario_id = EXCLUDED.carrito_usuario_id,
+                    estado = 'ACTIVO',
+                    costo_carrito = EXCLUDED.costo_carrito,
+                    ultima_actualizacion = NOW()
+                """, carrito.getCarrito_ID(), carrito.getUsuario().getUsuario_ID(),
+                carrito.getCosto_Carrito());
+
+        jdbcTemplate.update("DELETE FROM carrito_producto_entidad WHERE carrito_carrito_id = ?",
+                carrito.getCarrito_ID());
+        for (CarritoProductoEntidad item : items) {
+            jdbcTemplate.update("""
+                    INSERT INTO carrito_producto_entidad
+                        (carrito_producto_id, carrito_carrito_id, producto_producto_id, unidad_producto)
+                    VALUES (?, ?, ?, ?)
+                    """, item.getCarrito_Producto_ID(), carrito.getCarrito_ID(),
+                    item.getProducto().getProducto_ID(), item.getUnidad_producto());
+        }
+    }
+
+    /** Lee la proyección SQL creada por procesar_checkout para copiarla a Mongo. */
+    public FacturaEntidad obtenerFacturaProyectada(Long ordenId) {
+        FacturaEntidad factura = jdbcTemplate.queryForObject("""
+                SELECT factura_id, usuario_usuario, datos_pago_id, orden_orden_id,
+                       precio_total, fecha_emision, total_neto, iva, costo_envio
+                FROM factura_entidad WHERE orden_orden_id = ?
+                """, (rs, row) -> {
+            FacturaEntidad f = new FacturaEntidad();
+            f.setUsuarioId(rs.getLong("usuario_usuario"));
+            long pago = rs.getLong("datos_pago_id");
+            f.setDatos_Pago_ID(rs.wasNull() ? null : pago);
+            f.setOrdenId(rs.getLong("orden_orden_id"));
+            f.setPrecio_Total(rs.getFloat("precio_total"));
+            f.setFecha_Emision(rs.getTimestamp("fecha_emision"));
+            f.setTotal_Neto(rs.getFloat("total_neto"));
+            f.setIva(rs.getFloat("iva"));
+            f.setCosto_Envio(rs.getFloat("costo_envio"));
+            return f;
+        }, ordenId);
+
+        List<CarritoProductoEntidad> items = jdbcTemplate.query("""
+                SELECT fi.producto_id, fi.cantidad, fi.precio_unitario,
+                       p.nombre_producto, p.sku
+                FROM factura_item_entidad fi
+                JOIN factura_entidad f ON f.factura_id = fi.factura_id
+                LEFT JOIN producto_entidad p ON p.producto_id = fi.producto_id
+                WHERE f.orden_orden_id = ?
+                """, (rs, row) -> {
+            ProductoEntidad producto = new ProductoEntidad();
+            producto.setProducto_ID(rs.getLong("producto_id"));
+            producto.setNombre_producto(rs.getString("nombre_producto"));
+            producto.setSku(rs.getString("sku"));
+            producto.setPrecio(rs.getFloat("precio_unitario"));
+            CarritoProductoEntidad item = new CarritoProductoEntidad();
+            item.setProducto(producto);
+            item.setUnidad_producto(rs.getLong("cantidad"));
+            return item;
+        }, ordenId);
+        factura.setItems(items);
+        return factura;
     }
 
 }

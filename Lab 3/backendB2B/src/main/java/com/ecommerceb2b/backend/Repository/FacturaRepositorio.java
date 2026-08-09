@@ -1,100 +1,143 @@
 package com.ecommerceb2b.backend.Repository;
 
+import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
 import com.ecommerceb2b.backend.Entities.FacturaEntidad;
+import com.ecommerceb2b.backend.Entities.ProductoEntidad;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
+import org.bson.Document;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Repository;
 
-import java.sql.PreparedStatement;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
-import org.springframework.jdbc.core.PreparedStatementCreator;
-import org.springframework.jdbc.support.GeneratedKeyHolder;
-import org.springframework.jdbc.support.KeyHolder;
+import static com.mongodb.client.model.Filters.eq;
+import static com.mongodb.client.model.Sorts.descending;
+import static com.mongodb.client.model.Updates.inc;
 
+/** Facturas e ítems históricos persistidos como documentos MongoDB. */
 @Repository
 public class FacturaRepositorio {
 
+    private final MongoCollection<Document> facturas;
+    private final MongoCollection<Document> contadores;
     private final JdbcTemplate jdbc;
 
-    public FacturaRepositorio(JdbcTemplate jdbc) {
+    public FacturaRepositorio(MongoDatabase database, JdbcTemplate jdbc) {
+        this.facturas = database.getCollection("facturas");
+        this.contadores = database.getCollection("contadores");
         this.jdbc = jdbc;
     }
 
-    // Se une con usuario_entidad para exponer el RUT de la empresa en la factura.
-    private static final String SELECT_BASE = """
-            SELECT f.*, u.rut_empresa
-            FROM factura_entidad f
-            JOIN usuario_entidad u ON u.usuario_id = f.usuario_usuario
-            """;
-
-    private final RowMapper<FacturaEntidad> rowMapper = (rs, rowNum) -> {
-        FacturaEntidad f = new FacturaEntidad();
-        f.setFactura_ID(rs.getLong("factura_id"));
-        f.setUsuarioId(rs.getLong("usuario_usuario"));
-        f.setOrdenId(rs.getLong("orden_orden_id"));
-        f.setPrecio_Total(rs.getFloat("precio_total"));
-        f.setFecha_Emision(rs.getTimestamp("fecha_emision"));
-        f.setTotal_Neto(rs.getFloat("total_neto"));
-        f.setIva(rs.getFloat("iva"));
-        f.setCosto_Envio(rs.getFloat("costo_envio"));
-        f.setRut_Empresa(rs.getString("rut_empresa"));
-        long datosPagoId = rs.getLong("datos_pago_id");
-        if (!rs.wasNull()) {
-            f.setDatos_Pago_ID(datosPagoId);
-        }
-        return f;
-    };
-
     public List<FacturaEntidad> findAll() {
-        return jdbc.query(SELECT_BASE, rowMapper);
+        List<FacturaEntidad> resultado = new ArrayList<>();
+        facturas.find().sort(descending("fechaEmision")).map(this::mapear).into(resultado);
+        return resultado;
     }
 
     public Optional<FacturaEntidad> findById(Long id) {
-        List<FacturaEntidad> result = jdbc.query(
-                SELECT_BASE + " WHERE f.factura_id = ?",
-                rowMapper, id
-        );
-        return result.stream().findFirst();
+        return Optional.ofNullable(facturas.find(eq("_id", id)).first()).map(this::mapear);
     }
 
     public List<FacturaEntidad> findByUsuarioId(Long usuarioId) {
-        return jdbc.query(
-                SELECT_BASE + " WHERE f.usuario_usuario = ? ORDER BY f.fecha_emision DESC",
-                rowMapper, usuarioId
-        );
+        List<FacturaEntidad> resultado = new ArrayList<>();
+        facturas.find(eq("clienteId", usuarioId)).sort(descending("fechaEmision"))
+                .map(this::mapear).into(resultado);
+        return resultado;
     }
 
     public Optional<FacturaEntidad> findByOrdenId(Long ordenId) {
-        List<FacturaEntidad> result = jdbc.query(
-                SELECT_BASE + " WHERE f.orden_orden_id = ?",
-                rowMapper, ordenId
-        );
-        return result.stream().findFirst();
+        return Optional.ofNullable(facturas.find(eq("ordenId", ordenId)).first()).map(this::mapear);
     }
 
     public Long crear(FacturaEntidad factura) {
-        String sql = "INSERT INTO factura_entidad (usuario_usuario, datos_pago_id, orden_orden_id, precio_total, fecha_emision, total_neto, iva, costo_envio) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        KeyHolder keyHolder = new GeneratedKeyHolder();
-        PreparedStatementCreator psc = connection -> {
-            PreparedStatement ps = connection.prepareStatement(sql, new String[]{"factura_id"});
-            ps.setLong(1, factura.getUsuarioId());
-            if (factura.getDatos_Pago_ID() != null) {
-                ps.setLong(2, factura.getDatos_Pago_ID());
-            } else {
-                ps.setNull(2, java.sql.Types.BIGINT);
+        long id = siguienteId("facturas");
+        long correlativo = siguienteId("numeroFactura");
+        String numeroFactura = "FAC-%010d".formatted(correlativo);
+
+        List<Document> items = new ArrayList<>();
+        if (factura.getItems() != null) {
+            for (CarritoProductoEntidad item : factura.getItems()) {
+                items.add(new Document("productoId", item.getProducto().getProducto_ID())
+                        .append("nombreProducto", item.getProducto().getNombre_producto())
+                        .append("sku", item.getProducto().getSku())
+                        .append("precioUnitario", item.getProducto().getPrecio().doubleValue())
+                        .append("cantidad", item.getUnidad_producto()));
             }
-            ps.setLong(3, factura.getOrdenId());
-            ps.setFloat(4, factura.getPrecio_Total());
-            ps.setTimestamp(5, new java.sql.Timestamp(factura.getFecha_Emision().getTime()));
-            ps.setFloat(6, factura.getTotal_Neto());
-            ps.setFloat(7, factura.getIva());
-            ps.setFloat(8, factura.getCosto_Envio() != null ? factura.getCosto_Envio() : 0f);
-            return ps;
-        };
-        jdbc.update(psc, keyHolder);
-        Number key = keyHolder.getKey();
-        return key != null ? key.longValue() : null;
+        }
+
+        Document documento = new Document("_id", id)
+                .append("numeroFactura", numeroFactura)
+                .append("clienteId", factura.getUsuarioId())
+                .append("datosPagoId", factura.getDatos_Pago_ID())
+                .append("ordenId", factura.getOrdenId())
+                .append("precioTotal", factura.getPrecio_Total().doubleValue())
+                .append("fechaEmision", factura.getFecha_Emision())
+                .append("totalNeto", factura.getTotal_Neto().doubleValue())
+                .append("iva", factura.getIva().doubleValue())
+                .append("costoEnvio", factura.getCosto_Envio() == null ? 0D : factura.getCosto_Envio().doubleValue())
+                .append("rutEmpresa", obtenerRut(factura.getUsuarioId()))
+                .append("items", items);
+        facturas.insertOne(documento);
+        factura.setFactura_ID(id);
+        factura.setNumeroFactura(numeroFactura);
+        factura.setRut_Empresa(documento.getString("rutEmpresa"));
+        return id;
+    }
+
+    private FacturaEntidad mapear(Document documento) {
+        FacturaEntidad factura = new FacturaEntidad();
+        factura.setFactura_ID(numero(documento, "_id"));
+        factura.setNumeroFactura(documento.getString("numeroFactura"));
+        factura.setUsuarioId(numero(documento, "clienteId"));
+        factura.setDatos_Pago_ID(numeroNullable(documento, "datosPagoId"));
+        factura.setOrdenId(numero(documento, "ordenId"));
+        factura.setPrecio_Total(documento.get("precioTotal", Number.class).floatValue());
+        factura.setFecha_Emision(documento.getDate("fechaEmision"));
+        factura.setTotal_Neto(documento.get("totalNeto", Number.class).floatValue());
+        factura.setIva(documento.get("iva", Number.class).floatValue());
+        Number envio = documento.get("costoEnvio", Number.class);
+        factura.setCosto_Envio(envio == null ? 0F : envio.floatValue());
+        factura.setRut_Empresa(documento.getString("rutEmpresa"));
+
+        List<CarritoProductoEntidad> items = new ArrayList<>();
+        for (Document item : documento.getList("items", Document.class, List.of())) {
+            ProductoEntidad producto = new ProductoEntidad();
+            producto.setProducto_ID(numero(item, "productoId"));
+            producto.setNombre_producto(item.getString("nombreProducto"));
+            producto.setSku(item.getString("sku"));
+            producto.setPrecio(item.get("precioUnitario", Number.class).floatValue());
+            CarritoProductoEntidad cp = new CarritoProductoEntidad();
+            cp.setProducto(producto);
+            cp.setUnidad_producto(numero(item, "cantidad"));
+            items.add(cp);
+        }
+        factura.setItems(items);
+        return factura;
+    }
+
+    private String obtenerRut(Long usuarioId) {
+        List<String> valores = jdbc.query("SELECT rut_empresa FROM usuario_entidad WHERE usuario_id = ?",
+                (rs, row) -> rs.getString(1), usuarioId);
+        return valores.isEmpty() ? null : valores.get(0);
+    }
+
+    private long siguienteId(String secuencia) {
+        Document contador = contadores.findOneAndUpdate(eq("_id", secuencia), inc("valor", 1L),
+                new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
+        return contador.get("valor", Number.class).longValue();
+    }
+
+    private long numero(Document documento, String campo) {
+        return documento.get(campo, Number.class).longValue();
+    }
+
+    private Long numeroNullable(Document documento, String campo) {
+        Number valor = documento.get(campo, Number.class);
+        return valor == null ? null : valor.longValue();
     }
 }

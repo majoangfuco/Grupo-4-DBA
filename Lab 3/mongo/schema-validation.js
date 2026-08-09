@@ -8,13 +8,15 @@
 */
 
 const DB_NAME = process.env.MONGO_DB || "b2b";
-const db = db.getSiblingDB(DB_NAME);
+const database = db.getSiblingDB(DB_NAME);
 
 function log(msg) {
     print(`[schema-validation] ${msg}`);
 }
 
-// ─── Validador de la colección "carritos" ────────────────────────
+// ─── Validador de la colección "carritos" ($jsonSchema) ────────────────────────
+// Define tipos de datos, campos requeridos y enumeradores básicos.
+
 const carritoValidator = {
     $jsonSchema: {
         bsonType: "object",
@@ -37,13 +39,21 @@ const carritoValidator = {
                 items: {
                     bsonType: "object",
                     required: [
+                        "itemId",
                         "productoId",
                         "cantidad",
                         "precioUnitario",
                         "stockDisponibleAlAgregar"
                     ],
                     properties: {
-                        productoId: { bsonType: ["int", "long"] },
+                        productoId: {
+                            bsonType: ["int", "long"],
+                            minimum: 1
+                        },
+                        itemId: {
+                            bsonType: ["int", "long"],
+                            minimum: 1
+                        },
                         sku: { bsonType: "string" },
                         nombreProducto: { bsonType: "string" },
                         cantidad: {
@@ -74,6 +84,9 @@ const carritoValidator = {
 };
 
 // ─── Regla de negocio: comparación entre campos del MISMO ítem ──
+// $jsonSchema no permite comparar dos campos del mismo documento.
+// Por lo tanto usamos $expr para habilitar operadores lógicos ($lte, $gte)
+// y comparar la cantidad solicitada contra el stock y el mínimo B2B.
 const reglasDeNegocio = {
     $expr: {
         $and: [
@@ -105,6 +118,10 @@ const reglasDeNegocio = {
         ]
     }
 };
+
+// ───  Fusión de Validadores ($and) ─────────────────────────────
+// Se exige que el documento cumpla tanto la estructura estática
+// como las reglas dinámicas para ser insertado/actualizado.
 
 const validator = { $and: [carritoValidator, reglasDeNegocio] };
 
@@ -157,7 +174,158 @@ if (coleccionesExistentes.includes("carritos")) {
     db.createCollection("carritos", opcionesValidacion);
     log('Colección "carritos" creada con validador (createCollection).');
 }
-
 // ─── Verificación rápida ─────────────────────────────────────────
 const info = db.getCollectionInfos({ name: "carritos" })[0];
-log(`validationLevel=${info.options.validationLevel}, validationAction=${info.options.validationAction}`);
+log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
+
+// ═══════════════════════════════════════════════════════════════
+// Colección "productos" — SOLO para CheckoutServicio
+//
+// No es el catálogo (ese sigue siendo producto_entidad en Postgres,
+// que consultan ProductoServicio/ProductoRepositorio, y del que lee
+// CarritoMongoServicio.agregarItem para armar el snapshot del ítem del
+// carrito). Esta colección es una copia acotada, exclusiva de la
+// transacción ACID de checkout (CheckoutServicio): el driver de Mongo
+// solo puede hacer $inc condicional (updateOne con stock: {$gte: N})
+// dentro de una transacción multi-documento sobre datos que YA viven
+// en Mongo — no puede tocar Postgres en el mismo commit/abort. De ahí
+// la copia, en vez de leer/descontar el stock real.
+//
+// `_id` es el MISMO valor que producto_ID en Postgres (Long), no un
+// ObjectId nuevo: es lo que permite poblarla 1:1 desde
+// mongo/seeders/productos-seed.js y lo que hace que
+// carritos.items[].productoId (también Long, ver bloque de arriba)
+// calce directo como filtro { _id: productoId } sin tabla de mapeo.
+// ═══════════════════════════════════════════════════════════════
+
+const productoValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        title: "Validación de estructura de producto (copia acotada para checkout)",
+        required: ["nombre", "precioUnitario", "stock", "cantidadMinimaB2B"],
+        properties: {
+            _id: {
+                bsonType: ["int", "long"],
+                description: "Igual a producto_ID de Postgres (producto_entidad), no un ObjectId generado por Mongo"
+            },
+            nombre: { bsonType: "string" },
+            precioUnitario: {
+                bsonType: ["double", "decimal"],
+                minimum: 0,
+                description: "SIN IVA — CheckoutServicio aplica 19% sobre esto, no se recalcula acá"
+            },
+            stock: {
+                bsonType: ["int", "long"],
+                minimum: 0,
+                description: "Lo único que CheckoutServicio descuenta ($inc condicional). No confundir con producto_entidad.stock de Postgres: son copias independientes."
+            },
+            cantidadMinimaB2B: {
+                bsonType: ["int", "long"],
+                minimum: 1,
+                description: "Referencial, para que el shape sea consistente con carritos.items — CheckoutServicio no la vuelve a validar (ya se validó al armar el carrito)."
+            }
+        }
+    }
+};
+
+const opcionesValidacionProductos = {
+    validator: productoValidator,
+    validationLevel: "strict",
+    validationAction: "error"
+};
+
+const coleccionesExistentes = db.getCollectionNames();
+
+if (coleccionesExistentes.includes("productos")) {
+    db.runCommand({ collMod: "productos", ...opcionesValidacionProductos });
+    log('Validador aplicado sobre la colección "productos" existente (collMod).');
+} else {
+    db.createCollection("productos", opcionesValidacionProductos);
+    log('Colección "productos" creada con validador (createCollection).');
+}
+
+const infoProductos = db.getCollectionInfos({ name: "productos" })[0];
+log(`productos: validationLevel=${infoProductos.options.validationLevel}, validationAction=${infoProductos.options.validationAction}`);
+
+// ─── Facturas documentales ────────────────────────────────────────────────
+// El shape es el que fija docs/03-checkout-transaccion.md §1.4 y el que
+// escribe CheckoutServicio.ejecutarCheckout(): NO es el de la factura
+// relacional (factura_entidad en Postgres, con precioTotal/costoEnvio y
+// clienteId plano). Las diferencias que importan:
+//   - `ordenId` es un ObjectId (referencia al _id de `ordenes`), no un Long.
+//   - los datos del cliente van embebidos en `cliente{}` como snapshot
+//     tributario congelado, no como un `clienteId` suelto en la raíz.
+//   - NO hay `items[]`: el detalle de línea vive en `ordenes.items`, y
+//     duplicarlo acá crearía dos copias divergentes de la misma verdad
+//     histórica (docs/03 §1.4 lo justifica en detalle).
+const facturaValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        title: "Factura documental emitida por el checkout transaccional",
+        required: [
+            "numeroFactura",
+            "ordenId",
+            "cliente",
+            "totalNeto",
+            "iva",
+            "total",
+            "estado",
+            "fechaEmision"
+        ],
+        properties: {
+            numeroFactura: {
+                bsonType: "string",
+                minLength: 1,
+                description: "Correlativo tributario (F-AAAA-NNNNNN). Índice único."
+            },
+            ordenId: {
+                bsonType: "objectId",
+                description: "Referencia al _id de la orden que originó la factura"
+            },
+            cliente: {
+                bsonType: "object",
+                required: ["clienteId", "razonSocial", "rutEmpresa"],
+                description: "Snapshot del cliente al momento de emitir; sin direccionEnvio (es dato de despacho, no tributario)",
+                properties: {
+                    clienteId: { bsonType: ["int", "long"], minimum: 1 },
+                    razonSocial: { bsonType: "string", minLength: 1 },
+                    rutEmpresa: { bsonType: "string", minLength: 1 }
+                }
+            },
+            totalNeto: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            iva: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            total: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            // montoTotal es el mismo valor que `total`, conservado por
+            // fidelidad al ejemplo de docs/03 §1.4. Opcional a propósito:
+            // si el equipo decide consolidar en un solo campo, el validador
+            // no se opone.
+            montoTotal: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            estado: {
+                enum: ["EMITIDA", "ANULADA"],
+                description: "Ciclo de vida tributario de la factura"
+            },
+            fechaEmision: { bsonType: "date" },
+            fechaAnulacion: { bsonType: ["date", "null"] },
+            motivoAnulacion: { bsonType: ["string", "null"] }
+        }
+    }
+};
+
+if (coleccionesExistentes.includes("facturas")) {
+    db.runCommand({
+        collMod: "facturas",
+        validator: facturaValidator,
+        validationLevel: "strict",
+        validationAction: "error"
+    });
+
+    log('Validador actualizado en la colección "facturas".');
+} else {
+    db.createCollection("facturas", {
+        validator: facturaValidator,
+        validationLevel: "strict",
+        validationAction: "error"
+    });
+
+    log('Colección "facturas" creada con su validador.');
+}

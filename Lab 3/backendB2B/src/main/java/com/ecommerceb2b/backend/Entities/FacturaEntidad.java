@@ -13,6 +13,7 @@ import java.util.List;
 public class FacturaEntidad {
 
     private Long factura_ID;
+    private String numeroFactura;
     private Long usuarioId;
     private Long datos_Pago_ID;
     private Long ordenId;

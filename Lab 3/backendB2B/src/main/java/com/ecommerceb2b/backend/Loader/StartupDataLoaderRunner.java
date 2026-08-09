@@ -4,9 +4,14 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
 
+// !worker: el proceso worker de change streams (perfil "worker") comparte
+// este jar, pero no debe volver a cargar geometrías ni refrescar vistas
+// materializadas de PostGIS — eso es trabajo del backend HTTP.
 @Component
+@Profile("!worker")
 public class StartupDataLoaderRunner implements CommandLineRunner {
     private static final Logger log = LoggerFactory.getLogger(StartupDataLoaderRunner.class);
 

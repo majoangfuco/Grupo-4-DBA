@@ -124,8 +124,12 @@ services:
       MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:-b2b_app_pass}
       MONGO_ROOT_USER: ${MONGO_ROOT_USER:-root}
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpass}
+      MONGO_CART_TTL_SECONDS: ${MONGO_CART_TTL_SECONDS:-2592000}
     volumes:
       - ./mongo/rs-init.js:/scripts/rs-init.js:ro
+      - ./mongo/schema-validation.js:/scripts/schema-validation.js:ro
+      - ./mongo/indexes.js:/scripts/indexes.js:ro
+      - ./mongo/change-streams-merge.js:/scripts/change-streams-merge.js:ro
     command:
       - bash
       - -c
@@ -133,7 +137,19 @@ services:
         mongosh --host mongo1:27017
         -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
         --authenticationDatabase admin
-        --file /scripts/rs-init.js
+        --file /scripts/rs-init.js &&
+        mongosh --host mongo1:27017
+        -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        --file /scripts/schema-validation.js &&
+        mongosh --host mongo1:27017
+        -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        --file /scripts/indexes.js &&
+        mongosh --host mongo1:27017
+        -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        --file /scripts/change-streams-merge.js
     restart: on-failure
     networks:
       - b2b-network
@@ -141,6 +157,9 @@ services:
   backend:
     build:
       context: ./backendB2B
+    # Tag explícito para que el servicio `worker` reuse exactamente esta
+    # imagen en vez de construir una segunda copia del mismo jar.
+    image: b2b-backend:lab3
     container_name: b2b-backend
     environment:
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/b2b
@@ -159,6 +178,45 @@ services:
         condition: service_started
       mongo-init:
         condition: service_completed_successfully
+    networks:
+      - b2b-network
+
+  # ─── Worker de Change Streams (Lab 3, punto 6) ─────────────────
+  # Proceso APARTE del server HTTP: misma imagen y mismo jar, pero con el
+  # perfil "worker" (spring.main.web-application-type=none), así que no
+  # levanta Tomcat ni expone puertos. Lo único que corre es
+  # ProductosMasVendidosWorker: escucha el change stream de `ordenes` y,
+  # ante cada orden CONFIRMADA, ejecuta el $merge que refresca la vista
+  # materializada `productos_mas_vendidos`.
+  #
+  # No escalar a más de 1 réplica: cada instancia abriría su propio
+  # listener y procesaría los mismos eventos (redundante, aunque
+  # inofensivo — el $merge es idempotente).
+  worker:
+    build:
+      context: ./backendB2B
+    image: b2b-backend:lab3
+    container_name: b2b-worker
+    environment:
+      - SPRING_PROFILES_ACTIVE=worker
+      # El contexto de Spring es el mismo que el del backend, así que la
+      # conexión a Postgres se sigue configurando aunque el worker solo
+      # hable con Mongo.
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/b2b
+      - SPRING_DATASOURCE_USERNAME=postgres
+      - SPRING_DATASOURCE_PASSWORD=postgres
+      - JWT_SECRET=m1Sup3rS3cr3t0Q0P4r4JwT2026_ABCDEF
+      - JWT_EXPIRATION=86400000
+      - MONGO_URI=mongodb://${MONGO_APP_USER:-b2b_app}:${MONGO_APP_PASSWORD:-b2b_app_pass}@mongo1:27017,mongo2:27017/${MONGO_DB:-b2b}?replicaSet=${MONGO_REPLICA_SET:-rs0}&authSource=admin
+      - MONGO_DB=${MONGO_DB:-b2b}
+    depends_on:
+      db:
+        condition: service_started
+      mongo-init:
+        condition: service_completed_successfully
+    # Si el replica set se cae o el stream muere de forma irrecuperable, el
+    # contenedor vuelve solo y reanuda desde el resume token guardado.
+    restart: unless-stopped
     networks:
       - b2b-network
 

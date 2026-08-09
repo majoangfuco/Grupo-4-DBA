@@ -84,6 +84,10 @@ public class SecurityConfig {
                         .requestMatchers(org.springframework.http.HttpMethod.OPTIONS, "/api/facturas/**")
                         .permitAll()
                         .requestMatchers("/api/ordenes/*/aprobar").hasRole("ADMIN")
+                        // Confirmación de órdenes documentales (Lab 3, punto 6):
+                        // es lo que dispara el change stream que refresca
+                        // productos_mas_vendidos.
+                        .requestMatchers("/api/ordenes/mongo/**").hasRole("ADMIN")
                         .requestMatchers("/api/reportes/**").hasRole("ADMIN")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/logistica/**").hasRole("ADMIN")
