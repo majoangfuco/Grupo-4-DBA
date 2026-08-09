@@ -21,8 +21,11 @@ const carritoValidator = {
         title: "Validación de estructura del carrito",
         required: ["clienteId", "estado", "items", "ultimaActividad"],
         properties: {
-            // Referencia lógica al BIGINT usuario_id de PostgreSQL.
-            clienteId: { bsonType: "long", minimum: 1 },
+            // clienteId/productoId: Long (int/long), NO objectId. Se
+            // corresponden 1:1 con usuario_ID / producto_ID de Postgres
+            // (integración real con el catálogo/clientes existentes,
+            // en vez de IDs Mongo inventados para la demo aislada).
+            clienteId: { bsonType: ["int", "long"] },
             estado: {
                 enum: ["ACTIVO", "ABANDONADO", "CONVERTIDO"],
                 description: "Debe ser uno de los 3 estados válidos del carrito"
@@ -45,9 +48,14 @@ const carritoValidator = {
                         "stockDisponibleAlAgregar"
                     ],
                     properties: {
-                        // Referencia lógica al BIGINT producto_id de PostgreSQL.
-                        productoId: { bsonType: "long", minimum: 1 },
-                        itemId: { bsonType: "long", minimum: 1 },
+                        productoId: {
+                            bsonType: ["int", "long"],
+                            minimum: 1
+                        },
+                        itemId: {
+                            bsonType: ["int", "long"],
+                            minimum: 1
+                        },
                         sku: { bsonType: "string" },
                         nombreProducto: { bsonType: "string" },
                         cantidad: {
@@ -77,6 +85,7 @@ const carritoValidator = {
     }
 };
 
+// ─── Regla de negocio: comparación entre campos del MISMO ítem ──
 // $jsonSchema no permite comparar dos campos del mismo documento.
 // Por lo tanto usamos $expr para habilitar operadores lógicos ($lte, $gte) 
 // y comparar la cantidad solicitada contra el stock y el mínimo B2B.
@@ -110,6 +119,7 @@ const reglasDeNegocio = {
 // ───  Fusión de Validadores ($and) ─────────────────────────────
 // Se exige que el documento cumpla tanto la estructura estática 
 // como las reglas dinámicas para ser insertado/actualizado.
+
 const validator = { $and: [carritoValidator, reglasDeNegocio] };
 
 const opcionesValidacion = {
@@ -122,7 +132,6 @@ const opcionesValidacion = {
 };
 
 // ─── Aplicar validador ─────────────────────────────
-
 const coleccionesExistentes = db.getCollectionNames();
 
 if (coleccionesExistentes.includes("carritos")) {
@@ -134,56 +143,106 @@ if (coleccionesExistentes.includes("carritos")) {
 }
 
 // ─── Verificación rápida ─────────────────────────────────────────
-
 const info = db.getCollectionInfos({ name: "carritos" })[0];
 log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
 
-// ─── Facturas documentales ────────────────────────────────────────────────
-const facturaValidator = {
-    $jsonSchema: {
-        bsonType: "object",
-        required: [
-            "numeroFactura", "clienteId", "ordenId", "precioTotal",
-            "fechaEmision", "totalNeto", "iva", "items"
-        ],
-        properties: {
-            numeroFactura: { bsonType: "string", minLength: 1 },
-            clienteId: { bsonType: "long", minimum: 1 },
-            ordenId: { bsonType: "long", minimum: 1 },
-            fechaEmision: { bsonType: "date" },
-            precioTotal: { bsonType: ["double", "decimal"], minimum: 0 },
-            totalNeto: { bsonType: ["double", "decimal"], minimum: 0 },
-            iva: { bsonType: ["double", "decimal"], minimum: 0 },
-            costoEnvio: { bsonType: ["double", "decimal"], minimum: 0 },
-            items: {
-                bsonType: "array",
-                items: {
-                    bsonType: "object",
-                    required: ["productoId", "nombreProducto", "precioUnitario", "cantidad"],
-                    properties: {
-                        productoId: { bsonType: "long", minimum: 1 },
-                        nombreProducto: { bsonType: "string" },
-                        precioUnitario: { bsonType: ["double", "decimal"], minimum: 0 },
-                        cantidad: { bsonType: "long", minimum: 1 }
-                    }
-                }
-            }
-        }
-    }
-};
+// ──// ─── Facturas documentales ────────────────────────────────────────────────
+     const facturaValidator = {
+         $jsonSchema: {
+             bsonType: "object",
+             required: [
+                 "numeroFactura",
+                 "clienteId",
+                 "ordenId",
+                 "precioTotal",
+                 "fechaEmision",
+                 "totalNeto",
+                 "iva",
+                 "items"
+             ],
+             properties: {
+                 numeroFactura: {
+                     bsonType: "string",
+                     minLength: 1
+                 },
+                 clienteId: {
+                     bsonType: ["int", "long"],
+                     minimum: 1
+                 },
+                 ordenId: {
+                     bsonType: ["int", "long"],
+                     minimum: 1
+                 },
+                 fechaEmision: {
+                     bsonType: "date"
+                 },
+                 precioTotal: {
+                     bsonType: ["double", "decimal"],
+                     minimum: 0
+                 },
+                 totalNeto: {
+                     bsonType: ["double", "decimal"],
+                     minimum: 0
+                 },
+                 iva: {
+                     bsonType: ["double", "decimal"],
+                     minimum: 0
+                 },
+                 costoEnvio: {
+                     bsonType: ["double", "decimal"],
+                     minimum: 0
+                 },
+                 items: {
+                     bsonType: "array",
+                     items: {
+                         bsonType: "object",
+                         required: [
+                             "productoId",
+                             "nombreProducto",
+                             "precioUnitario",
+                             "cantidad"
+                         ],
+                         properties: {
+                             productoId: {
+                                 bsonType: ["int", "long"],
+                                 minimum: 1
+                             },
+                             nombreProducto: {
+                                 bsonType: "string"
+                             },
+                             sku: {
+                                 bsonType: ["string", "null"]
+                             },
+                             precioUnitario: {
+                                 bsonType: ["double", "decimal"],
+                                 minimum: 0
+                             },
+                             cantidad: {
+                                 bsonType: ["int", "long"],
+                                 minimum: 1
+                             }
+                         }
+                     }
+                 }
+             }
+         }
+     };
 
-if (db.getCollectionNames().includes("facturas")) {
-    db.runCommand({
-        collMod: "facturas",
-        validator: facturaValidator,
-        validationLevel: "strict",
-        validationAction: "error"
-    });
-} else {
-    db.createCollection("facturas", {
-        validator: facturaValidator,
-        validationLevel: "strict",
-        validationAction: "error"
-    });
-}
-log('Validador activo en la colección "facturas".');
+     if (db.getCollectionNames().includes("facturas")) {
+         db.runCommand({
+             collMod: "facturas",
+             validator: facturaValidator,
+             validationLevel: "strict",
+             validationAction: "error"
+         });
+
+         log('Validador actualizado en la colección "facturas".');
+     } else {
+         db.createCollection("facturas", {
+             validator: facturaValidator,
+             validationLevel: "strict",
+             validationAction: "error"
+         });
+
+         log('Colección "facturas" creada con su validador.');
+     }

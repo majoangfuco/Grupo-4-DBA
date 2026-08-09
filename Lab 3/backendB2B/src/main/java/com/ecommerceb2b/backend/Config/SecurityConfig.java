@@ -89,6 +89,10 @@ public class SecurityConfig {
                         .requestMatchers("/api/logistica/**").hasRole("ADMIN")
                         .requestMatchers("/api/facturas/**").authenticated()
                         .requestMatchers("/api/carritos/**").hasRole("CLIENTE")
+                        // Checkout documental (Lab 3, colecciones Mongo) —
+                        // ver docs/03-checkout-transaccion.md
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/checkout")
+                        .hasRole("CLIENTE")
                         .requestMatchers("/api/informacion-entrega/**").hasRole("CLIENTE")
                         .anyRequest().authenticated())
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);

@@ -7,16 +7,25 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ecommerceb2b.backend.Entities.CarritoEntidad;
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
+import com.ecommerceb2b.backend.Exceptions.CarritoMongoValidationException;
 import com.ecommerceb2b.backend.Repository.CarritoProductoRepositorio;
+import com.ecommerceb2b.backend.Repository.CarritoRepositorio;
 
 @Service
 public class CarritoProductoServicio {
 
 	private final CarritoProductoRepositorio carritoProductoRepositorio;
+	private final CarritoRepositorio carritoRepositorio;
+	private final CarritoMongoServicio carritoMongoServicio;
 
-	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio) {
+	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio,
+			CarritoRepositorio carritoRepositorio,
+			CarritoMongoServicio carritoMongoServicio) {
 		this.carritoProductoRepositorio = carritoProductoRepositorio;
+		this.carritoRepositorio = carritoRepositorio;
+		this.carritoMongoServicio = carritoMongoServicio;
 	}
 
 	// Entradas: idCarrito, idProducto, cantidad
@@ -32,6 +41,8 @@ public class CarritoProductoServicio {
 				.orElse(null);
 
 		carritoProductoRepositorio.reservarStock(idProducto, cantidad);
+
+		CarritoProductoEntidad resultado;
 		if (existente != null) {
 			Long nuevaCantidad = existente.getUnidad_producto() + cantidad;
 			carritoProductoRepositorio.actualizarCantidad(
@@ -39,12 +50,23 @@ public class CarritoProductoServicio {
 				nuevaCantidad
 			);
 			existente.setUnidad_producto(nuevaCantidad);
-			return existente;
+			resultado = existente;
+		} else {
+			carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad);
+			resultado = carritoProductoRepositorio.encontrarPorCarritoYProducto(idCarrito, idProducto)
+					.orElseThrow(() -> new IllegalStateException("No se pudo crear el item del carrito"));
 		}
 
-		carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad);
-		return carritoProductoRepositorio.encontrarPorCarritoYProducto(idCarrito, idProducto)
-				.orElseThrow(() -> new IllegalStateException("No se pudo crear el item del carrito"));
+		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(idCarrito)
+				.orElseThrow(() -> new IllegalStateException("Carrito no encontrado: " + idCarrito));
+		Long clienteId = carrito.getUsuario().getUsuario_ID();
+		try {
+			carritoMongoServicio.agregarItem(clienteId, idProducto, cantidad);
+		} catch (CarritoMongoValidationException e) {
+			throw new IllegalArgumentException(e.getMessage());
+		}
+
+		return resultado;
 	}
 
 	// Entradas: idCarritoProducto
