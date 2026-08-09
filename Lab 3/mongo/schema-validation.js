@@ -21,7 +21,8 @@ const carritoValidator = {
         title: "Validación de estructura del carrito",
         required: ["clienteId", "estado", "items", "ultimaActividad"],
         properties: {
-            clienteId: { bsonType: "objectId" },
+            // Referencia lógica al BIGINT usuario_id de PostgreSQL.
+            clienteId: { bsonType: "long", minimum: 1 },
             estado: {
                 enum: ["ACTIVO", "ABANDONADO", "CONVERTIDO"],
                 description: "Debe ser uno de los 3 estados válidos del carrito"
@@ -36,6 +37,7 @@ const carritoValidator = {
                 items: {
                     bsonType: "object",
                     required: [
+                        "itemId",
                         "productoId",
                         "cantidad",
                         "precioUnitario",
@@ -43,7 +45,9 @@ const carritoValidator = {
                         "stockDisponibleAlAgregar"
                     ],
                     properties: {
-                        productoId: { bsonType: "objectId" },
+                        // Referencia lógica al BIGINT producto_id de PostgreSQL.
+                        productoId: { bsonType: "long", minimum: 1 },
+                        itemId: { bsonType: "long", minimum: 1 },
                         sku: { bsonType: "string" },
                         nombreProducto: { bsonType: "string" },
                         cantidad: {
@@ -133,3 +137,53 @@ if (coleccionesExistentes.includes("carritos")) {
 
 const info = db.getCollectionInfos({ name: "carritos" })[0];
 log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
+
+// ─── Facturas documentales ────────────────────────────────────────────────
+const facturaValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        required: [
+            "numeroFactura", "clienteId", "ordenId", "precioTotal",
+            "fechaEmision", "totalNeto", "iva", "items"
+        ],
+        properties: {
+            numeroFactura: { bsonType: "string", minLength: 1 },
+            clienteId: { bsonType: "long", minimum: 1 },
+            ordenId: { bsonType: "long", minimum: 1 },
+            fechaEmision: { bsonType: "date" },
+            precioTotal: { bsonType: ["double", "decimal"], minimum: 0 },
+            totalNeto: { bsonType: ["double", "decimal"], minimum: 0 },
+            iva: { bsonType: ["double", "decimal"], minimum: 0 },
+            costoEnvio: { bsonType: ["double", "decimal"], minimum: 0 },
+            items: {
+                bsonType: "array",
+                items: {
+                    bsonType: "object",
+                    required: ["productoId", "nombreProducto", "precioUnitario", "cantidad"],
+                    properties: {
+                        productoId: { bsonType: "long", minimum: 1 },
+                        nombreProducto: { bsonType: "string" },
+                        precioUnitario: { bsonType: ["double", "decimal"], minimum: 0 },
+                        cantidad: { bsonType: "long", minimum: 1 }
+                    }
+                }
+            }
+        }
+    }
+};
+
+if (db.getCollectionNames().includes("facturas")) {
+    db.runCommand({
+        collMod: "facturas",
+        validator: facturaValidator,
+        validationLevel: "strict",
+        validationAction: "error"
+    });
+} else {
+    db.createCollection("facturas", {
+        validator: facturaValidator,
+        validationLevel: "strict",
+        validationAction: "error"
+    });
+}
+log('Validador activo en la colección "facturas".');

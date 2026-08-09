@@ -76,6 +76,9 @@ public class CarritoProductoServicio {
 		}
 
 		CarritoProductoEntidad actual = obtenerItemPorId(idCarritoProducto);
+		if (!carritoProductoRepositorio.carritoEstaActivo(actual.getCarrito().getCarrito_ID())) {
+			throw new IllegalStateException("Solo se pueden modificar ítems de un carrito ACTIVO");
+		}
 		Long cantidadActual = actual.getUnidad_producto();
 		int delta = nuevaCantidad - cantidadActual.intValue();
 
@@ -102,11 +105,26 @@ public class CarritoProductoServicio {
 	@Transactional
 	public void eliminarItem(Long idCarritoProducto) {
 		CarritoProductoEntidad actual = obtenerItemPorId(idCarritoProducto);
+		if (!carritoProductoRepositorio.carritoEstaActivo(actual.getCarrito().getCarrito_ID())) {
+			throw new IllegalStateException("Solo se pueden eliminar ítems de un carrito ACTIVO");
+		}
 		carritoProductoRepositorio.liberarStock(
 				actual.getProducto().getProducto_ID(),
 				actual.getUnidad_producto().intValue()
 		);
 		carritoProductoRepositorio.eliminarPorId(idCarritoProducto);
+	}
+
+	/** Usado al abandonar: libera SQL sin modificar todavía el documento. */
+	public void liberarStockPorAbandono(CarritoProductoEntidad item) {
+		carritoProductoRepositorio.liberarStock(
+				item.getProducto().getProducto_ID(), item.getUnidad_producto().intValue());
+	}
+
+	/** Usado al reactivar: reconstruye en PostgreSQL la reserva liberada. */
+	public void reservarStockParaReactivacion(CarritoProductoEntidad item) {
+		carritoProductoRepositorio.reservarStock(
+				item.getProducto().getProducto_ID(), item.getUnidad_producto().intValue());
 	}
 
 	// Entradas: idCarrito

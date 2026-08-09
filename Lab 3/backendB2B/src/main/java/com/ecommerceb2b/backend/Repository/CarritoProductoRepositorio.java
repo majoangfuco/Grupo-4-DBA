@@ -1,180 +1,168 @@
 package com.ecommerceb2b.backend.Repository;
 
-import org.springframework.stereotype.Repository;
-
 import com.ecommerceb2b.backend.Entities.CarritoEntidad;
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
 import com.ecommerceb2b.backend.Entities.ProductoEntidad;
+import com.mongodb.client.MongoCollection;
+import com.mongodb.client.MongoDatabase;
+import com.mongodb.client.model.FindOneAndUpdateOptions;
+import com.mongodb.client.model.ReturnDocument;
+import org.bson.Document;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.core.RowMapper;
+import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
+import static com.mongodb.client.model.Filters.*;
+import static com.mongodb.client.model.Updates.*;
+
+/** Ítems embebidos en carritos Mongo; catálogo y reserva de stock permanecen en PostgreSQL. */
 @Repository
 public class CarritoProductoRepositorio {
 
+    private final MongoCollection<Document> carritos;
+    private final MongoCollection<Document> contadores;
+    private final JdbcTemplate jdbc;
 
-    private final JdbcTemplate jdbcTemplate;
-
-    public CarritoProductoRepositorio(JdbcTemplate jdbcTemplate) {
-        this.jdbcTemplate = jdbcTemplate;
+    public CarritoProductoRepositorio(MongoDatabase database, JdbcTemplate jdbc) {
+        this.carritos = database.getCollection("carritos");
+        this.contadores = database.getCollection("contadores");
+        this.jdbc = jdbc;
     }
 
-    private final RowMapper<CarritoProductoEntidad> rowMapper = (rs, rowNum) -> {
-        CarritoProductoEntidad cp = new CarritoProductoEntidad();
-        cp.setCarrito_Producto_ID(rs.getLong("carrito_producto_id"));
+    public Optional<CarritoProductoEntidad> encontrarPorId(Long itemId) {
+        Document carrito = carritos.find(eq("items.itemId", itemId)).first();
+        return buscarItem(carrito, itemId);
+    }
 
-        CarritoEntidad carrito = new CarritoEntidad();
-        carrito.setCarrito_ID(rs.getLong("carrito_carrito_id"));
-        cp.setCarrito(carrito);
-
-        ProductoEntidad producto = new ProductoEntidad();
-        producto.setProducto_ID(rs.getLong("producto_producto_id"));
-        cp.setProducto(producto);
-
-        cp.setUnidad_producto(rs.getLong("unidad_producto"));
-        return cp;
-    };
-
-    private final RowMapper<CarritoProductoEntidad> rowMapperDetalle = (rs, rowNum) -> {
-        CarritoProductoEntidad cp = new CarritoProductoEntidad();
-        cp.setCarrito_Producto_ID(rs.getLong("carrito_producto_id"));
-
-        CarritoEntidad carrito = new CarritoEntidad();
-        carrito.setCarrito_ID(rs.getLong("carrito_carrito_id"));
-        cp.setCarrito(carrito);
-
-        ProductoEntidad producto = new ProductoEntidad();
-        producto.setProducto_ID(rs.getLong("producto_id"));
-        producto.setNombre_producto(rs.getString("nombre_producto"));
-        producto.setDescripcion(rs.getString("descripcion"));
-        producto.setPrecio(rs.getFloat("precio"));
-        producto.setStock(rs.getInt("stock"));
-        producto.setSku(rs.getString("sku"));
-        producto.setActivo(rs.getBoolean("activo"));
-        cp.setProducto(producto);
-
-        cp.setUnidad_producto(rs.getLong("unidad_producto"));
-        return cp;
-    };
-
-    public Optional<CarritoProductoEntidad> encontrarPorId(Long id) {
-        String sql = """
-            SELECT cp.carrito_producto_id,
-                   cp.carrito_carrito_id,
-                   cp.producto_producto_id,
-                   cp.unidad_producto,
-                   p.producto_id,
-                   p.nombre_producto,
-                   p.descripcion,
-                   p.precio,
-                   p.stock,
-                   p.sku,
-                   p.activo
-            FROM carrito_producto_entidad cp
-            JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
-            WHERE cp.carrito_producto_id = ?
-            """;
-        List<CarritoProductoEntidad> result = jdbcTemplate.query(sql, rowMapperDetalle, id);
-        return result.stream().findFirst();
+    public boolean carritoEstaActivo(Long carritoId) {
+        return carritos.countDocuments(and(eq("_id", carritoId), eq("estado", "ACTIVO"))) == 1;
     }
 
     public Optional<CarritoProductoEntidad> encontrarPorCarritoYProducto(Long carritoId, Long productoId) {
-        String sql = """
-            SELECT * FROM carrito_producto_entidad
-            WHERE carrito_carrito_id = ? AND producto_producto_id = ?
-            """;
-        List<CarritoProductoEntidad> result = jdbcTemplate.query(sql, rowMapper, carritoId, productoId);
-        return result.stream().findFirst();
+        Document carrito = carritos.find(and(eq("_id", carritoId), eq("items.productoId", productoId))).first();
+        if (carrito == null) return Optional.empty();
+        return items(carrito).stream()
+                .filter(item -> numero(item, "productoId") == productoId)
+                .findFirst().map(item -> mapearItem(carritoId, item));
     }
 
     public List<CarritoProductoEntidad> listarPorCarrito(Long carritoId) {
-        String sql = """
-            SELECT cp.carrito_producto_id,
-                   cp.carrito_carrito_id,
-                   cp.producto_producto_id,
-                   cp.unidad_producto,
-                   p.nombre_producto,
-                   p.precio
-            FROM carrito_producto_entidad cp
-            JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
-            WHERE cp.carrito_carrito_id = ?
-            """;
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
-            CarritoProductoEntidad cp = new CarritoProductoEntidad();
-            cp.setCarrito_Producto_ID(rs.getLong("carrito_producto_id"));
-
-            CarritoEntidad carrito = new CarritoEntidad();
-            carrito.setCarrito_ID(rs.getLong("carrito_carrito_id"));
-            cp.setCarrito(carrito);
-
-            ProductoEntidad producto = new ProductoEntidad();
-            producto.setProducto_ID(rs.getLong("producto_producto_id"));
-            producto.setNombre_producto(rs.getString("nombre_producto"));
-            producto.setPrecio(rs.getFloat("precio"));
-            cp.setProducto(producto);
-
-            cp.setUnidad_producto(rs.getLong("unidad_producto"));
-            return cp;
-        }, carritoId);
+        Document carrito = carritos.find(eq("_id", carritoId)).first();
+        if (carrito == null) return List.of();
+        List<CarritoProductoEntidad> resultado = new ArrayList<>();
+        for (Document item : items(carrito)) resultado.add(mapearItem(carritoId, item));
+        return resultado;
     }
 
     public int crear(Long carritoId, Long productoId, Long cantidad) {
-        String sql = """
-            INSERT INTO carrito_producto_entidad
-                (carrito_carrito_id, producto_producto_id, unidad_producto)
-            VALUES (?, ?, ?)
-            """;
-        return jdbcTemplate.update(sql, carritoId, productoId, cantidad);
+        Document producto = jdbc.queryForObject("""
+                SELECT producto_id, nombre_producto, descripcion, precio, stock,
+                       stock_reservado, sku, activo
+                FROM producto_entidad WHERE producto_id = ? AND activo = TRUE
+                """, (rs, row) -> new Document("productoId", rs.getLong("producto_id"))
+                        .append("nombreProducto", rs.getString("nombre_producto"))
+                        .append("descripcion", rs.getString("descripcion"))
+                        .append("precioUnitario", rs.getDouble("precio"))
+                        // reservarStock se ejecuta antes de este insert dentro de la
+                        // transacción SQL; se suma la cantidad recién reservada para
+                        // conservar el disponible observado al iniciar la actividad.
+                        .append("stockDisponibleAlAgregar", Math.max(0,
+                                rs.getInt("stock") - rs.getInt("stock_reservado") + cantidad))
+                        .append("cantidadMinimaB2B", 1L)
+                        .append("sku", rs.getString("sku")), productoId);
+        producto.append("itemId", siguienteId("carritoItems"))
+                .append("cantidad", cantidad)
+                .append("agregadoEn", new java.util.Date());
+
+        long modificados = carritos.updateOne(
+                and(eq("_id", carritoId), eq("estado", "ACTIVO"), ne("items.productoId", productoId)),
+                combine(push("items", producto), currentDate("ultimaActividad"))).getModifiedCount();
+        if (modificados == 0) throw new IllegalStateException("Carrito inexistente, inactivo o producto duplicado");
+        recalcularCosto(carritoId);
+        return 1;
     }
 
-    public int actualizarCantidad(Long carritoProductoId, Long cantidad) {
-        String sql = """
-            UPDATE carrito_producto_entidad
-            SET unidad_producto = ?
-            WHERE carrito_producto_id = ?
-            """;
-        return jdbcTemplate.update(sql, cantidad, carritoProductoId);
+    public int actualizarCantidad(Long itemId, Long cantidad) {
+        Document carrito = carritos.find(eq("items.itemId", itemId)).first();
+        if (carrito == null) return 0;
+        long modificados = carritos.updateOne(
+                and(eq("_id", carrito.get("_id")), eq("estado", "ACTIVO"), eq("items.itemId", itemId)),
+                combine(set("items.$.cantidad", cantidad), currentDate("ultimaActividad"))).getModifiedCount();
+        if (modificados > 0) recalcularCosto(numero(carrito, "_id"));
+        return modificados > 0 ? 1 : 0;
     }
 
-    public int eliminarPorId(Long carritoProductoId) {
-        String sql = "DELETE FROM carrito_producto_entidad WHERE carrito_producto_id = ?";
-        return jdbcTemplate.update(sql, carritoProductoId);
+    public int eliminarPorId(Long itemId) {
+        Document carrito = carritos.find(eq("items.itemId", itemId)).first();
+        if (carrito == null) return 0;
+        long carritoId = numero(carrito, "_id");
+        long modificados = carritos.updateOne(and(eq("_id", carritoId), eq("estado", "ACTIVO")),
+                combine(pull("items", new Document("itemId", itemId)), currentDate("ultimaActividad")))
+                .getModifiedCount();
+        if (modificados > 0) recalcularCosto(carritoId);
+        return modificados > 0 ? 1 : 0;
     }
 
     public void reservarStock(Long productoId, int cantidad) {
-        try {
-            String sql = "CALL reservar_stock(?, ?)";
-            jdbcTemplate.update(sql, productoId, cantidad);
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error al reservar stock: " + e.getMessage(), e);
-        }
+        jdbc.update("CALL reservar_stock(?, ?)", productoId, cantidad);
     }
 
     public void liberarStock(Long productoId, int cantidad) {
-        try {
-            String sql = "CALL liberar_stock(?, ?)";
-            jdbcTemplate.update(sql, productoId, cantidad);
-        } catch (Exception e) {
-            e.printStackTrace();
-            throw new RuntimeException("Error al liberar stock: " + e.getMessage(), e);
-        }
+        jdbc.update("CALL liberar_stock(?, ?)", productoId, cantidad);
     }
 
     public BigDecimal calcularSubtotal(Long carritoId) {
-        String sql = """
-            SELECT COALESCE(SUM(cp.unidad_producto * p.precio)::numeric, 0)
-            FROM carrito_producto_entidad cp
-            JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
-            WHERE cp.carrito_carrito_id = ?
-            """;
-        return jdbcTemplate.queryForObject(sql, BigDecimal.class, carritoId);
+        return listarPorCarrito(carritoId).stream()
+                .map(item -> BigDecimal.valueOf(item.getProducto().getPrecio())
+                        .multiply(BigDecimal.valueOf(item.getUnidad_producto())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
-   
-    
+
+    private void recalcularCosto(Long carritoId) {
+        long total = calcularSubtotal(carritoId).setScale(0, java.math.RoundingMode.HALF_UP).longValue();
+        carritos.updateOne(eq("_id", carritoId), combine(set("costoCarrito", total), currentDate("ultimaActividad")));
+    }
+
+    private Optional<CarritoProductoEntidad> buscarItem(Document carrito, Long itemId) {
+        if (carrito == null) return Optional.empty();
+        return items(carrito).stream().filter(item -> numero(item, "itemId") == itemId)
+                .findFirst().map(item -> mapearItem(numero(carrito, "_id"), item));
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Document> items(Document carrito) {
+        List<Document> valor = (List<Document>) carrito.get("items");
+        return valor == null ? List.of() : valor;
+    }
+
+    private CarritoProductoEntidad mapearItem(Long carritoId, Document item) {
+        CarritoProductoEntidad entidad = new CarritoProductoEntidad();
+        entidad.setCarrito_Producto_ID(numero(item, "itemId"));
+        CarritoEntidad carrito = new CarritoEntidad();
+        carrito.setCarrito_ID(carritoId);
+        entidad.setCarrito(carrito);
+        ProductoEntidad producto = new ProductoEntidad();
+        producto.setProducto_ID(numero(item, "productoId"));
+        producto.setNombre_producto(item.getString("nombreProducto"));
+        producto.setDescripcion(item.getString("descripcion"));
+        producto.setSku(item.getString("sku"));
+        producto.setPrecio(item.get("precioUnitario", Number.class).floatValue());
+        entidad.setProducto(producto);
+        entidad.setUnidad_producto(numero(item, "cantidad"));
+        return entidad;
+    }
+
+    private long siguienteId(String secuencia) {
+        Document contador = contadores.findOneAndUpdate(eq("_id", secuencia), inc("valor", 1L),
+                new FindOneAndUpdateOptions().upsert(true).returnDocument(ReturnDocument.AFTER));
+        return contador.get("valor", Number.class).longValue();
+    }
+
+    private long numero(Document documento, String campo) {
+        return documento.get(campo, Number.class).longValue();
+    }
 }
-
-

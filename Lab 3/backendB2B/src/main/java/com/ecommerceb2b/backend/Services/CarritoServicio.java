@@ -31,7 +31,27 @@ public class CarritoServicio {
 
 	@Transactional
 	public com.ecommerceb2b.backend.Entities.CarritoEntidad obtenerOCrearCarrito(Long idCliente) {
-		return carritoRepositorio.obtenerOCrearCarrito(idCliente);
+		if (idCliente == null || idCliente <= 0) {
+			throw new IllegalArgumentException("El cliente es obligatorio");
+		}
+		List<com.ecommerceb2b.backend.Entities.CarritoEntidad> existentes =
+				carritoRepositorio.encontrarActivoOAbandonadoPorUsuario(idCliente);
+		if (existentes.isEmpty()) return carritoRepositorio.crearCarrito(idCliente);
+
+		com.ecommerceb2b.backend.Entities.CarritoEntidad carrito = existentes.get(0);
+		if ("ABANDONADO".equalsIgnoreCase(carrito.getEstado())) {
+			// Al abandonar se liberó la reserva; reactivarlo debe recuperarla.
+			for (CarritoProductoEntidad item : carritoProductoServicio
+					.listarItemsPorCarrito(carrito.getCarrito_ID())) {
+				carritoProductoServicio.reservarStockParaReactivacion(item);
+			}
+			carritoRepositorio.reactivarCarrito(carrito.getCarrito_ID());
+			carrito.setEstado("ACTIVO");
+		} else {
+			carritoRepositorio.refrescarActividad(carrito.getCarrito_ID());
+		}
+		carrito.setUltima_Actualizacion(new java.sql.Timestamp(System.currentTimeMillis()));
+		return carrito;
 	}
 
 	// Entradas: idCarrito
@@ -73,6 +93,15 @@ public class CarritoServicio {
 	// Descripcion: marca el carrito como cerrado (pre-checkout local).
 	@Transactional
 	public void cerrarCarrito(Long idCarrito) {
+		com.ecommerceb2b.backend.Entities.CarritoEntidad carrito = obtenerCarritoPorId(idCarrito);
+		if (!"ACTIVO".equalsIgnoreCase(carrito.getEstado())) {
+			throw new IllegalStateException("Solo un carrito ACTIVO puede abandonarse");
+		}
+		// Se libera antes de activar el TTL; cuando Mongo borre el documento ya
+		// no quedará ninguna reserva huérfana en PostgreSQL.
+		for (CarritoProductoEntidad item : carritoProductoServicio.listarItemsPorCarrito(idCarrito)) {
+			carritoProductoServicio.liberarStockPorAbandono(item);
+		}
 		int filasAfectadas = carritoRepositorio.actualizarEstado(idCarrito, "ABANDONADO");
 		if (filasAfectadas == 0) {
 			throw new IllegalStateException("No se pudo cerrar el carrito: " + idCarrito);

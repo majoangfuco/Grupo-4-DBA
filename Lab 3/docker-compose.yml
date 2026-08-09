@@ -124,8 +124,11 @@ services:
       MONGO_APP_PASSWORD: ${MONGO_APP_PASSWORD:-b2b_app_pass}
       MONGO_ROOT_USER: ${MONGO_ROOT_USER:-root}
       MONGO_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:-rootpass}
+      MONGO_CART_TTL_SECONDS: ${MONGO_CART_TTL_SECONDS:-2592000}
     volumes:
       - ./mongo/rs-init.js:/scripts/rs-init.js:ro
+      - ./mongo/schema-validation.js:/scripts/schema-validation.js:ro
+      - ./mongo/indexes.js:/scripts/indexes.js:ro
     command:
       - bash
       - -c
@@ -133,7 +136,15 @@ services:
         mongosh --host mongo1:27017
         -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
         --authenticationDatabase admin
-        --file /scripts/rs-init.js
+        --file /scripts/rs-init.js &&
+        mongosh --host mongo1:27017
+        -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        --file /scripts/schema-validation.js &&
+        mongosh --host mongo1:27017
+        -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
+        --authenticationDatabase admin
+        --file /scripts/indexes.js
     restart: on-failure
     networks:
       - b2b-network

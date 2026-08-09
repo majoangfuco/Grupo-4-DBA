@@ -107,22 +107,32 @@ public class OrdenesServicio {
             );
         }
 
+        List<com.ecommerceb2b.backend.Entities.CarritoProductoEntidad> items =
+                carritoProductoServicio.listarItemsPorCarrito(carritoId);
+        if (items.isEmpty()) {
+            throw new IllegalStateException("No se puede procesar un carrito vacío");
+        }
+
+        // Proyección técnica para conservar las validaciones PostGIS/stock del
+        // procedimiento heredado. El carrito operativo continúa en MongoDB.
+        ordenesRepositorio.proyectarCarritoParaCheckout(carrito, items);
+
         Long ordenId = ordenesRepositorio.procesarCheckout(
                 carritoId,
                 pedido.getInfoEntregaId(),
                 datosPago.getDatos_Pago_ID()
         );
 
-        // El checkout atómico crea la factura dentro del procedimiento
-        // almacenado: refresca el choropleth de ventas por comuna/distrito
-        // para que el mapa de logística refleje esta venta de inmediato.
+        FacturaEntidad facturaMongo = ordenesRepositorio.obtenerFacturaProyectada(ordenId);
+        facturaServicio.crearFactura(facturaMongo);
+        carritoServicio.ordenarCarrito(carritoId);
+
+        // El procedimiento mantiene su proyección SQL para los reportes
+        // geoespaciales; la factura operativa y sus ítems históricos ya se
+        // persistieron como un documento MongoDB.
         logisticaMapaRepositorio.refrescar();
 
-        return facturaServicio.obtenerPorOrden(ordenId)
-                .orElseThrow(() -> new IllegalStateException(
-                        "El checkout creó la orden " + ordenId
-                                + " pero no fue posible recuperar su factura"
-                ));
+        return facturaMongo;
     }
 
     @Transactional(readOnly = true)
