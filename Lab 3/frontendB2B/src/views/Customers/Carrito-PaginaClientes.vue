@@ -42,6 +42,7 @@ let toastTimer: number | null = null
 const modalAbierto = ref(false)
 const modalAccion = ref<'agregar' | 'eliminar'>('eliminar')
 const modalItem = ref<CarritoProductoEntidad | null>(null)
+const minimosB2B = ref<Record<number, number>>({})
 
 // Mostrar al cliente la confirmacion del pedido y logística asignada.
 const almacenAsignado = ref<string | null>(null)
@@ -665,6 +666,11 @@ const cargarItems = async (carritoId: number) => {
   ])
   items.value = itemsResp.data
   subtotal.value = subtotalResp.data
+  minimosB2B.value = Object.fromEntries(
+    itemsResp.data
+      .map((item) => [item.producto?.producto_ID, item.cantidadMinimaB2B ?? 1] as const)
+      .filter((entry): entry is readonly [number, number] => typeof entry[0] === 'number'),
+  )
 }
 
 const notificar = (mensaje: string, tipo: 'ok' | 'error') => {
@@ -689,7 +695,7 @@ const actualizarCantidad = async (item: CarritoProductoEntidad, nuevaCantidad: n
     await cargarItems(carrito.value.carrito_ID)
   } catch (err: unknown) {
     console.error('Error al actualizar carrito:', err)
-    notificar('No se pudo actualizar el carrito', 'error')
+    notificar(extraerMensajeError(err, 'No se pudo actualizar el carrito'), 'error')
   }
 }
 
@@ -729,7 +735,7 @@ const confirmarModal = async () => {
     await cargarItems(carrito.value.carrito_ID)
   } catch (err: unknown) {
     console.error('Error al actualizar carrito:', err)
-    notificar('No se pudo actualizar el carrito', 'error')
+    notificar(extraerMensajeError(err, 'No se pudo actualizar el carrito'), 'error')
   }
 }
 
@@ -768,6 +774,24 @@ const cargarCarrito = async () => {
 }
 
 const total = computed(() => subtotal.value)
+
+const stockDisponibleItem = (item: CarritoProductoEntidad) => {
+  const stockTotal = item.producto?.stock ?? 0
+  const stockReservado = item.producto?.stock_reservado ?? 0
+  return Math.max(0, stockTotal - stockReservado)
+}
+
+const minimoB2BItem = (item: CarritoProductoEntidad) => {
+  const productoId = item.producto?.producto_ID
+  if (productoId == null) return item.cantidadMinimaB2B ?? 1
+  return minimosB2B.value[productoId] ?? item.cantidadMinimaB2B ?? 1
+}
+
+const puedeDisminuir = (item: CarritoProductoEntidad) =>
+  (item.unidad_producto ?? 0) > minimoB2BItem(item)
+
+const puedeAumentar = (item: CarritoProductoEntidad) =>
+  (item.unidad_producto ?? 0) < stockDisponibleItem(item)
 
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('es-CL', { style: 'currency', currency: 'CLP' }).format(value)
@@ -941,9 +965,19 @@ onMounted(async () => {
               <td>{{ formatCurrency(item.producto?.precio ?? 0) }}</td>
               <td>
                 <div class="cantidad">
-                  <button class="btn-cantidad" @click="disminuirUnidad(item)">−</button>
+                  <button
+                    class="btn-cantidad"
+                    :disabled="!puedeDisminuir(item)"
+                    :title="!puedeDisminuir(item) ? 'Ya alcanzaste el mínimo permitido para este producto' : 'Disminuir cantidad'"
+                    @click="disminuirUnidad(item)"
+                  >−</button>
                   <span class="cantidad-valor">{{ item.unidad_producto }}</span>
-                  <button class="btn-cantidad" @click="aumentarUnidad(item)">+</button>
+                  <button
+                    class="btn-cantidad"
+                    :disabled="!puedeAumentar(item)"
+                    :title="!puedeAumentar(item) ? 'No queda más stock disponible para este producto' : 'Aumentar cantidad'"
+                    @click="aumentarUnidad(item)"
+                  >+</button>
                 </div>
               </td>
               <td>{{ formatCurrency((item.producto?.precio ?? 0) * item.unidad_producto) }}</td>

@@ -52,6 +52,7 @@ public class CarritoProductoRepositorio {
         producto.setDescripcion(rs.getString("descripcion"));
         producto.setPrecio(rs.getFloat("precio"));
         producto.setStock(rs.getInt("stock"));
+        producto.setStock_reservado(rs.getInt("stock_reservado"));
         producto.setSku(rs.getString("sku"));
         producto.setActivo(rs.getBoolean("activo"));
         cp.setProducto(producto);
@@ -71,6 +72,7 @@ public class CarritoProductoRepositorio {
                    p.descripcion,
                    p.precio,
                    p.stock,
+                   p.stock_reservado,
                    p.sku,
                    p.activo
             FROM carrito_producto_entidad cp
@@ -97,7 +99,9 @@ public class CarritoProductoRepositorio {
                    cp.producto_producto_id,
                    cp.unidad_producto,
                    p.nombre_producto,
-                   p.precio
+                   p.precio,
+                   p.stock,
+                   p.stock_reservado
             FROM carrito_producto_entidad cp
             JOIN producto_entidad p ON p.producto_id = cp.producto_producto_id
             WHERE cp.carrito_carrito_id = ?
@@ -114,6 +118,8 @@ public class CarritoProductoRepositorio {
             producto.setProducto_ID(rs.getLong("producto_producto_id"));
             producto.setNombre_producto(rs.getString("nombre_producto"));
             producto.setPrecio(rs.getFloat("precio"));
+            producto.setStock(rs.getInt("stock"));
+            producto.setStock_reservado(rs.getInt("stock_reservado"));
             cp.setProducto(producto);
 
             cp.setUnidad_producto(rs.getLong("unidad_producto"));

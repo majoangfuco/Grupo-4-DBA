@@ -76,6 +76,15 @@ const router = createRouter({
           meta: { requiresRole: 'ADMIN' },
         },
         {
+          // Ajustes del carrito Mongo (Lab 3, punto 2): cantidad mínima
+          // B2B por producto. No es el carrito real de compra (ver
+          // 'carritoCliente' más abajo, que sigue intacto).
+          path: 'ajustesCarritoAdmin',
+          name: 'Admin-AjustesCarrito',
+          component: () => import('@/views/Admin/AjustesCarrito-PaginaAdmin.vue'),
+          meta: { requiresRole: 'ADMIN' },
+        },
+        {
           path: 'productosCliente',
           name: 'Cliente-Productos',
           component: () => import('@/views/Customers/Productos-PaginaClientes.vue'),

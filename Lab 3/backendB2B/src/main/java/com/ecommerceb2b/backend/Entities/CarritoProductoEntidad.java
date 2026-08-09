@@ -12,13 +12,9 @@ import lombok.NoArgsConstructor;
 public class CarritoProductoEntidad {
 
     private Long carrito_Producto_ID;
-
-
     private CarritoEntidad carrito;
-
-
     private ProductoEntidad producto;
-
     private Long unidad_producto;
+    private Integer cantidadMinimaB2B;
 
 }

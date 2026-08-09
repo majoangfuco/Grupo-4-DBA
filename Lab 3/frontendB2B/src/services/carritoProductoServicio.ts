@@ -9,10 +9,12 @@ export interface CarritoProductoEntidad {
     descripcion?: string
     precio?: number
     stock?: number
+    stock_reservado?: number
     sku?: string
     activo?: boolean
   }
   unidad_producto: number
+  cantidadMinimaB2B?: number
 }
 
 export interface AgregarProductoPayload {

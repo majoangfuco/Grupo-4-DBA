@@ -17,13 +17,6 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Controlador para la gestión del carrito en MongoDB.
- * Usa /api/mongo/carritos (no /api/carritos): ese prefijo ya
- * lo usa CarritoControlador para el carrito de Postgres.
- * clienteId y productoId son Long, igual que usuario_ID/producto_ID de
- * Postgres.
- */
 @RestController
 @RequestMapping("/api/mongo/carritos")
 @CrossOrigin(origins = "*")
@@ -35,6 +28,8 @@ public class CarritoMongoControlador {
         this.carritoMongoServicio = carritoMongoServicio;
     }
 
+    // Clase interna en vez de un DTO aparte, mismo patrón que
+    // CarritoProductoControlador.AgregarProductoRequest.
     public static class AgregarItemRequest {
         public Long productoId;
         public Integer cantidad;
@@ -44,10 +39,10 @@ public class CarritoMongoControlador {
     public ResponseEntity<?> agregarItem(@PathVariable Long clienteId,
             @RequestBody AgregarItemRequest request) {
         try {
-            CarritoMongoEntidad carrito = carritoMongoServicio.agregarItem(
-                    clienteId, request.productoId, request.cantidad);
+            CarritoMongoEntidad carrito = carritoMongoServicio.establecerCantidadItem(
+                    clienteId, request.productoId, request.cantidad.longValue());
             return ResponseEntity.status(HttpStatus.CREATED).body(carrito);
-        } catch (CarritoMongoValidationException e) {.
+        } catch (CarritoMongoValidationException e) {
             return ResponseEntity.badRequest().body(Map.of("message", e.getMessage()));
         }
     }

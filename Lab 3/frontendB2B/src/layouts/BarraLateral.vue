@@ -84,6 +84,7 @@ const navItems = computed(() => {
       { label: 'Almacenes', path: '/almacenesAdmin', icon: Warehouse },
       { label: 'Logística', path: '/mapaAdmin', icon: Map },
       { label: 'Zonas Protegidas', path: '/zonasProtegidasAdmin', icon: ShieldCheck },
+      { label: 'Ajustes de Carrito', path: '/ajustesCarritoAdmin', icon: ShoppingCart },
     ]
   } else if (authStore.isCliente) {
     return [

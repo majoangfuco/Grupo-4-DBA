@@ -21,10 +21,10 @@ import java.util.NoSuchElementException;
 import java.util.Optional;
 
 /**
- * La regla de negocio (cantidad ≤ stock, cantidad ≥ mínimo B2B) 
- * Este service arma el documento con datos reales, dispara la escritura
- * y si Mongo la rechaza (error 121, DocumentValidationFailure) lo traduce a un
- * mensaje legible.
+ * Lee el catálogo real de Postgres (ProductoServicio) para armar el
+ * snapshot del ítem. Este service arma el documento con datos reales
+ * dispara la escritura y si Mongo la rechaza (error 121, DocumentValidationFailure) traduce eso a un
+ * mensaje de negocio legible.
  */
 @Service
 public class CarritoMongoServicio {
@@ -45,21 +45,26 @@ public class CarritoMongoServicio {
 
     // ─── Carrito ──────────────────────────────────────────────────
 
-    public CarritoMongoEntidad agregarItem(Long clienteId, Long productoId, Integer cantidad) {
+    /**
+     * cantidadTotal es la cantidad FINAL que debe quedar para ese
+     * producto en el carrito
+     */
+    public CarritoMongoEntidad establecerCantidadItem(Long clienteId, Long productoId, Long cantidadTotal) {
         if (clienteId == null || clienteId <= 0) {
             throw new CarritoMongoValidationException("El cliente es obligatorio");
         }
         if (productoId == null) {
             throw new CarritoMongoValidationException("El producto es obligatorio");
         }
-        if (cantidad == null || cantidad <= 0) {
+        if (cantidadTotal == null || cantidadTotal <= 0) {
             throw new CarritoMongoValidationException("La cantidad debe ser mayor a 0");
         }
-
-        // Única lectura cruzada hacia Postgres: trae el producto REAL
-        // (nombre, sku, precio, stock) para armar el snapshot. Si no
-        // existe o está inactivo, ProductoServicio ya tira
-        // NoSuchElementException — se traduce abajo a un 400 de negocio.
+        /** 
+        * Única lectura cruzada hacia Postgres: trae el producto REAL
+        * (nombre, sku, precio, stock) para armar el snapshot. Si no
+        * existe o está inactivo, ProductoServicio ya tira
+        * NoSuchElementException — se traduce abajo a un 400 de negocio.
+        */
         ProductoEntidad producto;
         try {
             producto = productoServicio.obtenerProductoPorId(productoId);
@@ -67,24 +72,40 @@ public class CarritoMongoServicio {
             throw new CarritoMongoValidationException("Producto no encontrado: " + productoId);
         }
 
-        int stockDisponible = producto.getStock() - producto.getStock_reservado();
+        int stockReservado = producto.getStock_reservado() != null ? producto.getStock_reservado() : 0;
+        int stockDisponibleAntesDeReserva = producto.getStock() - stockReservado + cantidadTotal.intValue();
         Integer cantidadMinimaB2B = obtenerCantidadMinima(productoId);
+
+        /**   minimoB2B y stockDisponible se validan en el validador de colección de Mongo.
+            * Si falla, lanza MongoWriteException con error 121 (DocumentValidationFailure).
+            *Se traduce a CarritoMongoValidationException para que el controller devuelva 400 con ese mensaje.
+        */
+        if (cantidadTotal > stockDisponibleAntesDeReserva) {
+            throw new CarritoMongoValidationException(
+                    "No hay stock suficiente de \"" + producto.getNombre_producto() + "\": disponible "
+                            + stockDisponibleAntesDeReserva + ", solicitado " + cantidadTotal + ".");
+        }
+        if (cantidadTotal < cantidadMinimaB2B) {
+            throw new CarritoMongoValidationException(
+                    "El pedido mínimo B2B para \"" + producto.getNombre_producto() + "\" es de "
+                            + cantidadMinimaB2B + " unidades (pediste " + cantidadTotal + ").");
+        }
 
         ItemCarritoMongoEntidad item = new ItemCarritoMongoEntidad();
         item.setProductoId(producto.getProducto_ID());
         item.setSku(producto.getSku());
         item.setNombreProducto(producto.getNombre_producto());
-        item.setCantidad(cantidad);
+        item.setCantidad(cantidadTotal.intValue());
         item.setPrecioUnitario(producto.getPrecio().doubleValue());
         item.setCantidadMinimaB2B(cantidadMinimaB2B);
-        item.setStockDisponibleAlAgregar(stockDisponible);
+        item.setStockDisponibleAlAgregar(stockDisponibleAntesDeReserva);
 
         try {
             Optional<CarritoMongoEntidad> existente = carritoMongoRepositorio.buscarActivoPorCliente(clienteId);
 
             if (existente.isPresent()) {
                 CarritoMongoEntidad carrito = existente.get();
-                carritoMongoRepositorio.agregarItem(carrito.getId(), item);
+                carritoMongoRepositorio.establecerItem(carrito.getId(), item);
                 return carrito;
             }
 
@@ -110,25 +131,13 @@ public class CarritoMongoServicio {
         }
         return carritoMongoRepositorio.listarPorCliente(clienteId);
     }
-
-    /**
-     * TODO (equipo): si más adelante hace falta distinguir cuál regla
-     * falló (stock vs mínimo B2B) para mostrar un mensaje distinto en el
-     * front, hay que parsear "errInfo.details" dentro de
-     * e.getMessage()/e.getError() (Mongo devuelve ahí el detalle
-     * estructurado de qué cláusula del $jsonSchema/$expr no se cumplió).
-     * Por ahora se da un mensaje genérico que cubre ambos casos.
-     */
+    
     private String traducirError(MongoException e) {
         return "El carrito no cumple las reglas de negocio: revisá que la cantidad no supere "
                 + "el stock disponible y que no sea menor al pedido mínimo B2B.";
     }
 
-    // ─── Configuración de cantidad mínima B2B por producto ────────
-    // Colección Mongo "configuracion_b2b_productos" — 100% paralela a
-    // Postgres, a propósito: no se agregó ninguna columna a
-    // producto_entidad para esto. Usa Document crudo (no entidad POJO
-    // ni repositorio aparte): es un solo par clave/valor por producto.
+    // ─── Configuración de cantidad mínima por producto ────────
 
     public void establecerCantidadMinima(Long productoId, Integer cantidadMinimaB2B) {
         if (cantidadMinimaB2B == null || cantidadMinimaB2B < 1) {

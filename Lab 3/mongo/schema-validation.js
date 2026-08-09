@@ -1,30 +1,27 @@
-
-// Reglas de la colección "carritos":
-//   1. Cantidad pedida <= Stock disponible.
-//   2. Cantidad pedida >= Mínimo de pedido.
-
-// Para poder validar, el backend debe adjuntar una copia del stock
-// y precio en el carrito al momento de agregar el ítem.
+/** 
+ *
+ *  Reglas exigidas por el enunciado sobre la colección "carritos":
+ *  1. La cantidad de cada ítem no puede superar el stock disponible.
+ *  2. La cantidad de cada ítem no puede ser menor a la cantidad
+ *    mínima de pedido B2B. Si no existe configuración especial para
+ *    el producto, el mínimo efectivo es 1.
+*/
 
 const DB_NAME = process.env.MONGO_DB || "b2b";
 const db = db.getSiblingDB(DB_NAME);
- 
+
 function log(msg) {
     print(`[schema-validation] ${msg}`);
 }
- 
-// ─── Validador de la colección "carritos" ($jsonSchema) ────────────────────────
-// Define tipos de datos, campos requeridos y enumeradores básicos.
+
+// ─── Validador de la colección "carritos" ────────────────────────
 const carritoValidator = {
     $jsonSchema: {
         bsonType: "object",
         title: "Validación de estructura del carrito",
         required: ["clienteId", "estado", "items", "ultimaActividad"],
         properties: {
-            // clienteId/productoId: Long (int/long), NO objectId. Se
-            // corresponden 1:1 con usuario_ID / producto_ID de Postgres
-            // (integración real con el catálogo/clientes existentes,
-            // en vez de IDs Mongo inventados para la demo aislada).
+        
             clienteId: { bsonType: ["int", "long"] },
             estado: {
                 enum: ["ACTIVO", "ABANDONADO", "CONVERTIDO"],
@@ -43,7 +40,6 @@ const carritoValidator = {
                         "productoId",
                         "cantidad",
                         "precioUnitario",
-                        "cantidadMinimaB2B",
                         "stockDisponibleAlAgregar"
                     ],
                     properties: {
@@ -63,7 +59,7 @@ const carritoValidator = {
                         cantidadMinimaB2B: {
                             bsonType: ["int", "long"],
                             minimum: 1,
-                            description: "Copiada del catálogo: pedido mínimo B2B para este producto"
+                            description: "Pedido mínimo B2B para este producto; si no hay configuración especial, se toma 1"
                         },
                         stockDisponibleAlAgregar: {
                             bsonType: ["int", "long"],
@@ -76,11 +72,8 @@ const carritoValidator = {
         }
     }
 };
- 
+
 // ─── Regla de negocio: comparación entre campos del MISMO ítem ──
-// $jsonSchema no permite comparar dos campos del mismo documento.
-// Por lo tanto usamos $expr para habilitar operadores lógicos ($lte, $gte) 
-// y comparar la cantidad solicitada contra el stock y el mínimo B2B.
 const reglasDeNegocio = {
     $expr: {
         $and: [
@@ -100,7 +93,12 @@ const reglasDeNegocio = {
                     $map: {
                         input: "$items",
                         as: "it",
-                        in: { $gte: ["$$it.cantidad", "$$it.cantidadMinimaB2B"] }
+                        in: {
+                            $gte: [
+                                "$$it.cantidad",
+                                { $ifNull: ["$$it.cantidadMinimaB2B", 1] }
+                            ]
+                        }
                     }
                 }
             }
@@ -108,24 +106,50 @@ const reglasDeNegocio = {
     }
 };
 
-// ───  Fusión de Validadores ($and) ─────────────────────────────
-// Se exige que el documento cumpla tanto la estructura estática 
-// como las reglas dinámicas para ser insertado/actualizado.
- 
 const validator = { $and: [carritoValidator, reglasDeNegocio] };
- 
+
 const opcionesValidacion = {
     validator: validator,
-    // Validar inserts Y updates
+    // "strict": valida inserts Y updates.
     validationLevel: "strict",
-    // Rechazar si la escritura no cumple con el validador.
-    // (sobreventa / incumplimiento de pedido mínimo)
+    // "error": rechaza la escritura si no cumple: es una regla dura de
+    // negocio (sobreventa / incumplimiento de pedido mínimo), no una
+    // advertencia.
     validationAction: "error"
 };
- 
-// ─── Aplicar validador ─────────────────────────────
+
+// ─── Normalización de documentos existentes ─────────────────────
+if (db.getCollectionNames().includes("carritos")) {
+    db.carritos.updateMany(
+        { items: { $type: "array" } },
+        [
+            {
+                $set: {
+                    items: {
+                        $map: {
+                            input: "$items",
+                            as: "it",
+                            in: {
+                                $mergeObjects: [
+                                    "$$it",
+                                    {
+                                        cantidadMinimaB2B: {
+                                            $ifNull: ["$$it.cantidadMinimaB2B", 1]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    }
+                }
+            }
+        ]
+    );
+}
+
+// ─── Aplicar validador (idempotente) ─────────────────────────────
 const coleccionesExistentes = db.getCollectionNames();
- 
+
 if (coleccionesExistentes.includes("carritos")) {
     db.runCommand({ collMod: "carritos", ...opcionesValidacion });
     log('Validador aplicado sobre la colección "carritos" existente (collMod).');
@@ -133,8 +157,7 @@ if (coleccionesExistentes.includes("carritos")) {
     db.createCollection("carritos", opcionesValidacion);
     log('Colección "carritos" creada con validador (createCollection).');
 }
- 
+
 // ─── Verificación rápida ─────────────────────────────────────────
 const info = db.getCollectionInfos({ name: "carritos" })[0];
 log(`validationLevel=${info.options.validationLevel}, validationAction=${info.options.validationAction}`);
- 

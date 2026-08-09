@@ -165,7 +165,18 @@ const agregarAlCarrito = async (producto: Producto, cantidad: number) => {
   } catch (err: unknown) {
     console.error('Error al agregar al carrito:', err)
     toastTipo.value = 'error'
-    toastMensaje.value = 'No se pudo agregar al carrito'
+    // CarritoProductoControlador devuelve el error de negocio (incluido
+    // el del validador de Mongo, punto 2) como texto plano en el body,
+    // no como {message: "..."} — por eso se chequean los dos casos acá.
+    const axiosErr = err as { response?: { data?: unknown } }
+    const data = axiosErr.response?.data
+    if (typeof data === 'string' && data.length > 0) {
+      toastMensaje.value = data
+    } else if (data && typeof data === 'object' && 'message' in data) {
+      toastMensaje.value = String((data as { message?: unknown }).message)
+    } else {
+      toastMensaje.value = 'No se pudo agregar al carrito'
+    }
   } finally {
     if (toastTimer) window.clearTimeout(toastTimer)
     toastTimer = window.setTimeout(() => {

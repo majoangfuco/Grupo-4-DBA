@@ -31,6 +31,7 @@ public class CarritoProductoServicio {
 	// Entradas: idCarrito, idProducto, cantidad
 	// Salida: CarritoProductoEntidad (o DTO)
 	// Descripcion: agrega un producto al carrito o incrementa su cantidad si ya existe.
+	
 	@Transactional
 	public CarritoProductoEntidad agregarProducto(Long idCarrito, Long idProducto, int cantidad) {
 		if (cantidad <= 0) {
@@ -43,6 +44,7 @@ public class CarritoProductoServicio {
 		carritoProductoRepositorio.reservarStock(idProducto, cantidad);
 
 		CarritoProductoEntidad resultado;
+		Long cantidadTotalFinal;
 		if (existente != null) {
 			Long nuevaCantidad = existente.getUnidad_producto() + cantidad;
 			carritoProductoRepositorio.actualizarCantidad(
@@ -51,17 +53,20 @@ public class CarritoProductoServicio {
 			);
 			existente.setUnidad_producto(nuevaCantidad);
 			resultado = existente;
+			cantidadTotalFinal = nuevaCantidad;
 		} else {
 			carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad);
 			resultado = carritoProductoRepositorio.encontrarPorCarritoYProducto(idCarrito, idProducto)
 					.orElseThrow(() -> new IllegalStateException("No se pudo crear el item del carrito"));
+			cantidadTotalFinal = (long) cantidad;
 		}
 
 		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(idCarrito)
 				.orElseThrow(() -> new IllegalStateException("Carrito no encontrado: " + idCarrito));
 		Long clienteId = carrito.getUsuario().getUsuario_ID();
 		try {
-			carritoMongoServicio.agregarItem(clienteId, idProducto, cantidad);
+			actualizarMinimoB2B(resultado, idProducto);
+			carritoMongoServicio.establecerCantidadItem(clienteId, idProducto, cantidadTotalFinal);
 		} catch (CarritoMongoValidationException e) {
 			throw new IllegalArgumentException(e.getMessage());
 		}
@@ -74,10 +79,14 @@ public class CarritoProductoServicio {
 	// Descripcion: obtiene un item del carrito por su id.
 	@Transactional(readOnly = true)
 	public CarritoProductoEntidad obtenerItemPorId(Long idCarritoProducto) {
-		return carritoProductoRepositorio.encontrarPorId(idCarritoProducto)
+		CarritoProductoEntidad item = carritoProductoRepositorio.encontrarPorId(idCarritoProducto)
 				.orElseThrow(() -> new NoSuchElementException(
 					"Item no encontrado: " + idCarritoProducto
 				));
+		if (item.getProducto() != null && item.getProducto().getProducto_ID() != null) {
+			actualizarMinimoB2B(item, item.getProducto().getProducto_ID());
+		}
+		return item;
 	}
 
 	// Entradas: idCarrito
@@ -85,12 +94,20 @@ public class CarritoProductoServicio {
 	// Descripcion: lista los productos dentro de un carrito.
 	@Transactional(readOnly = true)
 	public List<CarritoProductoEntidad> listarItemsPorCarrito(Long idCarrito) {
-		return carritoProductoRepositorio.listarPorCarrito(idCarrito);
+		List<CarritoProductoEntidad> items = carritoProductoRepositorio.listarPorCarrito(idCarrito);
+		for (CarritoProductoEntidad item : items) {
+			if (item.getProducto() != null && item.getProducto().getProducto_ID() != null) {
+				actualizarMinimoB2B(item, item.getProducto().getProducto_ID());
+			}
+		}
+		return items;
 	}
 
 	// Entradas: idCarritoProducto, nuevaCantidad
 	// Salida: CarritoProductoEntidad (o DTO)
 	// Descripcion: actualiza la cantidad de un producto en el carrito.
+	// los botones +/- de "Mi carrito" llaman acá, así que también tienen que pasar
+	// por el validador de Mongo.
 	@Transactional
 	public CarritoProductoEntidad actualizarCantidad(Long idCarritoProducto, int nuevaCantidad) {
 		if (nuevaCantidad <= 0) {
@@ -115,6 +132,17 @@ public class CarritoProductoServicio {
 
 		carritoProductoRepositorio.actualizarCantidad(idCarritoProducto, (long) nuevaCantidad);
 		actual.setUnidad_producto((long) nuevaCantidad);
+
+		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(actual.getCarrito().getCarrito_ID())
+				.orElseThrow(() -> new IllegalStateException(
+						"Carrito no encontrado: " + actual.getCarrito().getCarrito_ID()));
+		Long clienteId = carrito.getUsuario().getUsuario_ID();
+		try {
+			carritoMongoServicio.establecerCantidadItem(clienteId, actual.getProducto().getProducto_ID(), (long) nuevaCantidad);
+		} catch (CarritoMongoValidationException e) {
+			throw new IllegalArgumentException(e.getMessage());
+		}
+
 		return actual;
 	}
 
@@ -137,5 +165,9 @@ public class CarritoProductoServicio {
 	@Transactional(readOnly = true)
 	public BigDecimal calcularSubtotal(Long idCarrito) {
 		return carritoProductoRepositorio.calcularSubtotal(idCarrito);
+	}
+
+	private void actualizarMinimoB2B(CarritoProductoEntidad item, Long productoId) {
+		item.setCantidadMinimaB2B(carritoMongoServicio.obtenerCantidadMinima(productoId));
 	}
 }
