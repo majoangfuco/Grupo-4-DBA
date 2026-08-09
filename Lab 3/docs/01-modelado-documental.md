@@ -41,11 +41,28 @@ La respuesta rara vez es "embeber" o "referenciar" en estado puro: el diseño us
 |---|---|---|
 | `clientes` | Embebe `direcciones[]` y `condicionesComerciales`; referencia lógica a las comunas de PostGIS por `comunaId` | Un cliente B2B tiene pocas direcciones de despacho (cardinalidad acotada) y siempre se leen junto a la ficha. Las condiciones comerciales (cantidad mínima de pedido, descuento por volumen) son 1:1 con el cliente. |
 | `categorias` | Colección propia, referenciada desde `productos` con copia del nombre | Son pocas decenas de documentos, se editan raramente y se listan solas en el menú del catálogo. Se copia `categoria.nombre` dentro del producto para no hacer `$lookup` en cada listado. |
-| `productos` | Colección propia. Embebe `stockPorAlmacen[]` | El catálogo es la entidad más referenciada del sistema: duplicarlo sería inmantenible. `stockPorAlmacen[]` sí se embebe porque hay pocos almacenes y el stock se lee y descuenta siempre junto al producto (actualización atómica de un solo documento). |
+| `productos` | Colección propia. Campo `stock` escalar (~~`stockPorAlmacen[]`~~, ver nota) | El catálogo es la entidad más referenciada del sistema: duplicarlo sería inmantenible. El stock se lee y descuenta siempre junto al producto (actualización atómica de un solo documento). |
 | `carritos` | Colección propia. **Embebe `items[]` con snapshot de precio** | Ver sección 4. |
 | `ordenes` | Colección propia. **Embebe `items[]` (snapshot congelado) y `cliente` (snapshot)** | Una orden es un hecho histórico inmutable: debe poder reimprimirse años después exactamente como fue, aunque el producto se elimine o el cliente cambie de razón social. |
 | `facturas` | Colección propia, referencia `ordenId` | Documento tributario con ciclo de vida y numeración propios (índice único sobre `numeroFactura`). Separarla permite emitir, anular o refacturar sin tocar la orden. |
 | `productos_mas_vendidos` | Colección materializada (destino de `$merge`) | No es fuente de verdad: la reconstruye el change stream sobre órdenes confirmadas. Se aísla para que las lecturas del dashboard no compitan con el pipeline de agregación. |
+
+> **Nota — `stockPorAlmacen[]` descartado para el alcance de Lab 3.** Una
+> versión anterior de este documento proponía embeber `stockPorAlmacen[]`
+> (stock por almacén) dentro de `productos`. Esa propuesta **nunca se
+> implementó**: no llegó a tener JSON de ejemplo comprometido ni código
+> (Java o Mongo) que la leyera o escribiera. Se descarta explícitamente
+> porque el enunciado de este laboratorio solo pide "descontar el stock
+> del producto" — sin granularidad por almacén — y porque **ese control ya
+> existe y sigue funcionando en Postgres**: la tabla
+> `stock_almacen_producto_entidad` y el `PROCEDURE procesar_checkout`
+> (`backendB2B/init.sql`) resuelven la asignación de almacén y el
+> descuento de stock por almacén como parte del checkout geoespacial del
+> Lab 2, en una base de datos separada que este laboratorio no reemplaza.
+> `productos.stock` en MongoDB es un campo **escalar** propio del dominio
+> documental del Lab 3, sin relación con esa tabla. El detalle de esta
+> decisión y el schema resultante están en
+> [`docs/03-checkout-transaccion.md`](03-checkout-transaccion.md).
 
 ---
 
