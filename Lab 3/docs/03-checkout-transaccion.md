@@ -87,11 +87,11 @@ de lo que la transacción de checkout **lee** al empezar:
 // Colección: carritos — ver docs/01-modelado-documental.md §4.4 para el detalle completo
 {
   "_id": ObjectId("..."),
-  "clienteId": ObjectId("..."),
+  "clienteId": 7,
   "estado": "ACTIVO",                     // ACTIVO | ABANDONADO | CONVERTIDO
   "items": [
     {
-      "productoId": ObjectId("..."),      // referencia al catálogo
+      "productoId": 123,                  // referencia al catálogo
       "sku": "SKU-00123",
       "nombreProducto": "Caja guantes nitrilo T-M",
       "cantidad": 120,
@@ -117,7 +117,7 @@ snapshot en la orden (ver §3, docs/01 §4.3).
 {
   "_id": ObjectId("..."),
   "numeroOrden": "ORD-2026-000482",
-  "clienteId": ObjectId("..."),
+  "clienteId": 7,
   "cliente": {                                    // snapshot congelado, no se toca nunca más
     "razonSocial": "Distribuidora Andes SpA",
     "rutEmpresa": "76.123.456-7",
@@ -127,7 +127,7 @@ snapshot en la orden (ver §3, docs/01 §4.3).
   "estado": "PENDIENTE",                          // PENDIENTE | APROBADA | CANCELADA
   "items": [                                       // ── SNAPSHOT CONGELADO, INMUTABLE ──
     {
-      "productoId": ObjectId("..."),               // referencia al catálogo (se conserva)
+      "productoId": 123,                           // referencia al catálogo (se conserva)
       "nombreProducto": "Caja guantes nitrilo T-M",
       "cantidad": 120,
       "precioUnitario": 8990,                      // precio REVALIDADO al momento del checkout
@@ -161,7 +161,7 @@ snapshot en la orden (ver §3, docs/01 §4.3).
   "numeroFactura": "F-2026-000482",               // índice único
   "ordenId": ObjectId("..."),                     // referencia — NO reembebe items[]
   "cliente": {
-    "clienteId": ObjectId("..."),
+    "clienteId": 7,
     "razonSocial": "Distribuidora Andes SpA",
     "rutEmpresa": "76.123.456-7"
   },

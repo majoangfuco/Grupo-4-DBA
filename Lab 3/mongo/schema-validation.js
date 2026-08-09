@@ -87,7 +87,7 @@ const carritoValidator = {
 
 // ─── Regla de negocio: comparación entre campos del MISMO ítem ──
 // $jsonSchema no permite comparar dos campos del mismo documento.
-// Por lo tanto usamos $expr para habilitar operadores lógicos ($lte, $gte) 
+// Por lo tanto usamos $expr para habilitar operadores lógicos ($lte, $gte)
 // y comparar la cantidad solicitada contra el stock y el mínimo B2B.
 const reglasDeNegocio = {
     $expr: {
@@ -117,7 +117,7 @@ const reglasDeNegocio = {
 };
 
 // ───  Fusión de Validadores ($and) ─────────────────────────────
-// Se exige que el documento cumpla tanto la estructura estática 
+// Se exige que el documento cumpla tanto la estructura estática
 // como las reglas dinámicas para ser insertado/actualizado.
 
 const validator = { $and: [carritoValidator, reglasDeNegocio] };
@@ -145,6 +145,73 @@ if (coleccionesExistentes.includes("carritos")) {
 // ─── Verificación rápida ─────────────────────────────────────────
 const info = database.getCollectionInfos({ name: "carritos" })[0];
 log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
+
+// ═══════════════════════════════════════════════════════════════
+// Colección "productos" — SOLO para CheckoutServicio
+//
+// No es el catálogo (ese sigue siendo producto_entidad en Postgres,
+// que consultan ProductoServicio/ProductoRepositorio, y del que lee
+// CarritoMongoServicio.agregarItem para armar el snapshot del ítem del
+// carrito). Esta colección es una copia acotada, exclusiva de la
+// transacción ACID de checkout (CheckoutServicio): el driver de Mongo
+// solo puede hacer $inc condicional (updateOne con stock: {$gte: N})
+// dentro de una transacción multi-documento sobre datos que YA viven
+// en Mongo — no puede tocar Postgres en el mismo commit/abort. De ahí
+// la copia, en vez de leer/descontar el stock real.
+//
+// `_id` es el MISMO valor que producto_ID en Postgres (Long), no un
+// ObjectId nuevo: es lo que permite poblarla 1:1 desde
+// mongo/seeders/productos-seed.js y lo que hace que
+// carritos.items[].productoId (también Long, ver bloque de arriba)
+// calce directo como filtro { _id: productoId } sin tabla de mapeo.
+// ═══════════════════════════════════════════════════════════════
+
+const productoValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        title: "Validación de estructura de producto (copia acotada para checkout)",
+        required: ["nombre", "precioUnitario", "stock", "cantidadMinimaB2B"],
+        properties: {
+            _id: {
+                bsonType: ["int", "long"],
+                description: "Igual a producto_ID de Postgres (producto_entidad), no un ObjectId generado por Mongo"
+            },
+            nombre: { bsonType: "string" },
+            precioUnitario: {
+                bsonType: ["double", "decimal"],
+                minimum: 0,
+                description: "SIN IVA — CheckoutServicio aplica 19% sobre esto, no se recalcula acá"
+            },
+            stock: {
+                bsonType: ["int", "long"],
+                minimum: 0,
+                description: "Lo único que CheckoutServicio descuenta ($inc condicional). No confundir con producto_entidad.stock de Postgres: son copias independientes."
+            },
+            cantidadMinimaB2B: {
+                bsonType: ["int", "long"],
+                minimum: 1,
+                description: "Referencial, para que el shape sea consistente con carritos.items — CheckoutServicio no la vuelve a validar (ya se validó al armar el carrito)."
+            }
+        }
+    }
+};
+
+const opcionesValidacionProductos = {
+    validator: productoValidator,
+    validationLevel: "strict",
+    validationAction: "error"
+};
+
+if (coleccionesExistentes.includes("productos")) {
+    database.runCommand({ collMod: "productos", ...opcionesValidacionProductos });
+    log('Validador aplicado sobre la colección "productos" existente (collMod).');
+} else {
+    database.createCollection("productos", opcionesValidacionProductos);
+    log('Colección "productos" creada con validador (createCollection).');
+}
+
+const infoProductos = database.getCollectionInfos({ name: "productos" })[0];
+log(`productos: validationLevel=${infoProductos.options.validationLevel}, validationAction=${infoProductos.options.validationAction}`);
 
 // ──// ─── Facturas documentales ────────────────────────────────────────────────
      const facturaValidator = {

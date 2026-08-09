@@ -120,11 +120,11 @@ Embeber duplica datos, y la duplicación puede quedar obsoleta. Se asume conscie
 // Colección: carritos
 {
   "_id": ObjectId("..."),
-  "clienteId": ObjectId("..."),          // referencia a clientes
+  "clienteId": 7,                         // referencia a clientes
   "estado": "ACTIVO",                     // ACTIVO | ABANDONADO | CONVERTIDO
   "items": [                              // ── EMBEBIDO ──
     {
-      "productoId": ObjectId("..."),      // referencia al catálogo (se conserva)
+      "productoId": 123,                  // referencia al catálogo (se conserva)
       "sku": "SKU-00123",                 // snapshot de presentación
       "nombreProducto": "Caja guantes nitrilo T-M",
       "categoriaId": ObjectId("..."),
