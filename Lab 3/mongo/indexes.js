@@ -68,5 +68,5 @@ database.carritos.createIndex(
 );
 
 log(`Indices listos. TTL de carritos abandonados: ${TTL_CARRITO_SEGUNDOS} segundos.`);
-log(`facturas: ${tojson(database.facturas.getIndexes())}`);
-log(`carritos: ${tojson(database.carritos.getIndexes())}`);
+log(`facturas: ${JSON.stringify(database.facturas.getIndexes())}`);
+log(`carritos: ${JSON.stringify(database.carritos.getIndexes())}`);

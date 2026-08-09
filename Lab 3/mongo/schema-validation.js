@@ -7,7 +7,7 @@
 // y precio en el carrito al momento de agregar el ítem.
 
 const DB_NAME = process.env.MONGO_DB || "b2b";
-const db = db.getSiblingDB(DB_NAME);
+const database = db.getSiblingDB(DB_NAME);
 
 function log(msg) {
     print(`[schema-validation] ${msg}`);
@@ -132,18 +132,18 @@ const opcionesValidacion = {
 };
 
 // ─── Aplicar validador ─────────────────────────────
-const coleccionesExistentes = db.getCollectionNames();
+const coleccionesExistentes = database.getCollectionNames();
 
 if (coleccionesExistentes.includes("carritos")) {
-    db.runCommand({ collMod: "carritos", ...opcionesValidacion });
+    database.runCommand({ collMod: "carritos", ...opcionesValidacion });
     log('Validador aplicado sobre la colección "carritos" existente (collMod).');
 } else {
-    db.createCollection("carritos", opcionesValidacion);
+    database.createCollection("carritos", opcionesValidacion);
     log('Colección "carritos" creada con validador (createCollection).');
 }
 
 // ─── Verificación rápida ─────────────────────────────────────────
-const info = db.getCollectionInfos({ name: "carritos" })[0];
+const info = database.getCollectionInfos({ name: "carritos" })[0];
 log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
 
 // ──// ─── Facturas documentales ────────────────────────────────────────────────
@@ -228,8 +228,8 @@ log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.
          }
      };
 
-     if (db.getCollectionNames().includes("facturas")) {
-         db.runCommand({
+     if (database.getCollectionNames().includes("facturas")) {
+         database.runCommand({
              collMod: "facturas",
              validator: facturaValidator,
              validationLevel: "strict",
@@ -238,7 +238,7 @@ log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.
 
          log('Validador actualizado en la colección "facturas".');
      } else {
-         db.createCollection("facturas", {
+         database.createCollection("facturas", {
              validator: facturaValidator,
              validationLevel: "strict",
              validationAction: "error"

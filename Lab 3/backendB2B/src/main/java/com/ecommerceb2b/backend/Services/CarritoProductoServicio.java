@@ -7,25 +7,16 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import com.ecommerceb2b.backend.Entities.CarritoEntidad;
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
-import com.ecommerceb2b.backend.Exceptions.CarritoMongoValidationException;
 import com.ecommerceb2b.backend.Repository.CarritoProductoRepositorio;
-import com.ecommerceb2b.backend.Repository.CarritoRepositorio;
 
 @Service
 public class CarritoProductoServicio {
 
 	private final CarritoProductoRepositorio carritoProductoRepositorio;
-	private final CarritoRepositorio carritoRepositorio;
-	private final CarritoMongoServicio carritoMongoServicio;
 
-	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio,
-			CarritoRepositorio carritoRepositorio,
-			CarritoMongoServicio carritoMongoServicio) {
+	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio) {
 		this.carritoProductoRepositorio = carritoProductoRepositorio;
-		this.carritoRepositorio = carritoRepositorio;
-		this.carritoMongoServicio = carritoMongoServicio;
 	}
 
 	// Entradas: idCarrito, idProducto, cantidad
@@ -55,15 +46,6 @@ public class CarritoProductoServicio {
 			carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad);
 			resultado = carritoProductoRepositorio.encontrarPorCarritoYProducto(idCarrito, idProducto)
 					.orElseThrow(() -> new IllegalStateException("No se pudo crear el item del carrito"));
-		}
-
-		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(idCarrito)
-				.orElseThrow(() -> new IllegalStateException("Carrito no encontrado: " + idCarrito));
-		Long clienteId = carrito.getUsuario().getUsuario_ID();
-		try {
-			carritoMongoServicio.agregarItem(clienteId, idProducto, cantidad);
-		} catch (CarritoMongoValidationException e) {
-			throw new IllegalArgumentException(e.getMessage());
 		}
 
 		return resultado;
