@@ -234,8 +234,6 @@ const opcionesValidacionProductos = {
     validationAction: "error"
 };
 
-const coleccionesExistentes = db.getCollectionNames();
-
 if (coleccionesExistentes.includes("productos")) {
     db.runCommand({ collMod: "productos", ...opcionesValidacionProductos });
     log('Validador aplicado sobre la colección "productos" existente (collMod).');

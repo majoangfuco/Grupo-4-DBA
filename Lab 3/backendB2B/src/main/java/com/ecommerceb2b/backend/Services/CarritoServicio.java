@@ -40,11 +40,9 @@ public class CarritoServicio {
 
 		com.ecommerceb2b.backend.Entities.CarritoEntidad carrito = existentes.get(0);
 		if ("ABANDONADO".equalsIgnoreCase(carrito.getEstado())) {
-			// Al abandonar se liberó la reserva; reactivarlo debe recuperarla.
-			for (CarritoProductoEntidad item : carritoProductoServicio
-					.listarItemsPorCarrito(carrito.getCarrito_ID())) {
-				carritoProductoServicio.reservarStockParaReactivacion(item);
-			}
+			// Reactivar el carrito sin bloquear la operación de alta.
+			// La validación dura de stock y mínimo B2B se vuelve a aplicar
+			// cuando el cliente agrega o actualiza un ítem.
 			carritoRepositorio.reactivarCarrito(carrito.getCarrito_ID());
 			carrito.setEstado("ACTIVO");
 		} else {

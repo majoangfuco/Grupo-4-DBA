@@ -7,16 +7,25 @@ import java.util.NoSuchElementException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import com.ecommerceb2b.backend.Entities.CarritoEntidad;
 import com.ecommerceb2b.backend.Entities.CarritoProductoEntidad;
+import com.ecommerceb2b.backend.Exceptions.CarritoMongoValidationException;
 import com.ecommerceb2b.backend.Repository.CarritoProductoRepositorio;
+import com.ecommerceb2b.backend.Repository.CarritoRepositorio;
 
 @Service
 public class CarritoProductoServicio {
 
 	private final CarritoProductoRepositorio carritoProductoRepositorio;
+	private final CarritoRepositorio carritoRepositorio;
+	private final CarritoMongoServicio carritoMongoServicio;
 
-	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio) {
+	public CarritoProductoServicio(CarritoProductoRepositorio carritoProductoRepositorio,
+			CarritoRepositorio carritoRepositorio,
+			CarritoMongoServicio carritoMongoServicio) {
 		this.carritoProductoRepositorio = carritoProductoRepositorio;
+		this.carritoRepositorio = carritoRepositorio;
+		this.carritoMongoServicio = carritoMongoServicio;
 	}
 
 	// Entradas: idCarrito, idProducto, cantidad
@@ -36,35 +45,32 @@ public class CarritoProductoServicio {
 
 		CarritoProductoEntidad resultado;
 		Long cantidadTotalFinal;
+		Integer cantidadMinimaB2B = carritoMongoServicio.obtenerCantidadMinima(idProducto);
 		if (existente != null) {
 			Long nuevaCantidad = existente.getUnidad_producto() + cantidad;
 			carritoProductoRepositorio.actualizarCantidad(
 				existente.getCarrito_Producto_ID(),
-				nuevaCantidad
+				nuevaCantidad,
+				cantidadMinimaB2B
 			);
 			existente.setUnidad_producto(nuevaCantidad);
 			resultado = existente;
 			cantidadTotalFinal = nuevaCantidad;
 		} else {
-			carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad);
+			carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad, cantidadMinimaB2B);
 			resultado = carritoProductoRepositorio.encontrarPorCarritoYProducto(idCarrito, idProducto)
 					.orElseThrow(() -> new IllegalStateException("No se pudo crear el item del carrito"));
 			cantidadTotalFinal = (long) cantidad;
 		}
 
-<<<<<<< HEAD
 		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(idCarrito)
 				.orElseThrow(() -> new IllegalStateException("Carrito no encontrado: " + idCarrito));
 		Long clienteId = carrito.getUsuario().getUsuario_ID();
 		try {
 			actualizarMinimoB2B(resultado, idProducto);
-			carritoMongoServicio.establecerCantidadItem(clienteId, idProducto, cantidadTotalFinal);
 		} catch (CarritoMongoValidationException e) {
 			throw new IllegalArgumentException(e.getMessage());
 		}
-
-=======
->>>>>>> 638e23f288e52db4d16666206d1a1975c75f4c0b
 		return resultado;
 	}
 
@@ -127,18 +133,9 @@ public class CarritoProductoServicio {
 			);
 		}
 
-		carritoProductoRepositorio.actualizarCantidad(idCarritoProducto, (long) nuevaCantidad);
+		Integer cantidadMinimaB2B = carritoMongoServicio.obtenerCantidadMinima(actual.getProducto().getProducto_ID());
+		carritoProductoRepositorio.actualizarCantidad(idCarritoProducto, (long) nuevaCantidad, cantidadMinimaB2B);
 		actual.setUnidad_producto((long) nuevaCantidad);
-
-		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(actual.getCarrito().getCarrito_ID())
-				.orElseThrow(() -> new IllegalStateException(
-						"Carrito no encontrado: " + actual.getCarrito().getCarrito_ID()));
-		Long clienteId = carrito.getUsuario().getUsuario_ID();
-		try {
-			carritoMongoServicio.establecerCantidadItem(clienteId, actual.getProducto().getProducto_ID(), (long) nuevaCantidad);
-		} catch (CarritoMongoValidationException e) {
-			throw new IllegalArgumentException(e.getMessage());
-		}
 
 		return actual;
 	}
@@ -178,12 +175,9 @@ public class CarritoProductoServicio {
 	public BigDecimal calcularSubtotal(Long idCarrito) {
 		return carritoProductoRepositorio.calcularSubtotal(idCarrito);
 	}
-<<<<<<< HEAD
-
+	
 	private void actualizarMinimoB2B(CarritoProductoEntidad item, Long productoId) {
 		item.setCantidadMinimaB2B(carritoMongoServicio.obtenerCantidadMinima(productoId));
 	}
 }
-=======
-}
->>>>>>> 638e23f288e52db4d16666206d1a1975c75f4c0b
+
