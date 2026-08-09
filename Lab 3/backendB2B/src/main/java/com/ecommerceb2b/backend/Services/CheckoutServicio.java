@@ -57,18 +57,38 @@ import static com.mongodb.client.model.Filters.gte;
  * stock por almacén relacional (ver nota en
  * {@code docs/01-modelado-documental.md} §3).</p>
  *
- * <p><b>{@code clienteId}/{@code productoId} son {@code Long}, no {@code
- * ObjectId}:</b> mismo valor que {@code usuario_ID}/{@code producto_ID} de
- * Postgres, tal como quedó definido en el validador de {@code carritos}
- * ({@code mongo/schema-validation.js}) y en {@code CarritoMongoServicio}.
- * La colección {@code productos} que este servicio lee/escribe es una
+ * <p><b>{@code clienteId}/{@code productoId}/{@code carritoId} son todos
+ * {@code Long}, ninguno {@code ObjectId}:</b> {@code clienteId}/{@code
+ * productoId} valen lo mismo que {@code usuario_ID}/{@code producto_ID}
+ * de Postgres, tal como quedó definido en el validador de {@code
+ * carritos} ({@code mongo/schema-validation.js}). {@code carritoId} es el
+ * {@code _id} real del documento de carrito tal como lo escribe hoy
+ * {@code CarritoRepositorio.crearCarrito} — un {@code Long} generado por
+ * el contador {@code contadores["carritos"]} (ver {@code
+ * mongo/indexes.js}), no un {@code ObjectId} de Mongo. El carrito que
+ * este servicio lee/cierra es el mismo que arma el flujo real de compra
+ * ({@code CarritoProductoServicio} → {@code CarritoRepositorio}/{@code
+ * CarritoProductoRepositorio}); el módulo paralelo antiguo
+ * ({@code CarritoMongoServicio}/{@code CarritoMongoRepositorio}/{@code
+ * CarritoMongoControlador}) ya no interviene en absoluto en el checkout
+ * — ver historial de {@code CheckoutServicio} si hace falta la versión
+ * previa que sí dependía de él.
+ *
+ * <p>La colección {@code productos} que este servicio lee/escribe es una
  * copia acotada, exclusiva de esta transacción — no el catálogo (ver
  * {@code mongo/seeders/productos-seed.js}). El {@code _id} de cada
  * documento de {@code productos} es ese mismo {@code producto_ID}, para
  * que el filtro {@code {_id: productoId}} calce directo contra lo que ya
- * trae {@code carritos.items[].productoId} sin tabla de mapeo. Solo
- * {@code carritoId} (el {@code _id} propio del documento de carrito) sigue
- * siendo {@code ObjectId}.</p>
+ * trae {@code carritos.items[].productoId} sin tabla de mapeo.</p>
+ *
+ * <p><b>{@code cantidadMinimaB2B} NO se revalida acá:</b> este servicio
+ * nunca leyó ese campo (la regla "cantidad ≥ mínimo B2B" vivía en el
+ * validador {@code $expr} de {@code carritos}, aplicado al momento de
+ * agregar el ítem al carrito — ver {@code mongo/schema-validation.js}).
+ * Desde la reescritura de {@code CarritoProductoRepositorio}, todo ítem
+ * se agrega con {@code cantidadMinimaB2B} fijo en 1, así que esa regla de
+ * negocio del enunciado queda efectivamente inactiva en el flujo real
+ * (pendiente de decisión de equipo, no resuelto en este servicio).</p>
  */
 @Service
 public class CheckoutServicio {
@@ -119,7 +139,7 @@ public class CheckoutServicio {
         if (pedido.getClienteId() == null || pedido.getClienteId() <= 0) {
             throw new IllegalArgumentException("El cliente es obligatorio");
         }
-        if (pedido.getCarritoId() == null || pedido.getCarritoId().isBlank()) {
+        if (pedido.getCarritoId() == null || pedido.getCarritoId() <= 0) {
             throw new IllegalArgumentException("El carrito es obligatorio");
         }
         if (pedido.getDatosPago() == null) {
@@ -132,14 +152,14 @@ public class CheckoutServicio {
         }
 
         Long clienteId = pedido.getClienteId();
-        ObjectId carritoOid = aObjectId(pedido.getCarritoId(), "carritoId");
+        Long carritoId = pedido.getCarritoId();
 
         return mongoSesionServicio.enTransaccion(
-                (sesion, db) -> ejecutarCheckout(sesion, db, clienteId, carritoOid, pedido));
+                (sesion, db) -> ejecutarCheckout(sesion, db, clienteId, carritoId, pedido));
     }
 
     private CheckoutResultadoDto ejecutarCheckout(ClientSession sesion, MongoDatabase db,
-            Long clienteId, ObjectId carritoId, CheckoutRequestDto pedido) {
+            Long clienteId, Long carritoId, CheckoutRequestDto pedido) {
 
         DatosPagoMockDto datosPago = pedido.getDatosPago();
 
@@ -156,14 +176,14 @@ public class CheckoutServicio {
 
         if (carrito == null) {
             throw new IllegalStateException(
-                    "El carrito " + carritoId.toHexString()
+                    "El carrito " + carritoId
                             + " no existe, no pertenece al cliente " + clienteId
                             + " o no está ACTIVO");
         }
 
         List<Document> items = carrito.getList("items", Document.class);
         if (items == null || items.isEmpty()) {
-            throw new IllegalStateException("El carrito " + carritoId.toHexString() + " está vacío");
+            throw new IllegalStateException("El carrito " + carritoId + " está vacío");
         }
 
         // ── 2. Descuento de stock, ítem por ítem, condicionado ──────────
@@ -295,7 +315,7 @@ public class CheckoutServicio {
 
         if (cierreCarrito.getMatchedCount() == 0) {
             throw new IllegalStateException(
-                    "No se pudo marcar como convertido el carrito " + carritoId.toHexString());
+                    "No se pudo marcar como convertido el carrito " + carritoId);
         }
 
         return new CheckoutResultadoDto(
@@ -333,13 +353,6 @@ public class CheckoutServicio {
 
     private static boolean isBlank(String valor) {
         return valor == null || valor.isBlank();
-    }
-
-    private static ObjectId aObjectId(String valor, String campo) {
-        if (!ObjectId.isValid(valor)) {
-            throw new IllegalArgumentException(campo + " no es un ObjectId válido: " + valor);
-        }
-        return new ObjectId(valor);
     }
 
     private static long aEntero(Object valor, String campo) {

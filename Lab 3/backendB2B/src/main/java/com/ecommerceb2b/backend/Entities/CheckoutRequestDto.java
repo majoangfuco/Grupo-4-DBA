@@ -7,13 +7,15 @@ import lombok.NoArgsConstructor;
 /**
  * Body de {@code POST /api/checkout} (checkout documental, Lab 3).
  *
- * {@code clienteId} es {@code Long}: mismo valor que {@code usuario_ID} de
- * Postgres, tal como lo definió el validador de {@code carritos} en
- * {@code mongo/schema-validation.js} (no un {@code ObjectId} de Mongo
- * generado aparte — no existe una colección {@code clientes} separada).
- * {@code carritoId} sí es el hex string del {@code ObjectId} propio del
- * documento en la colección {@code carritos} (ese campo no cambió de
- * tipo).
+ * {@code clienteId} y {@code carritoId} son {@code Long}: mismos valores
+ * que {@code usuario_ID} de Postgres y que el {@code _id} real del
+ * documento de carrito (colección {@code carritos}, poblado por
+ * {@code CarritoRepositorio.crearCarrito} vía el contador
+ * {@code contadores["carritos"]} — ver {@code mongo/indexes.js}). Ninguno
+ * de los dos es {@code ObjectId} de Mongo: no existe una colección
+ * {@code clientes} separada, y desde el commit que reescribió
+ * {@code CarritoRepositorio}/{@code CarritoProductoRepositorio} el
+ * carrito tampoco se identifica con {@code ObjectId}.
  *
  * {@code razonSocial}/{@code rutEmpresa}/{@code direccionEnvio} los envía
  * el frontend con los datos del cliente ya logueado: no hay colección
@@ -27,7 +29,7 @@ import lombok.NoArgsConstructor;
 public class CheckoutRequestDto {
 
     private Long clienteId;
-    private String carritoId;
+    private Long carritoId;
     private String razonSocial;
     private String rutEmpresa;
     private String direccionEnvio;
