@@ -17,7 +17,7 @@ proyección no atiende los endpoints del carrito.
 | Colección | Índice | Propósito |
 |---|---|---|
 | `facturas` | `{ numeroFactura: 1 }`, `unique: true` | Impide números de factura duplicados. |
-| `facturas` | `{ clienteId: 1, fechaEmision: -1 }` | Resuelve el historial de un cliente desde la factura más reciente. |
+| `facturas` | `{ "cliente.clienteId": 1, fechaEmision: -1 }` | Resuelve el historial de un cliente desde la factura más reciente. El campo va dentro del snapshot embebido `cliente{}` (ver [`docs/03`](03-checkout-transaccion.md) §1.4), no en la raíz del documento. |
 | `carritos` | `{ ultimaActividad: 1 }`, TTL parcial | Elimina únicamente carritos con `estado: "ABANDONADO"` tras el plazo configurado. |
 
 El plazo predeterminado es 30 días (`2592000` segundos) y se puede cambiar con

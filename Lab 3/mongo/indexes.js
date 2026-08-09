@@ -36,9 +36,19 @@ database.facturas.createIndex(
 );
 
 // Historial de un cliente, desde la factura mas reciente.
+// El campo es "cliente.clienteId" (snapshot embebido), NO un "clienteId"
+// plano en la raiz: asi lo escribe CheckoutServicio y asi lo fija
+// docs/03-checkout-transaccion.md 1.4. La version anterior indexaba
+// "clienteId", campo que no existe en ningun documento de la coleccion, y
+// por lo tanto no servia para el historial de pedidos que pide el punto 5.
+const INDICE_HISTORIAL_OBSOLETO = "ix_facturas_clienteId_fechaEmision";
+if (database.facturas.getIndexes().some((i) => i.name === INDICE_HISTORIAL_OBSOLETO)) {
+    database.facturas.dropIndex(INDICE_HISTORIAL_OBSOLETO);
+    log(`Indice obsoleto "${INDICE_HISTORIAL_OBSOLETO}" eliminado (indexaba un campo inexistente).`);
+}
 database.facturas.createIndex(
-    { clienteId: 1, fechaEmision: -1 },
-    { name: "ix_facturas_clienteId_fechaEmision" }
+    { "cliente.clienteId": 1, fechaEmision: -1 },
+    { name: "ix_facturas_cliente_fechaEmision" }
 );
 
 // La orden relacional puede originar una sola factura documental.

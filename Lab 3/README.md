@@ -49,9 +49,17 @@ Lab 3/
 ├── .env.example              # Variables opcionales de compose (credenciales Mongo)
 ├── mongo/
 │   ├── keyfile-init.sh        # Genera el keyfile compartido del replica set (permisos 400)
-│   └── rs-init.js             # rs.initiate() idempotente + usuario de aplicación
+│   ├── rs-init.js             # rs.initiate() idempotente + usuario de aplicación
+│   ├── schema-validation.js   # Validadores $jsonSchema por colección
+│   ├── indexes.js             # Índices únicos, compuestos y TTL
+│   ├── aggregation-pipeline.js     # Pipeline de volumen de ventas proyectado
+│   ├── change-streams-merge.js     # Vista materializada $merge "productos más vendidos" + backfill
+│   └── seeders/               # Datos de prueba (productos, configuración B2B)
 ├── docs/
-│   └── 01-modelado-documental.md   # Justificación embedding vs referencing (entregable)
+│   ├── 01-modelado-documental.md   # Justificación embedding vs referencing (entregable)
+│   ├── 03-checkout-transaccion.md  # Transacción multi-documento de checkout
+│   ├── 05-indices.md               # Estrategia de índices
+│   └── 06-change-streams-merge.md  # Change Streams + $merge y por qué el worker va aparte
 ├── backendB2B/
 │   ├── init.sql               # Script único: tablas, índices, triggers, SPs, vistas materializadas, seeders
 │   ├── src/main/java/com/ecommerceb2b/backend/
@@ -61,7 +69,8 @@ Lab 3/
 │   │   ├── Entities/          # POJOs usados como DTO de request/response y RowMapper
 │   │   ├── Config/            # Seguridad, JWT, CORS, conexión a MongoDB
 │   │   ├── Util/              # Utilitarios (ej. validación de RUT, normalización de coordenadas GeoJSON)
-│   │   └── Loader/            # Carga inicial de comunas / unidades vecinales (geometrías reales)
+│   │   ├── Loader/            # Carga inicial de comunas / unidades vecinales (geometrías reales)
+│   │   └── Workers/           # Procesos de fondo sin HTTP (change stream de productos más vendidos)
 │   └── Dockerfile
 └── frontendB2B/
     ├── src/
@@ -114,9 +123,10 @@ Un solo comando deja todo operativo, **incluido el replica set** (no hay que eje
 1. Descarga la imagen `postgis/postgis:15-3.3` y levanta la base de datos, ejecutando automáticamente `backendB2B/init.sql` la **primera vez** que se crea el volumen (crea tablas, índices GIST, triggers, stored procedures, vistas materializadas y datos de prueba).
 2. **`mongo-keyfile`** genera el keyfile compartido del replica set dentro de un volumen de Docker y lo deja con permisos `400` y dueño `999:999`, como exige `mongod`. El contenedor termina y los nodos esperan a que haya terminado (`service_completed_successfully`).
 3. **`mongo1`** y **`mongo2`** arrancan con `--replSet rs0 --keyFile ... --auth`. Sobre `mongo1` el entrypoint oficial crea primero el usuario `root`.
-4. **`mongo-init`** espera a que ambos nodos pasen su healthcheck y ejecuta `mongo/rs-init.js` con `mongosh`: hace `rs.initiate()`, espera a que `mongo1` sea PRIMARY, espera a que `mongo2` entre como SECONDARY y crea el usuario de aplicación. El contenedor termina.
+4. **`mongo-init`** espera a que ambos nodos pasen su healthcheck y ejecuta con `mongosh`, en orden: `mongo/rs-init.js` (`rs.initiate()`, espera a que `mongo1` sea PRIMARY y `mongo2` SECONDARY, crea el usuario de aplicación), `mongo/schema-validation.js` (validadores `$jsonSchema`), `mongo/indexes.js` (índices únicos/compuestos/TTL) y `mongo/change-streams-merge.js` (colección materializada `productos_mas_vendidos` + su backfill inicial). El contenedor termina.
 5. Compila el backend con Maven dentro de un contenedor multi-stage (`backendB2B/Dockerfile`) y lo levanta en el puerto **8090**. El backend **solo arranca después** de que `mongo-init` terminó bien, así que nunca se encuentra con un replica set a medio configurar.
-6. Compila el frontend con Vite dentro de un contenedor multi-stage (`frontendB2B/Dockerfile`) y lo sirve con Nginx en el puerto **8080**.
+6. **`worker`** reusa la misma imagen del backend (`b2b-backend:lab3`) con `SPRING_PROFILES_ACTIVE=worker`: arranca **sin servidor HTTP** y se queda escuchando el change stream de `ordenes` para refrescar la vista materializada de productos más vendidos (punto 6 — ver [`docs/06-change-streams-merge.md`](docs/06-change-streams-merge.md)).
+7. Compila el frontend con Vite dentro de un contenedor multi-stage (`frontendB2B/Dockerfile`) y lo sirve con Nginx en el puerto **8080**.
 
 La primera vez, los pasos 2–4 toman entre 20 y 60 segundos (la elección de PRIMARY y el *initial sync* del secundario no son instantáneos).
 
@@ -131,8 +141,9 @@ docker compose up --build -d
 ### Verificación de que todo quedó arriba
 
 ```bash
-docker compose ps                          # db, mongo1, mongo2, backend y frontend deben decir "Up"
+docker compose ps                          # db, mongo1, mongo2, backend, worker y frontend deben decir "Up"
                                            # mongo-keyfile y mongo-init aparecen como "Exited (0)": es lo esperado
+docker compose logs worker | tail -5       # debe decir "Worker de change streams iniciado"
 curl http://localhost:8090/api/productos   # 200 (listado público de productos)
 curl http://localhost:8090/api/almacenes   # 403 (requiere JWT de un usuario ADMIN) — confirma que el backend responde
 curl http://localhost:8090/api/mongo/health   # 200 con el estado del replica set
@@ -332,12 +343,49 @@ El backend valida automáticamente (trigger `validar_cobertura_direccion`) que l
 
 - `GET /api/mongo/health` — **público**. Estado del replica set: nodos y su rol, latencia, y si están disponibles transacciones multi-documento y change streams. Ejemplo de respuesta en la sección 2.
 
+### 3.10 Productos más vendidos — vista materializada reactiva (Lab 3, punto 6)
+
+Colección `productos_mas_vendidos`, mantenida al día por el proceso **`worker`** (change stream sobre `ordenes` + `$merge`), no por estos endpoints. Detalle completo del diseño en [`docs/06-change-streams-merge.md`](docs/06-change-streams-merge.md).
+
+- `PATCH /api/ordenes/mongo/{ordenId}/confirmar` — **rol `ADMIN`**. Pasa una orden documental de `PENDIENTE` a `CONFIRMADA`. **Es el disparador**: el worker detecta el cambio y refresca el ranking de forma asíncrona (típicamente en menos de un segundo). El `{ordenId}` es el `ordenId` que devolvió `POST /api/checkout`.
+  ```jsonc
+  // 200
+  {
+    "ordenId": "66b6f0c1a2e4f51b3c9d7a04",
+    "numeroOrden": "ORD-2026-000482",
+    "estado": "CONFIRMADA",
+    "mensaje": "Orden confirmada. El worker de change streams actualizará productos_mas_vendidos de forma asíncrona."
+  }
+  ```
+  Responde `409` si la orden no existe o ya no estaba `PENDIENTE`.
+
+- `GET /api/reportes/mongo/productos-mas-vendidos?limite=10` — **rol `ADMIN`**. Lee la vista materializada (un `find()` sobre el índice `ix_masvendidos_unidadesVendidas`, sin agregación en tiempo de request).
+  ```jsonc
+  // 200
+  [
+    {
+      "_id": 15,
+      "productoId": 15,
+      "nombreProducto": "Resmas de Papel A4 (Caja de 10)",
+      "unidadesVendidas": 340,
+      "montoTotalVendido": "6120000.00",
+      "ordenesConfirmadas": 12,
+      "ultimaVentaEn": "2026-08-09T14:22:31Z",
+      "actualizadoEn": "2026-08-09T14:22:31Z"
+    }
+  ]
+  ```
+
+- `POST /api/reportes/mongo/productos-mas-vendidos/recalcular` — **rol `ADMIN`**. Reconstruye el ranking completo con el mismo pipeline `$merge`. Escotilla de emergencia (worker caído más tiempo que la ventana del oplog); en operación normal no hace falta.
+
+- `GET /api/reportes/mongo/volumen-proyectado` — **rol `ADMIN`**. Aggregation pipeline del punto 4 (`$group` + `$bucket` + `$sort`).
+
 ---
 
 ## 4. Seguridad y roles (RBAC)
 
 - **`CLIENTE`**: crea/gestiona su propio carrito, realiza checkout, ve sus propias órdenes/facturas/direcciones de entrega.
-- **`ADMIN`**: gestiona productos/categorías/stock/almacenes, aprueba órdenes, accede a reportes y al mapa de logística.
+- **`ADMIN`**: gestiona productos/categorías/stock/almacenes, aprueba órdenes, confirma órdenes documentales (`/api/ordenes/mongo/**`), accede a reportes y al mapa de logística.
 - Middleware: `Config/JwtAuthenticationFilter.java` valida el JWT en cada request y puebla `SecurityContextHolder` con la autoridad `ROLE_<rol del token>`; `Config/SecurityConfig.java` define qué rutas requieren qué rol.
 
 ---

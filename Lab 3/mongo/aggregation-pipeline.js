@@ -9,7 +9,10 @@
  */
 
 const DB_NAME = process.env.MONGO_DB || "b2b";
-const db = db.getSiblingDB(DB_NAME);
+// `database` y no `db`: `const db = db.getSiblingDB(...)` sombrea el `db`
+// global de mongosh y revienta con "Cannot access 'db' before initialization"
+// (TDZ) antes de llegar a usarlo. Mismo patrón que mongo/indexes.js.
+const database = db.getSiblingDB(DB_NAME);
 
 print("\n--- Ejecutando Aggregation Pipeline: Volumen de Ventas Proyectado ---\n");
 
@@ -58,7 +61,7 @@ const pipeline = [
     }
 ];
 
-const resultados = db.carritos.aggregate(pipeline).toArray();
+const resultados = database.carritos.aggregate(pipeline).toArray();
 
 if (resultados.length === 0) {
     print("No hay proyecciones de ventas en este momento (ningún carrito activo con ítems).");

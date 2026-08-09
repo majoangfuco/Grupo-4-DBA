@@ -3,6 +3,7 @@ package com.ecommerceb2b.backend.Services;
 import com.ecommerceb2b.backend.Repository.LogisticaMapaRepositorio;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -10,7 +11,11 @@ import org.springframework.stereotype.Component;
 // el choropleth no dependa de que un admin dispare el refresco a mano.
 // No hay otro @Scheduled en el proyecto todavía, así que este es el primero;
 // el intervalo (6h) es conservador para no competir con tráfico de checkout.
+// !worker: el proceso worker de change streams comparte este jar; el
+// refresco periódico de las vistas PostGIS lo hace solo el backend HTTP,
+// no queremos dos procesos disparándolo.
 @Component
+@Profile("!worker")
 public class LogisticaMapaScheduler {
 
     private static final Logger log = LoggerFactory.getLogger(LogisticaMapaScheduler.class);

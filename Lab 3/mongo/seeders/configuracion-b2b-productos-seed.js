@@ -38,7 +38,10 @@
 // ═══════════════════════════════════════════════════════════════
 
 const DB_NAME = process.env.MONGO_DB || "b2b";
-const db = db.getSiblingDB(DB_NAME);
+// `database` y no `db`: `const db = db.getSiblingDB(...)` sombrea el `db`
+// global de mongosh y revienta con "Cannot access 'db' before initialization"
+// (TDZ) antes de llegar a usarlo. Mismo patrón que mongo/indexes.js.
+const database = db.getSiblingDB(DB_NAME);
 
 function log(msg) {
     print(`[configuracion-b2b-productos-seed] ${msg}`);
@@ -51,7 +54,7 @@ const CANTIDAD_MINIMA_B2B_OVERRIDES = {
     22: 10, // Mouse Inalámbrico Ergonómico — mínimo 10 unidades por pedido B2B
 };
 
-const coleccion = db.getCollection("configuracion_b2b_productos");
+const coleccion = database.getCollection("configuracion_b2b_productos");
 
 const operaciones = Object.entries(CANTIDAD_MINIMA_B2B_OVERRIDES).map(([productoId, cantidadMinimaB2B]) => ({
     replaceOne: {

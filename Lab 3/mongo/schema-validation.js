@@ -213,87 +213,69 @@ if (coleccionesExistentes.includes("productos")) {
 const infoProductos = database.getCollectionInfos({ name: "productos" })[0];
 log(`productos: validationLevel=${infoProductos.options.validationLevel}, validationAction=${infoProductos.options.validationAction}`);
 
-// ──// ─── Facturas documentales ────────────────────────────────────────────────
-     const facturaValidator = {
-         $jsonSchema: {
-             bsonType: "object",
-             required: [
-                 "numeroFactura",
-                 "clienteId",
-                 "ordenId",
-                 "precioTotal",
-                 "fechaEmision",
-                 "totalNeto",
-                 "iva",
-                 "items"
-             ],
-             properties: {
-                 numeroFactura: {
-                     bsonType: "string",
-                     minLength: 1
-                 },
-                 clienteId: {
-                     bsonType: ["int", "long"],
-                     minimum: 1
-                 },
-                 ordenId: {
-                     bsonType: ["int", "long"],
-                     minimum: 1
-                 },
-                 fechaEmision: {
-                     bsonType: "date"
-                 },
-                 precioTotal: {
-                     bsonType: ["double", "decimal"],
-                     minimum: 0
-                 },
-                 totalNeto: {
-                     bsonType: ["double", "decimal"],
-                     minimum: 0
-                 },
-                 iva: {
-                     bsonType: ["double", "decimal"],
-                     minimum: 0
-                 },
-                 costoEnvio: {
-                     bsonType: ["double", "decimal"],
-                     minimum: 0
-                 },
-                 items: {
-                     bsonType: "array",
-                     items: {
-                         bsonType: "object",
-                         required: [
-                             "productoId",
-                             "nombreProducto",
-                             "precioUnitario",
-                             "cantidad"
-                         ],
-                         properties: {
-                             productoId: {
-                                 bsonType: ["int", "long"],
-                                 minimum: 1
-                             },
-                             nombreProducto: {
-                                 bsonType: "string"
-                             },
-                             sku: {
-                                 bsonType: ["string", "null"]
-                             },
-                             precioUnitario: {
-                                 bsonType: ["double", "decimal"],
-                                 minimum: 0
-                             },
-                             cantidad: {
-                                 bsonType: ["int", "long"],
-                                 minimum: 1
-                             }
-                         }
-                     }
-                 }
-             }
-         }
-     };
+// ─── Facturas documentales ────────────────────────────────────────────────
+// El shape es el que fija docs/03-checkout-transaccion.md §1.4 y el que
+// escribe CheckoutServicio.ejecutarCheckout(): NO es el de la factura
+// relacional (factura_entidad en Postgres, con precioTotal/costoEnvio y
+// clienteId plano). Las diferencias que importan:
+//   - `ordenId` es un ObjectId (referencia al _id de `ordenes`), no un Long.
+//   - los datos del cliente van embebidos en `cliente{}` como snapshot
+//     tributario congelado, no como un `clienteId` suelto en la raíz.
+//   - NO hay `items[]`: el detalle de línea vive en `ordenes.items`, y
+//     duplicarlo acá crearía dos copias divergentes de la misma verdad
+//     histórica (docs/03 §1.4 lo justifica en detalle).
+const facturaValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        title: "Factura documental emitida por el checkout transaccional",
+        required: [
+            "numeroFactura",
+            "ordenId",
+            "cliente",
+            "totalNeto",
+            "iva",
+            "total",
+            "estado",
+            "fechaEmision"
+        ],
+        properties: {
+            numeroFactura: {
+                bsonType: "string",
+                minLength: 1,
+                description: "Correlativo tributario (F-AAAA-NNNNNN). Índice único."
+            },
+            ordenId: {
+                bsonType: "objectId",
+                description: "Referencia al _id de la orden que originó la factura"
+            },
+            cliente: {
+                bsonType: "object",
+                required: ["clienteId", "razonSocial", "rutEmpresa"],
+                description: "Snapshot del cliente al momento de emitir; sin direccionEnvio (es dato de despacho, no tributario)",
+                properties: {
+                    clienteId: { bsonType: ["int", "long"], minimum: 1 },
+                    razonSocial: { bsonType: "string", minLength: 1 },
+                    rutEmpresa: { bsonType: "string", minLength: 1 }
+                }
+            },
+            totalNeto: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            iva: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            total: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            // montoTotal es el mismo valor que `total`, conservado por
+            // fidelidad al ejemplo de docs/03 §1.4. Opcional a propósito:
+            // si el equipo decide consolidar en un solo campo, el validador
+            // no se opone.
+            montoTotal: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
+            estado: {
+                enum: ["EMITIDA", "ANULADA"],
+                description: "Ciclo de vida tributario de la factura"
+            },
+            fechaEmision: { bsonType: "date" },
+            fechaAnulacion: { bsonType: ["date", "null"] },
+            motivoAnulacion: { bsonType: ["string", "null"] }
+        }
+    }
+};
 
      if (database.getCollectionNames().includes("facturas")) {
          database.runCommand({
