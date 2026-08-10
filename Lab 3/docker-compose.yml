@@ -130,6 +130,9 @@ services:
       - ./mongo/schema-validation.js:/scripts/schema-validation.js:ro
       - ./mongo/indexes.js:/scripts/indexes.js:ro
       - ./mongo/change-streams-merge.js:/scripts/change-streams-merge.js:ro
+      - ./mongo/seeders/productos-seed.js:/scripts/seeders/productos-seed.js:ro
+      - ./mongo/seeders/configuracion-b2b-productos-seed.js:/scripts/seeders/configuracion-b2b-productos-seed.js:ro
+      - ./mongo/seeders/ordenes-carritos-seed.js:/scripts/seeders/ordenes-carritos-seed.js:ro
     command:
       - bash
       - -c
@@ -149,7 +152,13 @@ services:
         mongosh --host mongo1:27017
         -u "$$MONGO_ROOT_USER" -p "$$MONGO_ROOT_PASSWORD"
         --authenticationDatabase admin
-        --file /scripts/change-streams-merge.js
+        --file /scripts/change-streams-merge.js &&
+        mongosh "mongodb://$$MONGO_APP_USER:$$MONGO_APP_PASSWORD@mongo1:27017/$$MONGO_DB?authSource=admin&replicaSet=$$MONGO_REPLICA_SET"
+        --file /scripts/seeders/productos-seed.js &&
+        mongosh "mongodb://$$MONGO_APP_USER:$$MONGO_APP_PASSWORD@mongo1:27017/$$MONGO_DB?authSource=admin&replicaSet=$$MONGO_REPLICA_SET"
+        --file /scripts/seeders/configuracion-b2b-productos-seed.js &&
+        mongosh "mongodb://$$MONGO_APP_USER:$$MONGO_APP_PASSWORD@mongo1:27017/$$MONGO_DB?authSource=admin&replicaSet=$$MONGO_REPLICA_SET"
+        --file /scripts/seeders/ordenes-carritos-seed.js
     restart: on-failure
     networks:
       - b2b-network

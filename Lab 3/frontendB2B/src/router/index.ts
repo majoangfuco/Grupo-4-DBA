@@ -85,6 +85,15 @@ const router = createRouter({
           meta: { requiresRole: 'ADMIN' },
         },
         {
+          // Reportes MongoDB (Lab 3, Tareas 4 y 6):
+          // Aggregation Pipeline de volumen proyectado y
+          // Vista Materializada de productos más vendidos (Change Streams).
+          path: 'mongoReportesAdmin',
+          name: 'Admin-MongoReportes',
+          component: () => import('@/views/Admin/MongoReportes-PaginaAdmin.vue'),
+          meta: { requiresRole: 'ADMIN' },
+        },
+        {
           path: 'productosCliente',
           name: 'Cliente-Productos',
           component: () => import('@/views/Customers/Productos-PaginaClientes.vue'),
