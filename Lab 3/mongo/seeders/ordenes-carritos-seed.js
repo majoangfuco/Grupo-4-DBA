@@ -175,11 +175,8 @@ const ORDENES = [
         items: [
             itemOrden(4,  20),  // 20 × Silla Ergonómica
             itemOrden(5,  10),  // 10 × Escritorio Eléctrico
-            itemOrden(19, 15),  // 15 × Cajonera Metálica (sin categoría en catálogo demo)
-        ].filter(it => CATALOGO[it.productoId] !== undefined),
-        // Nota: productoId 19 no está en CATALOGO reducido; el filter lo excluye
-        // para no enviar undefined. Se reemplaza por:
-        // (ver override más abajo)
+            // item 19 removido para evitar crash al evaluar CATALOGO[19].precio
+        ],
     },
     {
         ordenIdHex: "bbbbbbbbbbbbbbbbbbbbbbbc",
