@@ -10,6 +10,15 @@
 const DB_NAME = process.env.MONGO_DB || "b2b";
 const database = db.getSiblingDB(DB_NAME);
 
+// SIEMPRE usar `database`, NUNCA el `db` suelto de mongosh. docker-compose
+// invoca este script con `mongosh --host mongo1:27017 -u root ...`, sin base
+// en la cadena de conexión, así que `db` apunta a `test` y no a `b2b` (los
+// seeders sí usan una URI con /b2b, por eso ellos no tenían el problema).
+// Con `db` suelto, cada collMod/createCollection creaba una colección
+// fantasma vacía en `test` y la base real se quedaba con el validador de la
+// última revisión que sí acertó — es decir, la Tarea 2 quedaba sin aplicar
+// sobre `b2b` sin dar ningún error visible.
+
 function log(msg) {
     print(`[schema-validation] ${msg}`);
 }
@@ -136,8 +145,8 @@ const opcionesValidacion = {
 };
 
 // ─── Normalización de documentos existentes ─────────────────────
-if (db.getCollectionNames().includes("carritos")) {
-    db.carritos.updateMany(
+if (database.getCollectionNames().includes("carritos")) {
+    database.carritos.updateMany(
         { items: { $type: "array" } },
         [
             {
@@ -165,17 +174,17 @@ if (db.getCollectionNames().includes("carritos")) {
 }
 
 // ─── Aplicar validador (idempotente) ─────────────────────────────
-const coleccionesExistentes = db.getCollectionNames();
+const coleccionesExistentes = database.getCollectionNames();
 
 if (coleccionesExistentes.includes("carritos")) {
-    db.runCommand({ collMod: "carritos", ...opcionesValidacion });
+    database.runCommand({ collMod: "carritos", ...opcionesValidacion });
     log('Validador aplicado sobre la colección "carritos" existente (collMod).');
 } else {
-    db.createCollection("carritos", opcionesValidacion);
+    database.createCollection("carritos", opcionesValidacion);
     log('Colección "carritos" creada con validador (createCollection).');
 }
 // ─── Verificación rápida ─────────────────────────────────────────
-const info = db.getCollectionInfos({ name: "carritos" })[0];
+const info = database.getCollectionInfos({ name: "carritos" })[0];
 log(`Validador activo (Nivel: ${info.options.validationLevel} | Acción: ${info.options.validationAction}). La colección "carritos" está lista y protegida.`);
 
 // ═══════════════════════════════════════════════════════════════
@@ -235,14 +244,14 @@ const opcionesValidacionProductos = {
 };
 
 if (coleccionesExistentes.includes("productos")) {
-    db.runCommand({ collMod: "productos", ...opcionesValidacionProductos });
+    database.runCommand({ collMod: "productos", ...opcionesValidacionProductos });
     log('Validador aplicado sobre la colección "productos" existente (collMod).');
 } else {
-    db.createCollection("productos", opcionesValidacionProductos);
+    database.createCollection("productos", opcionesValidacionProductos);
     log('Colección "productos" creada con validador (createCollection).');
 }
 
-const infoProductos = db.getCollectionInfos({ name: "productos" })[0];
+const infoProductos = database.getCollectionInfos({ name: "productos" })[0];
 log(`productos: validationLevel=${infoProductos.options.validationLevel}, validationAction=${infoProductos.options.validationAction}`);
 
 // ─── Órdenes documentales (checkout transaccional — CheckoutServicio) ──────
@@ -323,15 +332,30 @@ const ordenValidator = {
                 description: "Solo presente después de OrdenMongoServicio.confirmar(); ausente mientras la orden está PENDIENTE"
             },
             facturaId: {
-                bsonType: "objectId",
-                description: "Referencia al _id de la factura gemela, creada en la misma transacción"
+                bsonType: ["objectId", "int", "long"],
+                description: "Referencia al _id de la factura gemela. ObjectId cuando la orden viene del checkout documental (facturas), Long cuando es el espejo del checkout relacional (facturas_relacionales)."
+            },
+            // ─── Campos solo del espejo del flujo relacional ─────────────
+            // OrdenesServicio.solicitarOrdenAtomica() replica acá la orden que
+            // creó procesar_checkout en Postgres. Sin este espejo la compra
+            // real de la UI nunca entra a `ordenes`, y como el change stream
+            // del punto 6 escucha ESTA colección, jamás llegaba a
+            // productos_mas_vendidos por más que se apretara "Actualizar".
+            origen: {
+                enum: ["DOCUMENTAL", "RELACIONAL"],
+                description: "DOCUMENTAL = CheckoutServicio; RELACIONAL = espejo de OrdenesServicio. Ausente en las órdenes previas a este campo (se asumen DOCUMENTAL)."
+            },
+            ordenRelacionalId: {
+                bsonType: ["int", "long"],
+                minimum: 1,
+                description: "orden_id de ordenes_entidad (Postgres) que este documento espeja. Es la llave que usa confirmarEspejoRelacional() al aprobar la orden."
             }
         }
     }
 };
 
 if (coleccionesExistentes.includes("ordenes")) {
-    db.runCommand({
+    database.runCommand({
         collMod: "ordenes",
         validator: ordenValidator,
         validationLevel: "strict",
@@ -339,7 +363,7 @@ if (coleccionesExistentes.includes("ordenes")) {
     });
     log('Validador aplicado sobre la colección "ordenes" existente (collMod).');
 } else {
-    db.createCollection("ordenes", {
+    database.createCollection("ordenes", {
         validator: ordenValidator,
         validationLevel: "strict",
         validationAction: "error"
@@ -347,13 +371,12 @@ if (coleccionesExistentes.includes("ordenes")) {
     log('Colección "ordenes" creada con validador (createCollection).');
 }
 
-const infoOrdenes = db.getCollectionInfos({ name: "ordenes" })[0];
+const infoOrdenes = database.getCollectionInfos({ name: "ordenes" })[0];
 log(`ordenes: validationLevel=${infoOrdenes.options.validationLevel}, validationAction=${infoOrdenes.options.validationAction}`);
 
-// ─── Facturas documentales ────────────────────────────────────────────────
-// ⚠️ CONFLICTO DE ARQUITECTURA CONOCIDO, SIN RESOLVER (ver auditoría Lab 3,
-// Punto A/B): dos servicios del backend escriben en esta MISMA colección
-// Mongo `facturas` con shapes incompatibles entre sí:
+// ─── Facturas ─────────────────────────────────────────────────────────────
+// RESUELTO (antes: "conflicto de arquitectura sin resolver"). Dos servicios
+// del backend emiten facturas con shapes incompatibles entre sí:
 //
 //   1. FacturaRepositorio.java (flujo RELACIONAL, Lab 2 — el que usa HOY
 //      el frontend real vía POST /api/ordenes/solicitar/{id}): escribe
@@ -361,24 +384,28 @@ log(`ordenes: validationLevel=${infoOrdenes.options.validationLevel}, validation
 //      costoEnvio, rutEmpresa plano, items[] embebidos con
 //      {productoId,nombreProducto,sku,precioUnitario,cantidad}.
 //
-//   2. CheckoutServicio.java (flujo documental Mongo, Punto A del Lab 3 —
-//      NO conectado al frontend todavía, solo probado por API/Postman):
-//      escribe _id ObjectId, cliente{clienteId,razonSocial,rutEmpresa}
-//      embebido, ordenId ObjectId, estado/total, SIN items[] (el detalle
-//      vive en ordenes.items — ver docs/03-checkout-transaccion.md §1.4).
+//   2. CheckoutServicio.java (flujo documental Mongo, punto 3 del Lab 3,
+//      POST /api/checkout): escribe _id ObjectId,
+//      cliente{clienteId,razonSocial,rutEmpresa} embebido, ordenId
+//      ObjectId, estado/total, SIN items[] (el detalle vive en
+//      ordenes.items — ver docs/03-checkout-transaccion.md §1.4).
 //
-// Un solo $jsonSchema puede estar activo a la vez. El validador de abajo
-// se dejó fijado en el shape (1) —el de FacturaRepositorio— porque es el
-// que ejercita el flujo de compra real de la aplicación hoy; validar el
-// shape (2) rompía cada compra real con "Document failed validation".
-// Mientras el equipo no decida cómo conviven ambos flujos (¿colecciones
-// separadas?, ¿unificar shape?, ¿el Mongo reemplaza al relacional?), NO
-// cambiar este validador al shape de CheckoutServicio sin coordinar con
-// quien mantiene FacturaRepositorio — ver Punto A de la auditoría.
-const facturaValidator = {
+// Como MongoDB solo admite UN $jsonSchema activo por colección, mientras
+// ambos compartieron la colección `facturas` cualquier validador rompía una
+// de las dos rutas con "Document failed validation" — no había forma de
+// tener las dos andando a la vez. La salida es separarlas:
+//
+//   facturas               -> shape (2), documental (CheckoutServicio)
+//   facturas_relacionales  -> shape (1), relacional (FacturaRepositorio)
+//
+// `facturas` conserva el nombre porque es la colección que describen
+// docs/01-modelado-documental.md y docs/03-checkout-transaccion.md, y sobre
+// la que indexes.js ya definía "cliente.clienteId" (campo que solo existe
+// en el shape documental).
+const facturaRelacionalValidator = {
     $jsonSchema: {
         bsonType: "object",
-        title: "Factura documental (flujo relacional — FacturaRepositorio.java)",
+        title: "Factura del flujo relacional (FacturaRepositorio.java)",
         required: [
             "numeroFactura",
             "clienteId",
@@ -441,21 +468,104 @@ const facturaValidator = {
     }
 };
 
+// Shape (2): el que emite CheckoutServicio dentro de la transacción del
+// punto 3. `items[]` NO va acá: el detalle de línea vive en ordenes.items y
+// la factura solo referencia la orden (docs/03-checkout-transaccion.md §1.4).
+const facturaDocumentalValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        title: "Factura documental emitida por el checkout transaccional (CheckoutServicio)",
+        required: [
+            "numeroFactura",
+            "ordenId",
+            "cliente",
+            "totalNeto",
+            "iva",
+            "total",
+            "estado",
+            "fechaEmision"
+        ],
+        properties: {
+            numeroFactura: {
+                bsonType: "string",
+                minLength: 1,
+                description: "Correlativo tributario F-AAAA-NNNNNN (CheckoutServicio.siguienteSecuencia). Índice único."
+            },
+            ordenId: {
+                bsonType: "objectId",
+                description: "Referencia al _id de la orden documental que originó la factura"
+            },
+            cliente: {
+                bsonType: "object",
+                required: ["clienteId", "razonSocial", "rutEmpresa"],
+                description: "Snapshot tributario del cliente, congelado al emitir. Sin direccionEnvio: eso es despacho, no dato tributario.",
+                properties: {
+                    clienteId: { bsonType: ["int", "long"], minimum: 1 },
+                    razonSocial: { bsonType: "string", minLength: 1 },
+                    rutEmpresa: { bsonType: "string", minLength: 1 }
+                }
+            },
+            totalNeto: { bsonType: ["double", "decimal"], minimum: 0 },
+            iva: { bsonType: ["double", "decimal"], minimum: 0 },
+            total: { bsonType: ["double", "decimal"], minimum: 0 },
+            montoTotal: {
+                bsonType: ["double", "decimal"],
+                minimum: 0,
+                description: "Mismo valor que `total`; se conserva por fidelidad al shape de docs/03"
+            },
+            estado: {
+                enum: ["EMITIDA", "ANULADA"],
+                description: "EMITIDA al crearse; ANULADA requiere fechaAnulacion y motivoAnulacion"
+            },
+            fechaEmision: { bsonType: "date" },
+            fechaAnulacion: { bsonType: ["date", "null"] },
+            motivoAnulacion: { bsonType: ["string", "null"] }
+        }
+    }
+};
+
+// ─── Migración: sacar de `facturas` lo que es del flujo relacional ────────
+// Hasta esta versión ambos flujos escribían en `facturas`, así que la
+// colección puede traer documentos del shape (1) que el validador documental
+// rechazaría. Se reconocen sin ambigüedad por `_id` numérico (el shape
+// documental usa ObjectId). Idempotente: en una base limpia no mueve nada.
 if (coleccionesExistentes.includes("facturas")) {
-    db.runCommand({
-        collMod: "facturas",
-        validator: facturaValidator,
+    const relacionalesEnColeccionEquivocada = database.facturas
+        .find({ _id: { $type: ["int", "long", "double"] } })
+        .toArray();
+
+    if (relacionalesEnColeccionEquivocada.length > 0) {
+        // Sin validador todavía en el destino: se crea abajo, ya con los
+        // documentos adentro y cumpliendo el shape (1).
+        database.facturas_relacionales.insertMany(relacionalesEnColeccionEquivocada);
+        database.facturas.deleteMany({
+            _id: { $in: relacionalesEnColeccionEquivocada.map((f) => f._id) }
+        });
+        log(`Migrados ${relacionalesEnColeccionEquivocada.length} documento(s) del flujo relacional de "facturas" a "facturas_relacionales".`);
+    }
+}
+
+// ─── Aplicar ambos validadores ───────────────────────────────────────────
+const coleccionesFactura = [
+    { nombre: "facturas", validador: facturaDocumentalValidator },
+    { nombre: "facturas_relacionales", validador: facturaRelacionalValidator }
+];
+
+// Se relee: la migración de arriba pudo crear "facturas_relacionales".
+const coleccionesTrasMigracion = database.getCollectionNames();
+
+for (const { nombre, validador } of coleccionesFactura) {
+    const opciones = {
+        validator: validador,
         validationLevel: "strict",
         validationAction: "error"
-    });
+    };
 
-    log('Validador actualizado en la colección "facturas".');
-} else {
-    db.createCollection("facturas", {
-        validator: facturaValidator,
-        validationLevel: "strict",
-        validationAction: "error"
-    });
-
-    log('Colección "facturas" creada con su validador.');
+    if (coleccionesTrasMigracion.includes(nombre)) {
+        database.runCommand({ collMod: nombre, ...opciones });
+        log(`Validador actualizado en la colección "${nombre}".`);
+    } else {
+        database.createCollection(nombre, opciones);
+        log(`Colección "${nombre}" creada con su validador.`);
+    }
 }

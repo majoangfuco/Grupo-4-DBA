@@ -3,8 +3,8 @@ package com.ecommerceb2b.backend.Workers;
 import com.ecommerceb2b.backend.Services.MongoSesionServicio;
 import com.ecommerceb2b.backend.Services.ProductosMasVendidosServicio;
 
-import com.mongodb.MongoCommandException;
 import com.mongodb.MongoInterruptedException;
+import com.mongodb.MongoServerException;
 import com.mongodb.client.ChangeStreamIterable;
 import com.mongodb.client.MongoChangeStreamCursor;
 import com.mongodb.client.MongoCollection;
@@ -83,6 +83,20 @@ public class ProductosMasVendidosWorker implements ApplicationRunner {
     /** Código de error de MongoDB cuando el resume token ya no está en el oplog. */
     private static final int CHANGE_STREAM_HISTORY_LOST = 286;
 
+    /**
+     * ChangeStreamFatalError. Lo tira el servidor cuando el resume token no
+     * se puede usar aunque el oplog siga entero (token que no corresponde a
+     * ningún evento vigente de la colección). Se trata igual que el 286: el
+     * token no sirve más, hay que descartarlo y reconstruir el ranking. Sin
+     * este caso el worker reintentaba con el MISMO token cada 5 segundos para
+     * siempre, y el panel de ventas quedaba congelado sin que nada fallara a
+     * la vista.
+     */
+    private static final int CHANGE_STREAM_FATAL_ERROR = 280;
+
+    /** El driver marca así todo error del que un change stream no se recupera. */
+    private static final String LABEL_NO_REANUDABLE = "NonResumableChangeStreamError";
+
     /** Cuánto espera {@code tryNext()} por eventos antes de devolver null. */
     private static final long ESPERA_EVENTOS_SEGUNDOS = 2L;
 
@@ -122,10 +136,16 @@ public class ProductosMasVendidosWorker implements ApplicationRunner {
             } catch (MongoInterruptedException e) {
                 // Apagado normal: el driver aborta la espera del cursor.
                 break;
-            } catch (MongoCommandException e) {
-                if (e.getErrorCode() == CHANGE_STREAM_HISTORY_LOST) {
-                    log.warn("El resume token quedó fuera del oplog. Se recalcula el ranking "
-                            + "completo y se abre un stream nuevo desde ahora.", e);
+            } catch (MongoServerException e) {
+                // Se captura MongoServerException y no MongoCommandException:
+                // el MISMO fallo llega como MongoQueryException si revienta en
+                // el getMore y como MongoCommandException si revienta al abrir
+                // el cursor. Son clases hermanas, así que atrapar solo una
+                // dejaba la otra cayendo al catch genérico de abajo.
+                if (tokenInservible(e)) {
+                    log.warn("El resume token guardado ya no sirve ({}). Se descarta el "
+                            + "checkpoint, se recalcula el ranking completo y se abre un "
+                            + "stream nuevo desde ahora.", e.getCode(), e);
                     borrarCheckpoint();
                     continue;
                 }
@@ -140,6 +160,18 @@ public class ProductosMasVendidosWorker implements ApplicationRunner {
         }
 
         log.info("Worker de change streams detenido tras procesar {} evento(s)", eventosProcesados);
+    }
+
+    /**
+     * ¿El fallo se debe a que el resume token guardado ya no sirve?
+     *
+     * <p>Se mira primero la etiqueta del driver, que es la señal estable, y
+     * los códigos quedan como respaldo por si el servidor no la manda.</p>
+     */
+    private boolean tokenInservible(MongoServerException e) {
+        return e.hasErrorLabel(LABEL_NO_REANUDABLE)
+                || e.getCode() == CHANGE_STREAM_HISTORY_LOST
+                || e.getCode() == CHANGE_STREAM_FATAL_ERROR;
     }
 
     /** Bucle interno: abre el cursor y consume eventos hasta que falle o se apague. */

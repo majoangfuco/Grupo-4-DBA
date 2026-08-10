@@ -199,7 +199,7 @@ mongosh "mongodb://b2b_app:b2b_app_pass@localhost:27017/b2b?authSource=admin&dir
 
 > **Importante — `directConnection=true`:** los miembros del replica set se anuncian con los nombres internos de Docker (`mongo1:27017`, `mongo2:27017`), que no resuelven desde el host. Por eso, para conectarse desde fuera de Docker (mongosh, MongoDB Compass o el backend corriendo con `mvn spring-boot:run`) hay que usar `directConnection=true`, que evita el descubrimiento de topología. Es el valor por defecto de `mongo.uri` en `application.properties`. Dentro de la red de Docker no aplica: ahí el backend usa la URI con los dos nodos y `?replicaSet=rs0`.
 
-Abrir `http://localhost:8080` en el navegador — debería cargar la pantalla de login. Usuario administrador de prueba (ver seeders en `init.sql`): `admin@ecommerceb2b.cl` (la contraseña está hasheada con BCrypt en el seed; usa el flujo de `POST /usuario/register` para crear tu propio usuario de prueba si no tienes la contraseña original).
+Abrir `http://localhost:8080` en el navegador — debería cargar la pantalla de login. Usuario administrador de prueba (ver seeders en `init.sql`): `admin@ecommerceb2b.cl` (la contraseña está hasheada con BCrypt en el seed; usa el flujo de `POST /usuario/register` para crear tu propio usuario de prueba si no tienes la contraseña original). Al final del documento estarán adjuntados los usuarios con las respectivas contraseñas.
 
 ### Apagar y limpiar
 
@@ -484,3 +484,17 @@ Colección `productos_mas_vendidos`, mantenida al día por el proceso **`worker`
 ## 5. Integrantes
 
 Grupo 4 — Taller de Base de Datos Diurno 1-2026: María Fuentes, Constanza Viera, Ambar Uzcátegui, Ignacio Ávila, Camilo Cuero.
+
+Usuarios y contraseñas:
+
+ID Nombre Correo Contraseña Rol
+1 Juan Perez jperez@techsolutions.cl pass123 CLIENTE
+2 Maria Lopez mlopez@techsolutions.cl pass456 CLIENTE
+3 Carlos Ruiz admin@ecommerceb2b.cl adminpass ADMIN
+4 Ana Soto aso@construccionesdelnorte.cl pass789 CLIENTE
+5 Luis Fernandez lfernandez@logisticadelsur.cl pass321 CLIENTE
+6 Pedro Morales pmo@desarrolloweb.cl pass999 CLIENTE
+7 Sofia Vergara svergara@saludintegral.cl pass888 CLIENTE
+8 Diego Vargas dvar@adminb2b.cl adminpass2 ADMIN
+9 Camila Rojas crojas@mineraandina.cl pass777 CLIENTE
+10 Javier Tello jtello@educacionfuturo.cl pass666 CLIENTE

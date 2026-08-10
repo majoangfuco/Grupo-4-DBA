@@ -26,6 +26,7 @@ public class OrdenesServicio {
     private final FacturaServicio facturaServicio;
     private final com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio;
     private final LogisticaMapaRepositorio logisticaMapaRepositorio;
+    private final OrdenMongoServicio ordenMongoServicio;
 
     public OrdenesServicio(OrdenesRepositorio ordenesRepositorio,
                            CarritoServicio carritoServicio,
@@ -33,7 +34,8 @@ public class OrdenesServicio {
                            DatosDePagoServicio datosDePagoServicio,
                            FacturaServicio facturaServicio,
                            com.ecommerceb2b.backend.Repository.ConfiguracionEnvioRepositorio configuracionEnvioRepositorio,
-                           LogisticaMapaRepositorio logisticaMapaRepositorio) {
+                           LogisticaMapaRepositorio logisticaMapaRepositorio,
+                           OrdenMongoServicio ordenMongoServicio) {
         this.ordenesRepositorio = ordenesRepositorio;
         this.carritoServicio = carritoServicio;
         this.carritoProductoServicio = carritoProductoServicio;
@@ -41,6 +43,7 @@ public class OrdenesServicio {
         this.facturaServicio = facturaServicio;
         this.configuracionEnvioRepositorio = configuracionEnvioRepositorio;
         this.logisticaMapaRepositorio = logisticaMapaRepositorio;
+        this.ordenMongoServicio = ordenMongoServicio;
     }
 
 
@@ -126,6 +129,13 @@ public class OrdenesServicio {
         FacturaEntidad facturaMongo = ordenesRepositorio.obtenerFacturaProyectada(ordenId);
         facturaServicio.crearFactura(facturaMongo);
         carritoServicio.ordenarCarrito(carritoId);
+
+        // Espeja la orden en la colección `ordenes` de Mongo. Es lo que
+        // conecta la compra real de la UI con el punto 6: el change stream
+        // escucha ESA colección, así que sin este espejo la venta nunca
+        // llegaba a productos_mas_vendidos. Entra PENDIENTE; pasa a
+        // CONFIRMADA al aprobar la orden (ver aprobarOrden).
+        espejarOrdenEnMongo(ordenId, carritoId, usuarioId, pedido, facturaMongo);
 
         // El procedimiento mantiene su proyección SQL para los reportes
         // geoespaciales; la factura operativa y sus ítems históricos ya se
@@ -231,7 +241,65 @@ public class OrdenesServicio {
 
         crearFacturaSiNoExiste(ordenAprobada);
 
+        // Punto 6: aprobar la orden confirma su espejo en Mongo, y ESA
+        // transición PENDIENTE -> CONFIRMADA es la que dispara el change
+        // stream que refresca productos_mas_vendidos. El refresco no se
+        // llama desde acá a propósito: ocurre en el worker, desacoplado.
+        ordenMongoServicio.confirmarEspejoRelacional(ordenId);
+
         return ordenAprobada;
+    }
+
+    /**
+     * Construye el documento de `ordenes` equivalente a una orden relacional
+     * y lo inserta vía {@link OrdenMongoServicio#espejarOrdenRelacional}.
+     *
+     * <p>El shape es el que exige el $jsonSchema de la colección (el de
+     * CheckoutServicio), más {@code origen} y {@code ordenRelacionalId} para
+     * distinguirlo y poder confirmarlo después. {@code numeroOrden} lleva el
+     * prefijo ORD-REL- para no chocar con el correlativo ORD-AAAA-NNNNNN del
+     * checkout documental, que tiene su propia secuencia.</p>
+     */
+    private void espejarOrdenEnMongo(Long ordenId,
+                                     Long carritoId,
+                                     Long usuarioId,
+                                     CheckoutPedidoDto pedido,
+                                     FacturaEntidad factura) {
+        List<org.bson.Document> items = new java.util.ArrayList<>();
+        for (com.ecommerceb2b.backend.Entities.CarritoProductoEntidad item : factura.getItems()) {
+            double precioUnitario = item.getProducto().getPrecio().doubleValue();
+            long cantidad = item.getUnidad_producto();
+            items.add(new org.bson.Document("productoId", item.getProducto().getProducto_ID())
+                    .append("nombreProducto", item.getProducto().getNombre_producto())
+                    .append("cantidad", cantidad)
+                    .append("precioUnitario", precioUnitario)
+                    .append("subtotal", precioUnitario * cantidad));
+        }
+
+        if (items.isEmpty()) {
+            // El validador exige minItems: 1. Sin líneas no hay nada que
+            // sumar al ranking, así que se omite el espejo en vez de tirar
+            // la compra abajo por una restricción del reporte.
+            return;
+        }
+
+        org.bson.Document orden = new org.bson.Document("_id", new org.bson.types.ObjectId())
+                .append("numeroOrden", "ORD-REL-%06d".formatted(ordenId))
+                .append("clienteId", usuarioId)
+                .append("cliente", ordenesRepositorio.obtenerSnapshotCliente(
+                        usuarioId, pedido.getInfoEntregaId()))
+                .append("carritoId", carritoId)
+                .append("estado", "PENDIENTE")
+                .append("items", items)
+                .append("totalNeto", factura.getTotal_Neto().doubleValue())
+                .append("iva", factura.getIva().doubleValue())
+                .append("total", factura.getPrecio_Total().doubleValue())
+                .append("fechaOrden", factura.getFecha_Emision())
+                .append("facturaId", factura.getFactura_ID())
+                .append("origen", "RELACIONAL")
+                .append("ordenRelacionalId", ordenId);
+
+        ordenMongoServicio.espejarOrdenRelacional(orden);
     }
 
     private void crearFacturaSiNoExiste(OrdenesEntidad orden) {

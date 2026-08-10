@@ -100,4 +100,64 @@ public class OrdenMongoServicio {
                     + ESTADO_PENDIENTE);
         });
     }
+
+    /**
+     * Replica en {@code ordenes} una orden creada por el checkout relacional
+     * ({@code POST /api/ordenes/solicitar/{carritoId}}, el que usa la UI).
+     *
+     * <p>Sin esto, la compra real de un cliente se escribe solo en
+     * {@code ordenes_entidad} (Postgres) y {@code facturas_relacionales}, y
+     * nunca entra a la colección que observa el change stream del punto 6:
+     * la venta no aparecía jamás en {@code productos_mas_vendidos}.</p>
+     *
+     * <p>Entra como {@code PENDIENTE} a propósito. La transición a
+     * {@code CONFIRMADA} —el evento que dispara el {@code $merge}— ocurre
+     * cuando el admin aprueba la orden, vía
+     * {@link #confirmarEspejoRelacional(Long)}. Así el ranking refleja ventas
+     * aprobadas y no carritos recién pagados con un mock de pago.</p>
+     *
+     * <p>Idempotente: si ya existe el espejo de esa orden relacional no
+     * inserta un duplicado (hay un unique index sobre
+     * {@code ordenRelacionalId}).</p>
+     *
+     * @return el documento insertado, o {@code null} si ya existía.
+     */
+    public Document espejarOrdenRelacional(Document orden) {
+        Long ordenRelacionalId = orden.get("ordenRelacionalId", Number.class).longValue();
+
+        return mongoSesion.ejecutar((MongoDatabase db) -> {
+            MongoCollection<Document> ordenes = db.getCollection(COL_ORDENES);
+
+            if (ordenes.find(eq("ordenRelacionalId", ordenRelacionalId)).first() != null) {
+                return null;
+            }
+
+            ordenes.insertOne(orden);
+            return orden;
+        });
+    }
+
+    /**
+     * Pasa a {@code CONFIRMADA} el espejo de una orden relacional recién
+     * aprobada, disparando el change stream que refresca la vista
+     * materializada.
+     *
+     * <p>Tolera que no haya espejo (devuelve {@code null} en vez de lanzar):
+     * las órdenes anteriores a este mecanismo no lo tienen, y aprobarlas no
+     * debe fallar por eso. Igual que {@link #confirmar(String)}, el filtro
+     * incluye el estado, así que aprobar dos veces genera un solo evento.</p>
+     */
+    public Document confirmarEspejoRelacional(Long ordenRelacionalId) {
+        if (ordenRelacionalId == null) {
+            return null;
+        }
+
+        return mongoSesion.ejecutar((MongoDatabase db) -> db.getCollection(COL_ORDENES)
+                .findOneAndUpdate(
+                        and(eq("ordenRelacionalId", ordenRelacionalId), eq("estado", ESTADO_PENDIENTE)),
+                        Updates.combine(
+                                Updates.set("estado", ESTADO_CONFIRMADA),
+                                Updates.set("fechaConfirmacion", new Date())),
+                        new FindOneAndUpdateOptions().returnDocument(ReturnDocument.AFTER)));
+    }
 }

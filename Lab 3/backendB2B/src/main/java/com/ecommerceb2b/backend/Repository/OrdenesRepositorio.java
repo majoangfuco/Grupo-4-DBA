@@ -314,6 +314,33 @@ public class OrdenesRepositorio {
         }
     }
 
+    /**
+     * Snapshot de cliente que exige el $jsonSchema de `ordenes`
+     * (cliente.razonSocial / rutEmpresa / direccionEnvio), armado desde
+     * Postgres para poder espejar en Mongo una orden del checkout relacional.
+     *
+     * <p>A diferencia del checkout documental —donde el frontend manda estos
+     * datos en el body— acá no viajan en la request, así que se leen de
+     * usuario_entidad y de la dirección de entrega elegida. Los tres campos
+     * son `minLength: 1` en el validador: se completan con un placeholder si
+     * la fila de Postgres los tiene en NULL, para no perder la venta entera
+     * por un dato de contacto incompleto.</p>
+     */
+    public org.bson.Document obtenerSnapshotCliente(Long usuarioId, Long infoEntregaId) {
+        return jdbcTemplate.queryForObject("""
+                SELECT COALESCE(NULLIF(TRIM(u.nombre_usuario), ''), 'Cliente ' || u.usuario_id) AS razon_social,
+                       COALESCE(NULLIF(TRIM(u.rut_empresa), ''), 'SIN RUT')                     AS rut_empresa,
+                       COALESCE(NULLIF(TRIM(CONCAT_WS(' ', ie.direccion, ie.numero)), ''),
+                                'Sin dirección registrada')                                     AS direccion_envio
+                FROM usuario_entidad u
+                LEFT JOIN informacion_entrega_entidad ie ON ie.info_entrega_id = ?
+                WHERE u.usuario_id = ?
+                """, (rs, row) -> new org.bson.Document("razonSocial", rs.getString("razon_social"))
+                        .append("rutEmpresa", rs.getString("rut_empresa"))
+                        .append("direccionEnvio", rs.getString("direccion_envio")),
+                infoEntregaId, usuarioId);
+    }
+
     /** Lee la proyección SQL creada por procesar_checkout para copiarla a Mongo. */
     public FacturaEntidad obtenerFacturaProyectada(Long ordenId) {
         FacturaEntidad factura = jdbcTemplate.queryForObject("""

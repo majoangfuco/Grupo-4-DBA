@@ -1372,8 +1372,17 @@ FROM distribucion
 ON CONFLICT (almacen_id, producto_id) DO NOTHING;
 
 -- ── 7.20 CARRITOS ACTIVOS Y ABANDONADOS ──────────────────────
+-- OJO (Lab 3): ux_carrito_activo_abandonado admite UN solo carrito
+-- ACTIVO/ABANDONADO por usuario, y el checkout documental proyecta el
+-- carrito Mongo en esta tabla como ACTIVO
+-- (OrdenesRepositorio.proyectarCarritoParaCheckout). Un usuario con un
+-- carrito abierto heredado del Lab 2 no puede, por lo tanto, completar
+-- una orden desde Mongo: la proyección choca contra el índice parcial.
+-- Por eso estos carritos de demo se asignan a usuarios que NO tienen
+-- carrito sembrado en mongo/seeders/ordenes-carritos-seed.js (clientes
+-- 1..5). Si se agrega un cliente Mongo, revisar que no esté acá.
 INSERT INTO carrito_entidad (carrito_usuario_id, estado, costo_carrito) VALUES
-(2,  'ACTIVO',      450000),  -- 21
+(6,  'ACTIVO',      450000),  -- 21
 (10, 'ACTIVO',     2550000),  -- 22
 (9,  'ABANDONADO',  180000);  -- 23
 

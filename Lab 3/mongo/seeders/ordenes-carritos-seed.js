@@ -31,7 +31,8 @@
 //   - ordenes:  replaceOne por _id (upsert); los _id son strings
 //     de ObjectId fijos para que el seed no cree duplicados al
 //     correrlo dos veces.
-//   - carritos: replaceOne por _id fijo (1..5), limpiando antes
+//   - carritos: replaceOne por _id fijo (1000000013..1000000017),
+//     limpiando antes
 //     cualquier documento previo con el mismo clienteId+ACTIVO/
 //     ABANDONADO pero _id distinto (respeta el índice único partial
 //     del punto 5 y evita el ClassCastException del backend si un
@@ -398,6 +399,21 @@ log(`ordenes: ${insertadasO} insertadas, ${actualizadasO} actualizadas (${ORDENE
 //
 //    Los subtotales variarán entre los 3 buckets para que la demo
 //    muestre los tres niveles (BAJO/MEDIO/ALTO).
+//
+//    IDs: los `_id` van en el rango reservado 1000000000+, NUNCA en
+//    el rango bajo de PostgreSQL. `solicitarOrdenAtomica` proyecta el
+//    carrito Mongo en `carrito_entidad` con el MISMO id
+//    (OrdenesRepositorio.proyectarCarritoParaCheckout), así que un
+//    `_id` chico choca contra un carrito heredado del Lab 2: el
+//    ON CONFLICT (carrito_id) DO UPDATE se lleva por delante un
+//    carrito PAGADO ajeno, le cambia el dueño y lo vuelve ACTIVO,
+//    reventando además el índice parcial ux_carrito_activo_abandonado.
+//    Es la misma invariante que fija indexes.js al inicializar el
+//    contador `carritos` en 1000000000.
+//
+//    Reparto del rango: 1000000001..1000000012 ya los ocupan los
+//    carritos convertidos que referencian las 12 órdenes de arriba,
+//    así que los 5 carritos ACTIVOS siguen en 1000000013..1000000017.
 // ═══════════════════════════════════════════════════════════════
 
 const HOY = new Date();
@@ -405,7 +421,7 @@ const HOY = new Date();
 const CARRITOS = [
     // ── Cliente 1 — bucket ALTO (subtotal por categoría ≥ 200.000) ──
     {
-        _id: 1,
+        _id: 1000000013,
         clienteId: NumberLong(1),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -417,7 +433,7 @@ const CARRITOS = [
     },
     // ── Cliente 2 — bucket MEDIO (50.000–200.000) ──────────────────
     {
-        _id: 2,
+        _id: 1000000014,
         clienteId: NumberLong(2),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -429,7 +445,7 @@ const CARRITOS = [
     },
     // ── Cliente 3 — bucket BAJO (< 50.000) ─────────────────────────
     {
-        _id: 3,
+        _id: 1000000015,
         clienteId: NumberLong(3),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -440,7 +456,7 @@ const CARRITOS = [
     },
     // ── Cliente 4 — bucket ALTO (varios buckets por categoría) ─────
     {
-        _id: 4,
+        _id: 1000000016,
         clienteId: NumberLong(4),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -452,7 +468,7 @@ const CARRITOS = [
     },
     // ── Cliente 5 — bucket ALTO (software) ─────────────────────────
     {
-        _id: 5,
+        _id: 1000000017,
         clienteId: NumberLong(5),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -494,6 +510,18 @@ for (const c of CARRITOS) {
 }
 
 log(`carritos: ${insertadasC} insertados, ${actualizadasC} actualizados (${CARRITOS.length} totales).`);
+
+// El contador que usa CarritoRepositorio.siguienteId() tiene que quedar
+// por encima de todo lo sembrado; si no, el primer carrito que cree un
+// usuario real reutiliza un `_id` de este seed. $max lo deja idempotente
+// y nunca lo hace retroceder si la app ya avanzó más allá.
+const MAX_CARRITO_SEMBRADO = CARRITOS.reduce((max, c) => Math.max(max, c._id), 0);
+database.getCollection("contadores").updateOne(
+    { _id: "carritos" },
+    { $max: { valor: NumberLong(String(MAX_CARRITO_SEMBRADO)) } },
+    { upsert: true }
+);
+log(`contador \`carritos\` asegurado en >= ${MAX_CARRITO_SEMBRADO}.`);
 
 // ═══════════════════════════════════════════════════════════════
 // 3. BACKFILL de la vista materializada

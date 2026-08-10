@@ -18,6 +18,8 @@ proyección no atiende los endpoints del carrito.
 |---|---|---|
 | `facturas` | `{ numeroFactura: 1 }`, `unique: true` | Impide números de factura duplicados. |
 | `facturas` | `{ "cliente.clienteId": 1, fechaEmision: -1 }` | Resuelve el historial de un cliente desde la factura más reciente. El campo va dentro del snapshot embebido `cliente{}` (ver [`docs/03`](03-checkout-transaccion.md) §1.4), no en la raíz del documento. |
+| `facturas` | `{ ordenId: 1 }`, `unique: true` | Una orden documental origina una sola factura. |
+| `facturas_relacionales` | `{ numeroFactura: 1 }` y `{ ordenId: 1 }`, ambos `unique`; `{ clienteId: 1, fechaEmision: -1 }` | Mismos propósitos que en `facturas`, pero sobre los campos del shape relacional (`clienteId` plano en la raíz). Es una colección aparte porque su shape es incompatible y Mongo solo admite un `$jsonSchema` por colección — ver [`docs/02`](02-schema-validation.md) §2.3. |
 | `carritos` | `{ ultimaActividad: 1 }`, TTL parcial | Elimina únicamente carritos con `estado: "ABANDONADO"` tras el plazo configurado. |
 | `productos` | `{ nombre: "text" }`, idioma español | Búsqueda por contenido sobre el nombre del producto en la copia de checkout. |
 
@@ -102,8 +104,15 @@ scripts son idempotentes y se aplican automáticamente con `docker compose up`.
 
 ```javascript
 db.facturas.getIndexes();
+db.facturas_relacionales.getIndexes();
 db.carritos.getIndexes();
 db.productos.getIndexes();   // debe mostrar el índice de texto text_productos_nombre
 
-db.facturas.find({ clienteId }).sort({ fechaEmision: -1 }).explain("executionStats");
+// Historial del cliente 1. El campo difiere según la colección: embebido en
+// el snapshot `cliente{}` en las facturas documentales, plano en la raíz en
+// las relacionales.
+db.facturas.find({ "cliente.clienteId": NumberLong(1) })
+    .sort({ fechaEmision: -1 }).explain("executionStats");
+db.facturas_relacionales.find({ clienteId: NumberLong(1) })
+    .sort({ fechaEmision: -1 }).explain("executionStats");
 ```

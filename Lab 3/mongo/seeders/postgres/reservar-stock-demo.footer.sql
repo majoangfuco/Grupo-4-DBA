@@ -23,12 +23,29 @@
 -- ═══════════════════════════════════════════════════════════════
 
 -- 1. Libera lo que esta siembra tenía reservado en la corrida anterior.
+--
+--    Se libera LEAST(bookkeeping, stock_reservado actual) y no el valor
+--    del bookkeeping a secas: entre dos corridas, la app pudo haber
+--    liberado por su cuenta parte de estas mismas reservas (borrar un
+--    ítem del carrito de demo, o un intento de checkout que llegó a
+--    llamar a liberar_stock). En ese caso stock_reservado ya bajó, y
+--    pedirle a liberar_stock que reste el total original explota con
+--    "Stock reservado insuficiente" — dejando el contenedor en bucle de
+--    reinicio y el stack a medio levantar. El bookkeeping es un techo de
+--    lo que ESTA siembra puede devolver, no una cantidad exacta.
 DO $$
 DECLARE
     r RECORD;
 BEGIN
-    FOR r IN SELECT producto_id, cantidad FROM _demo_reservas_activas LOOP
-        CALL liberar_stock(r.producto_id, r.cantidad);
+    FOR r IN
+        SELECT b.producto_id,
+               LEAST(b.cantidad, p.stock_reservado) AS cantidad
+        FROM _demo_reservas_activas b
+        JOIN producto_entidad p ON p.producto_id = b.producto_id
+    LOOP
+        IF r.cantidad > 0 THEN
+            CALL liberar_stock(r.producto_id, r.cantidad);
+        END IF;
     END LOOP;
 END $$;
 

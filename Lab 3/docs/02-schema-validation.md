@@ -144,8 +144,8 @@ El campo `_id` usa el mismo `Long` que `producto_ID` en Postgres para que el `up
 ### 2.3 `facturas` — Validador tributario
 
 ```js
-// mongo/schema-validation.js · líneas 259-309
-const facturaValidator = {
+// mongo/schema-validation.js
+const facturaDocumentalValidator = {
   $jsonSchema: {
     required: ["numeroFactura","ordenId","cliente","totalNeto","iva","total","estado","fechaEmision"],
     properties: {
@@ -166,6 +166,19 @@ const facturaValidator = {
 Los datos del cliente se embeben como **snapshot tributario** (`razonSocial`, `rutEmpresa`) en el momento de emitir la factura — si el cliente cambia sus datos después, la factura ya emitida queda inmutable. Esto implementa directamente el patrón "snapshot" descrito en [`docs/01-modelado-documental.md`](01-modelado-documental.md).
 
 No hay `items[]` en la factura: el detalle de línea vive en `ordenes.items[]`. Duplicarlo crearía dos copias divergentes de la misma verdad histórica.
+
+#### Por qué existe además `facturas_relacionales`
+
+El sistema es híbrido y emite facturas por **dos** caminos, con shapes incompatibles:
+
+| Colección | La escribe | Shape |
+|---|---|---|
+| `facturas` | `CheckoutServicio` — `POST /api/checkout`, el checkout transaccional del punto 3 | `_id`/`ordenId` `ObjectId`, `cliente{}` embebido, `estado`, `total`, sin `items[]` |
+| `facturas_relacionales` | `FacturaRepositorio` — `POST /api/ordenes/solicitar/{carritoId}`, el flujo heredado del Lab 2 que usa el frontend | `_id`/`ordenId` `Long`, `clienteId` plano, `precioTotal`, `items[]` embebidos |
+
+MongoDB admite **un solo `$jsonSchema` activo por colección**. Mientras ambos flujos compartieron `facturas`, cualquier validador que se aplicara dejaba a uno de los dos fallando con `Document failed validation` (código 121) en cada compra — no había manera de tener los dos andando a la vez. Separarlas es lo que permite validar **ambos** en estricto sin que uno rompa al otro.
+
+`schema-validation.js` incluye una migración idempotente que saca de `facturas` los documentos del flujo relacional (se reconocen por tener `_id` numérico en vez de `ObjectId`) y los pasa a `facturas_relacionales`.
 
 ---
 

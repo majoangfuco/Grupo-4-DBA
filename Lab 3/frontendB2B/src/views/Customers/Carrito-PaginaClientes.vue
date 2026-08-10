@@ -794,6 +794,27 @@ const cargarCarrito = async () => {
 
 const total = computed(() => subtotal.value)
 
+/**
+ * Etiqueta del <option> de método de pago.
+ *
+ * Los campos pueden venir en null: el checkout crea la fila de
+ * datos_pago_entidad a partir del body de la orden
+ * (OrdenesServicio.resolveDatosDePago), que no trae número de tarjeta. Antes
+ * esto se resolvía inline con `pago.numero_Tarjeta.slice(-4)`, y un solo
+ * método de pago sin tarjeta tiraba "Cannot read properties of null" DENTRO
+ * del render: la excepción se lleva puesta la vista completa y el carrito
+ * queda en blanco, sin mensaje de error y sin nada en el Network que lo
+ * delate (todas las llamadas responden 200).
+ */
+const etiquetaMetodoPago = (pago: DatosDePagoEntidad) => {
+  const metodo = pago.metodo_Pago?.trim() || 'Método sin nombre'
+  const tarjeta = pago.numero_Tarjeta?.trim()
+  // "N/A" es el valor que usan los seeders para medios sin tarjeta
+  // (transferencia); mostrarlo como "**** N/A" no le dice nada al cliente.
+  if (!tarjeta || tarjeta.toUpperCase() === 'N/A') return metodo
+  return `${metodo} · **** ${tarjeta.slice(-4)}`
+}
+
 const stockDisponibleItem = (item: CarritoProductoEntidad) => {
   const stockTotal = item.producto?.stock ?? 0
   const stockReservado = item.producto?.stock_reservado ?? 0
@@ -1042,7 +1063,7 @@ onMounted(async () => {
           <select id="pago" v-model="selectedPagoId" @change="handlePagoChange">
             <option v-if="datosPago.length" disabled value="">Selecciona un método</option>
             <option v-for="pago in datosPago" :key="pago.datos_Pago_ID" :value="pago.datos_Pago_ID">
-              {{ pago.metodo_Pago }} · **** {{ pago.numero_Tarjeta.slice(-4) }}
+              {{ etiquetaMetodoPago(pago) }}
             </option>
             <option value="new">+ Añadir nuevo método</option>
             <option v-if="datosPago.length === 0" disabled>No hay datos de pago guardados</option>

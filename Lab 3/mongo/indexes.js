@@ -51,10 +51,40 @@ database.facturas.createIndex(
     { name: "ix_facturas_cliente_fechaEmision" }
 );
 
-// La orden relacional puede originar una sola factura documental.
+// Una orden documental origina una sola factura.
 database.facturas.createIndex(
     { ordenId: 1 },
     { name: "ux_facturas_ordenId", unique: true }
+);
+
+// Una orden relacional (ordenes_entidad de Postgres) tiene a lo sumo UN
+// espejo en `ordenes`. Parcial porque las ordenes documentales no llevan el
+// campo, y sin el filtro todas ellas colisionarian entre si por null.
+database.ordenes.createIndex(
+    { ordenRelacionalId: 1 },
+    {
+        name: "ux_ordenes_ordenRelacionalId",
+        unique: true,
+        partialFilterExpression: { ordenRelacionalId: { $exists: true } }
+    }
+);
+
+// ─── facturas_relacionales (flujo Lab 2, FacturaRepositorio) ─────────────
+// Colección aparte de `facturas` porque el shape es incompatible y Mongo
+// solo admite un $jsonSchema por coleccion (ver schema-validation.js).
+// Los indices son los mismos conceptos, pero sobre los campos del shape
+// relacional: clienteId plano en la raiz en vez de "cliente.clienteId".
+database.facturas_relacionales.createIndex(
+    { numeroFactura: 1 },
+    { name: "ux_facturas_rel_numeroFactura", unique: true }
+);
+database.facturas_relacionales.createIndex(
+    { clienteId: 1, fechaEmision: -1 },
+    { name: "ix_facturas_rel_cliente_fechaEmision" }
+);
+database.facturas_relacionales.createIndex(
+    { ordenId: 1 },
+    { name: "ux_facturas_rel_ordenId", unique: true }
 );
 
 // Conserva la regla de un único carrito vigente por cliente.
@@ -90,5 +120,6 @@ database.productos.createIndex(
 
 log(`Indices listos. TTL de carritos abandonados: ${TTL_CARRITO_SEGUNDOS} segundos.`);
 log(`facturas: ${JSON.stringify(database.facturas.getIndexes())}`);
+log(`facturas_relacionales: ${JSON.stringify(database.facturas_relacionales.getIndexes())}`);
 log(`carritos: ${JSON.stringify(database.carritos.getIndexes())}`);
 log(`productos: ${JSON.stringify(database.productos.getIndexes())}`);

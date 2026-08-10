@@ -19,16 +19,33 @@ import static com.mongodb.client.model.Filters.eq;
 import static com.mongodb.client.model.Sorts.descending;
 import static com.mongodb.client.model.Updates.inc;
 
-/** Facturas e ítems históricos persistidos como documentos MongoDB. */
+/**
+ * Facturas e ítems históricos persistidos como documentos MongoDB.
+ *
+ * <p>Escribe en {@code facturas_relacionales}, NO en {@code facturas}. Son
+ * dos colecciones distintas a propósito: esta guarda el shape del flujo
+ * relacional heredado del Lab 2 ({@code _id}/{@code ordenId} Long,
+ * {@code clienteId} plano, {@code precioTotal}, {@code items[]} embebidos),
+ * mientras que {@code facturas} guarda el shape documental que emite
+ * {@link com.ecommerceb2b.backend.Services.CheckoutServicio} ({@code _id}/
+ * {@code ordenId} ObjectId, {@code cliente{}} embebido, {@code estado},
+ * {@code total}). MongoDB solo admite UN {@code $jsonSchema} activo por
+ * colección, así que mientras convivieron en la misma, cualquier validador
+ * rompía una de las dos rutas de checkout con "Document failed validation".
+ * Ver mongo/schema-validation.js y docs/02-schema-validation.md.
+ */
 @Repository
 public class FacturaRepositorio {
+
+    /** Nombre de la colección del flujo relacional (ver Javadoc de clase). */
+    public static final String COL_FACTURAS_RELACIONALES = "facturas_relacionales";
 
     private final MongoCollection<Document> facturas;
     private final MongoCollection<Document> contadores;
     private final JdbcTemplate jdbc;
 
     public FacturaRepositorio(MongoDatabase database, JdbcTemplate jdbc) {
-        this.facturas = database.getCollection("facturas");
+        this.facturas = database.getCollection(COL_FACTURAS_RELACIONALES);
         this.contadores = database.getCollection("contadores");
         this.jdbc = jdbc;
     }
