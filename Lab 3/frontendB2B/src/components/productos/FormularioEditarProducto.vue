@@ -7,6 +7,7 @@
 import { reactive, onMounted, ref } from 'vue'
 import { productoServicio } from '@/services/productoServicio'
 import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
+import { carritoMongoServicio } from '@/services/carritoMongoServicio'
 
 // --- Props ---
 const props = defineProps<{
@@ -32,6 +33,12 @@ const producto = reactive({
 })
 
 const categorias = ref<CategoriaEntidad[]>([])
+
+// Cantidad mínima B2B (Mongo, no vive en producto_entidad de Postgres —
+// ver AjustesCarrito-PaginaAdmin.vue, que tiene la misma regla). Arranca
+// en 1 (= "sin configuración especial") hasta que cargarCantidadMinima
+// traiga el valor real, si existe.
+const cantidadMinimaB2B = ref(1)
 
 // --- Alerta de resultado ---
 const alerta = reactive({ visible: false, mensaje: '', tipo: 'exito' as 'exito' | 'error' })
@@ -75,6 +82,19 @@ const cargarCategorias = async () => {
   }
 }
 
+// --- Cargar cantidad mínima B2B actual (si hay configuración) ---
+const cargarCantidadMinima = async () => {
+  try {
+    const resp = await carritoMongoServicio.obtenerCantidadMinima(props.idProducto)
+    const data = resp.data as { cantidadMinimaB2B: number | null }
+    cantidadMinimaB2B.value = data.cantidadMinimaB2B ?? 1
+  } catch (error: unknown) {
+    console.error('Error al cargar la cantidad mínima B2B:', error)
+    // No es bloqueante: el campo queda en 1 (sin configuración) y el
+    // admin puede reintentar guardando de nuevo.
+  }
+}
+
 // --- Envío del formulario ---
 const manejarGuardar = async () => {
   if (!producto.nombre_producto.trim()) {
@@ -95,35 +115,62 @@ const manejarGuardar = async () => {
     alerta.tipo = 'error'
     return
   }
-
-  try {
-    await productoServicio.actualizar(props.idProducto, producto)
-
+  if (cantidadMinimaB2B.value < 1) {
     alerta.visible = true
-    alerta.mensaje = '¡Producto actualizado correctamente!'
-    alerta.tipo = 'exito'
-    emit('actualizado')
+    alerta.mensaje = 'La cantidad mínima B2B debe ser 1 o mayor.'
+    alerta.tipo = 'error'
+    return
+  }
 
-  } catch (error: unknown) {
+  // Dos escrituras independientes (producto_entidad en Postgres, mínimo
+  // B2B en Mongo — mismo endpoint que usa AjustesCarrito-PaginaAdmin.vue,
+  // sin duplicar lógica). Promise.allSettled para que un fallo en una no
+  // oculte que la otra sí se guardó.
+  const [resultadoProducto, resultadoMinimo] = await Promise.allSettled([
+    productoServicio.actualizar(props.idProducto, producto),
+    carritoMongoServicio.establecerCantidadMinima(props.idProducto, cantidadMinimaB2B.value),
+  ])
+
+  const extraerError = (error: unknown, fallback: string): string => {
     const axiosErr = error as { response?: { data?: string | { error?: string; message?: string } } }
     const data = axiosErr.response?.data
-    let msg = 'Hubo un error al actualizar el producto.'
-    if (typeof data === 'string') {
-      msg = data
-    } else if (data?.message) {
-      msg = data.message
-    } else if (data?.error) {
-      msg = data.error
-    }
-    alerta.visible = true
-    alerta.mensaje = msg
-    alerta.tipo = 'error'
+    if (typeof data === 'string') return data
+    if (data?.message) return data.message
+    if (data?.error) return data.error
+    return fallback
   }
+
+  if (resultadoProducto.status === 'rejected' && resultadoMinimo.status === 'rejected') {
+    alerta.visible = true
+    alerta.mensaje = extraerError(resultadoProducto.reason, 'Hubo un error al actualizar el producto.')
+    alerta.tipo = 'error'
+    return
+  }
+  if (resultadoProducto.status === 'rejected') {
+    alerta.visible = true
+    alerta.mensaje = extraerError(resultadoProducto.reason, 'Hubo un error al actualizar el producto.')
+    alerta.tipo = 'error'
+    return
+  }
+  if (resultadoMinimo.status === 'rejected') {
+    alerta.visible = true
+    alerta.mensaje = 'El producto se guardó, pero no se pudo actualizar la cantidad mínima B2B: '
+      + extraerError(resultadoMinimo.reason, 'error desconocido.')
+    alerta.tipo = 'error'
+    emit('actualizado')
+    return
+  }
+
+  alerta.visible = true
+  alerta.mensaje = '¡Producto actualizado correctamente!'
+  alerta.tipo = 'exito'
+  emit('actualizado')
 }
 
 onMounted(() => {
   cargarProducto()
   cargarCategorias()
+  cargarCantidadMinima()
 })
 </script>
 
@@ -197,6 +244,20 @@ onMounted(() => {
       />
     </div>
 
+    <!-- Cantidad mínima B2B -->
+    <div class="campo-grupo">
+      <label class="campo-label">Cantidad mínima B2B</label>
+      <input
+        class="entrada"
+        type="number"
+        min="1"
+        step="1"
+        v-model.number="cantidadMinimaB2B"
+        placeholder="1"
+      />
+      <p class="ayuda-campo">Si el producto no tiene configuración, no se aplica mínimo B2B especial. Guardar 1 quita la configuración.</p>
+    </div>
+
     <!-- Nota: El stock se conserva sin cambios -->
     <p class="nota-stock">Nota: El stock del producto se mantiene sin cambios.</p>
 
@@ -222,6 +283,7 @@ onMounted(() => {
 .btn-guardar { padding: 10px 28px; background-color: #156895; color: white; border: none; border-radius: 8px; font-size: 0.95rem; font-weight: 600; cursor: pointer; transition: background-color 0.2s; }
 .btn-guardar:hover { background-color: #0f5070; }
 .nota-stock { font-size: 0.85rem; color: #666; font-style: italic; text-align: center; }
+.ayuda-campo { font-size: 0.78rem; color: #777; margin: 0; }
 .modal-cerrar { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #666; padding: 4px; line-height: 1; }
 .modal-cerrar:hover { color: #333; }
 </style>

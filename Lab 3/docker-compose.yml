@@ -133,6 +133,8 @@ services:
       - ./mongo/seeders/productos-seed.js:/scripts/seeders/productos-seed.js:ro
       - ./mongo/seeders/configuracion-b2b-productos-seed.js:/scripts/seeders/configuracion-b2b-productos-seed.js:ro
       - ./mongo/seeders/ordenes-carritos-seed.js:/scripts/seeders/ordenes-carritos-seed.js:ro
+      - ./mongo/seeders/generar-reservas-stock-postgres.js:/scripts/seeders/generar-reservas-stock-postgres.js:ro
+      - demo_stock_sql:/generated
     command:
       - bash
       - -c
@@ -158,7 +160,58 @@ services:
         mongosh "mongodb://$$MONGO_APP_USER:$$MONGO_APP_PASSWORD@mongo1:27017/$$MONGO_DB?authSource=admin&replicaSet=$$MONGO_REPLICA_SET"
         --file /scripts/seeders/configuracion-b2b-productos-seed.js &&
         mongosh "mongodb://$$MONGO_APP_USER:$$MONGO_APP_PASSWORD@mongo1:27017/$$MONGO_DB?authSource=admin&replicaSet=$$MONGO_REPLICA_SET"
-        --file /scripts/seeders/ordenes-carritos-seed.js
+        --file /scripts/seeders/ordenes-carritos-seed.js &&
+        mongosh "mongodb://$$MONGO_APP_USER:$$MONGO_APP_PASSWORD@mongo1:27017/$$MONGO_DB?authSource=admin&replicaSet=$$MONGO_REPLICA_SET"
+        --quiet --file /scripts/seeders/generar-reservas-stock-postgres.js > /generated/reservas-objetivo.sql
+    restart: on-failure
+    networks:
+      - b2b-network
+
+  # ─── Reserva en Postgres el stock de los carritos de demo (Mongo) ──
+  # Los carritos que siembra ordenes-carritos-seed.js se insertan directo
+  # en Mongo, sin pasar por CarritoProductoServicio/Repositorio — así que
+  # sin este servicio producto_entidad.stock_reservado queda en 0 para
+  # esos productos y CUALQUIER operación que dependa de "liberar" esa
+  # reserva (borrar un ítem del carrito, solicitar la orden) falla con
+  # "Stock reservado insuficiente", aunque el mismo flujo funcione perfecto
+  # para carritos armados por un usuario real desde la UI.
+  #
+  # Corre después de mongo-init, que ya dejó en el volumen
+  # `demo_stock_sql` el archivo /generated/reservas-objetivo.sql —
+  # generado EN VIVO desde el estado real de `carritos`
+  # (mongo/seeders/generar-reservas-stock-postgres.js), no desde un valor
+  # hardcodeado — y lo aplica con los MISMOS procedimientos que usa el
+  # backend real (CALL reservar_stock / CALL liberar_stock, ver
+  # backendB2B/init.sql), no una reimplementación paralela. Idempotente:
+  # correrlo de nuevo (mongo-init se reejecuta seguido en este proyecto)
+  # no duplica reservas — ver mongo/seeders/postgres/reservar-stock-demo
+  # .footer.sql.
+  postgres-stock-seed:
+    image: postgis/postgis:15-3.3
+    container_name: b2b-postgres-stock-seed
+    environment:
+      PGHOST: db
+      PGPORT: 5432
+      PGDATABASE: b2b
+      PGUSER: postgres
+      PGPASSWORD: postgres
+    volumes:
+      - demo_stock_sql:/generated:ro
+      - ./mongo/seeders/postgres/reservar-stock-demo.header.sql:/scripts/reservar-stock-demo.header.sql:ro
+      - ./mongo/seeders/postgres/reservar-stock-demo.footer.sql:/scripts/reservar-stock-demo.footer.sql:ro
+    depends_on:
+      db:
+        condition: service_started
+      mongo-init:
+        condition: service_completed_successfully
+    command:
+      - bash
+      - -c
+      - >
+        until pg_isready -q; do echo "[postgres-stock-seed] esperando a Postgres..."; sleep 1; done &&
+        cat /scripts/reservar-stock-demo.header.sql /generated/reservas-objetivo.sql /scripts/reservar-stock-demo.footer.sql
+        | psql -v ON_ERROR_STOP=1 -q &&
+        echo "[postgres-stock-seed] Reservas de stock de demo aplicadas en Postgres."
     restart: on-failure
     networks:
       - b2b-network
@@ -247,6 +300,9 @@ volumes:
   mongo1_data:
   mongo2_data:
   mongo_keyfile:
+  # Puente efímero mongo-init -> postgres-stock-seed: el SQL de reservas
+  # generado en vivo desde `carritos` (ver comentario en mongo-init).
+  demo_stock_sql:
 
 networks:
   b2b-network:

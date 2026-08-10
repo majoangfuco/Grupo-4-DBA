@@ -12,6 +12,7 @@ import FormularioDescuentoCategoria from '@/components/productos/FormularioDescu
 import FormularioGestionCategorias from '@/components/productos/FormularioGestionCategorias.vue'
 import { productoServicio } from '@/services/productoServicio'
 import { categoriaServicio, type CategoriaEntidad } from '@/services/categoriaServicio'
+import { carritoMongoServicio } from '@/services/carritoMongoServicio'
 
 // ===================== TIPOS ========================
 interface Producto {
@@ -24,6 +25,10 @@ interface Producto {
   stock_reservado: number
   sku: string
   activo: boolean
+  // Mongo (configuracion_b2b_productos), no Postgres — null/undefined si
+  // el producto no tiene mínimo B2B configurado. Se completa aparte en
+  // cargarProductos porque /api/productos no lo trae.
+  cantidadMinimaB2B?: number | null
 }
 
 // ==================== ESTADO ========================
@@ -120,11 +125,21 @@ const cargarProductos = async () => {
   cargando.value = true
   error.value    = null
   try {
-    const [productosResp, categoriasResp] = await Promise.all([
+    const [productosResp, categoriasResp, minimosResp] = await Promise.all([
       productoServicio.obtenerTodos(),
       categoriaServicio.listar(true),
+      // Fuente aparte (Mongo): si falla, la tabla igual se muestra, solo
+      // sin la columna de mínimos completa — no bloquea el listado.
+      carritoMongoServicio.obtenerTodasLasCantidadesMinimas().catch((err) => {
+        console.error('Error al cargar cantidades mínimas B2B:', err)
+        return { data: {} as Record<string, number> }
+      }),
     ])
-    productos.value = productosResp.data
+    const minimos = minimosResp.data
+    productos.value = (productosResp.data as Producto[]).map((p) => ({
+      ...p,
+      cantidadMinimaB2B: minimos[String(p.producto_ID)] ?? null,
+    }))
     categorias.value = categoriasResp.data
   } catch (err: unknown) {
     console.error('Error al obtener productos:', err)

@@ -60,6 +60,16 @@ public class CarritoMongoControlador {
 
     // ─── Configuración de cantidad mínima B2B por producto ────────
 
+    // Todas las configuraciones a la vez — usado por la columna "Mín. B2B"
+    // de la tabla de Gestión de Productos (Admin) para no pedir una por
+    // una. Antes de "/config-productos/{productoId}" a propósito: aunque
+    // Spring resuelve bien el orden por especificidad de todos modos, así
+    // queda documentado que ambas rutas coexisten sin ambigüedad.
+    @GetMapping("/config-productos")
+    public ResponseEntity<?> obtenerTodasLasCantidadesMinimas() {
+        return ResponseEntity.ok(carritoMongoServicio.obtenerTodasLasCantidadesMinimas());
+    }
+
     @PutMapping("/config-productos/{productoId}")
     public ResponseEntity<?> establecerCantidadMinima(@PathVariable Long productoId,
             @RequestBody Integer cantidadMinimaB2B) {

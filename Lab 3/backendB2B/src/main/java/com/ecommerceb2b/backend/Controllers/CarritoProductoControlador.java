@@ -43,6 +43,10 @@ public class CarritoProductoControlador {
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(e.getMessage());
 		} catch (Exception e) {
+			// TODO (temporal, para diagnóstico): mismo patrón que
+			// CarritoControlador.obtenerOCrear — sin loguear "e" acá,
+			// un 500 real queda mudo en los logs (se pierde la causa).
+			e.printStackTrace();
 			return ResponseEntity.internalServerError().body("Error al agregar producto");
 		}
 	}

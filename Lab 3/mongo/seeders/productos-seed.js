@@ -82,6 +82,13 @@ const productos = [
     { _id: 25, nombre: "Licencia AutoCAD 2025 (Anual)", precioUnitario: 850000.0, stock: 500 },
 ].map(p => ({
     ...p,
+    // Double explícito: un literal JS entero (aunque se escriba "1200000.0")
+    // serializa como BSON int32 si cabe en ese rango — el ".0" no sobrevive
+    // sin un wrapper explícito. El validador de "productos"
+    // (schema-validation.js) exige bsonType ["double", "decimal"] para
+    // precioUnitario, así que sin este wrap bulkWrite revienta con
+    // "Document failed validation".
+    precioUnitario: Double(p.precioUnitario),
     cantidadMinimaB2B: CANTIDAD_MINIMA_B2B_OVERRIDES[p._id] || CANTIDAD_MINIMA_B2B_DEFAULT,
 }));
 

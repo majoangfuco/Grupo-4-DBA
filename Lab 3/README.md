@@ -125,7 +125,7 @@ Un solo comando deja todo operativo, **incluido el replica set** (no hay que eje
 1. Descarga la imagen `postgis/postgis:15-3.3` y levanta la base de datos, ejecutando automáticamente `backendB2B/init.sql` la **primera vez** que se crea el volumen (crea tablas, índices GIST, triggers, stored procedures, vistas materializadas y datos de prueba).
 2. **`mongo-keyfile`** genera el keyfile compartido del replica set dentro de un volumen de Docker y lo deja con permisos `400` y dueño `999:999`, como exige `mongod`. El contenedor termina y los nodos esperan a que haya terminado (`service_completed_successfully`).
 3. **`mongo1`** y **`mongo2`** arrancan con `--replSet rs0 --keyFile ... --auth`. Sobre `mongo1` el entrypoint oficial crea primero el usuario `root`.
-4. **`mongo-init`** espera a que ambos nodos pasen su healthcheck y ejecuta con `mongosh`, en orden: `mongo/rs-init.js` (`rs.initiate()`, espera a que `mongo1` sea PRIMARY y `mongo2` SECONDARY, crea el usuario de aplicación), `mongo/schema-validation.js` (validadores `$jsonSchema`), `mongo/indexes.js` (índices únicos/compuestos/TTL) y `mongo/change-streams-merge.js` (colección materializada `productos_mas_vendidos` + su backfill inicial). El contenedor termina.
+4. **`mongo-init`** espera a que ambos nodos pasen su healthcheck y ejecuta con `mongosh`, en orden: `mongo/rs-init.js` (`rs.initiate()`, espera a que `mongo1` sea PRIMARY y `mongo2` SECONDARY, crea el usuario de aplicación), `mongo/schema-validation.js` (validadores `$jsonSchema`), `mongo/indexes.js` (índices únicos/compuestos/TTL) y `mongo/change-streams-merge.js` (colección materializada `productos_mas_vendidos` + su backfill inicial). Termina sembrando datos de prueba, también en orden, con los tres seeders de `mongo/seeders/`: `productos-seed.js` (copia acotada de producto_entidad que usa el checkout documental), `configuracion-b2b-productos-seed.js` (cantidades mínimas B2B por producto) y `ordenes-carritos-seed.js` (carritos activos + órdenes confirmadas de demo, para que las tareas 4 y 6 no arranquen vacías). Todos son idempotentes (upsert), así que correr `mongo-init` de nuevo no duplica nada. El contenedor termina.
 5. Compila el backend con Maven dentro de un contenedor multi-stage (`backendB2B/Dockerfile`) y lo levanta en el puerto **8090**. El backend **solo arranca después** de que `mongo-init` terminó bien, así que nunca se encuentra con un replica set a medio configurar.
 6. **`worker`** reusa la misma imagen del backend (`b2b-backend:lab3`) con `SPRING_PROFILES_ACTIVE=worker`: arranca **sin servidor HTTP** y se queda escuchando el change stream de `ordenes` para refrescar la vista materializada de productos más vendidos (punto 6 — ver [`docs/06-change-streams-merge.md`](docs/06-change-streams-merge.md)).
 7. Compila el frontend con Vite dentro de un contenedor multi-stage (`frontendB2B/Dockerfile`) y lo sirve con Nginx en el puerto **8080**.
@@ -345,7 +345,96 @@ El backend valida automáticamente (trigger `validar_cobertura_direccion`) que l
 
 - `GET /api/mongo/health` — **público**. Estado del replica set: nodos y su rol, latencia, y si están disponibles transacciones multi-documento y change streams. Ejemplo de respuesta en la sección 2.
 
-### 3.10 Productos más vendidos — vista materializada reactiva (Lab 3, punto 6)
+### 3.10 Checkout documental transaccional (Lab 3, punto 3 — `CheckoutServicio`)
+
+> ⚠️ **Este endpoint NO está conectado al frontend hoy.** El botón real de
+> "Solicitar orden" en `Carrito-PaginaClientes.vue` llama a
+> `POST /api/ordenes/solicitar/{id}` (sección 3.3, flujo relacional
+> Postgres/PostGIS del Lab 2). `POST /api/checkout` es la pieza de backend
+> que satisface el requisito NoSQL de transacción multi-documento del Lab 3
+> (`ClientSession` + `withTransaction`, driver `mongodb-driver-sync` nativo,
+> sin Spring Data Mongo) — se prueba por API (curl/Postman), no desde la UI.
+> Los dos flujos escriben en colecciones/tablas distintas y **no se
+> sincronizan entre sí** (ver javadoc de `CheckoutServicio`).
+>
+> ⚠️ **Conflicto de shape pendiente en `facturas`:** la colección Mongo
+> `facturas` la escriben dos servicios con formatos incompatibles —
+> `FacturaRepositorio` (flujo relacional, activo hoy) y `CheckoutServicio`
+> (este endpoint). El validador `$jsonSchema` vigente en
+> `mongo/schema-validation.js` está fijado al shape de `FacturaRepositorio`
+> para no romper las compras reales de la app; **mientras eso no se
+> resuelva, `POST /api/checkout` falla en el paso de crear la factura**
+> (`Document failed validation`) — el resto del flujo (lectura de carrito,
+> descuento de stock condicionado, creación de la orden, y el rollback ACID
+> completo si algo falla) sí se probó y funciona. Ver detalle del conflicto
+> en el comentario sobre `facturaValidator` en `mongo/schema-validation.js`.
+
+`POST /api/checkout` — rol `CLIENTE`. Ejecuta la transacción completa
+(`ClientSession.withTransaction`, `readConcern: snapshot` + `writeConcern:
+majority`) sobre las colecciones `carritos`/`productos`/`ordenes`/`facturas`
+del replica set `rs0`: descuenta stock con un `updateOne` condicionado
+(`stock >= cantidad`), crea la orden con el snapshot de ítems congelado,
+genera la factura con el mismo correlativo, valida el pago (mock) y marca el
+carrito como `CONVERTIDO` — todo o nada. Si cualquier paso falla (stock
+insuficiente, pago rechazado, o cualquier excepción), el driver aborta la
+transacción completa solo, sin necesidad de compensación manual: no queda
+stock descontado, ni orden, ni factura.
+
+Request:
+```json
+{
+  "clienteId": 21,
+  "carritoId": 1000000007,
+  "razonSocial": "Cliente Prueba SpA",
+  "rutEmpresa": "99.999.999-9",
+  "direccionEnvio": "Calle Falsa 123, Santiago",
+  "datosPago": {
+    "aprobado": true,
+    "medioPago": "TARJETA_CREDITO",
+    "referencia": "AUTH-000123"
+  }
+}
+```
+
+- `clienteId`/`carritoId` son `Long` (mismos valores que `usuario_ID` de
+  Postgres y el `_id` real del carrito en Mongo), no `ObjectId`.
+- `razonSocial`/`rutEmpresa`/`direccionEnvio` los manda el frontend con los
+  datos del cliente ya logueado — no existe una colección `clientes` en
+  Mongo de donde resolverlos server-side.
+- `datosPago` es un mock: `aprobado: false` simula un pago rechazado sin
+  integrar ninguna pasarela real.
+
+Respuesta `201` (una vez resuelto el conflicto de `facturas` de arriba —
+shape armado desde `CheckoutResultadoDto`, los tipos `ObjectId`/`Decimal128`
+se normalizan a `String`/número antes de salir por el controller):
+```jsonc
+{
+  "ordenId": "66b6f0c1a2e4f51b3c9d7a04",
+  "numeroOrden": "ORD-2026-000003",
+  "facturaId": "66b6f0c1a2e4f51b3c9d7a05",
+  "numeroFactura": "F-2026-000003",
+  "estadoFactura": "EMITIDA",
+  "totalNeto": 425000.00,
+  "iva": 80750.00,
+  "total": 505750.00,
+  "fechaOrden": "2026-08-10T06:37:00.000+00:00",
+  "fechaEmision": "2026-08-10T06:37:00.000+00:00"
+}
+```
+
+Errores (los tres primeros son respuestas reales, capturadas ejecutando el
+endpoint contra el stack; los dos últimos están bloqueados ahora mismo por
+el conflicto de `facturas` — ver nota de arriba):
+
+| Código | Causa | Ejemplo real capturado |
+|---|---|---|
+| `400` | Falta algún campo obligatorio del body | `{"error":"razonSocial, rutEmpresa y direccionEnvio son obligatorios para el snapshot de cliente"}` |
+| `409` | El carrito no existe, no es del cliente, o no está `ACTIVO` | `{"error":"El carrito 999999999 no existe, no pertenece al cliente 21 o no está ACTIVO"}` |
+| `409` | Stock insuficiente para algún ítem al momento del checkout | `{"error":"Stock insuficiente para el producto 6 (cantidad solicitada: 5)"}` |
+| `402` | `datosPago.aprobado: false` — construido desde `PagoRechazadoException`, no capturado en vivo (el checkout falla antes, en la factura, por el conflicto de arriba) | `{"error":"El pago fue rechazado (referencia: AUTH-RECHAZADO)"}` |
+| `500` | Cualquier otra excepción no controlada — **es el código que devuelve hoy mismo por el conflicto de `facturas`** | `{"error":"Error al procesar el checkout: ..."}` |
+
+### 3.11 Productos más vendidos — vista materializada reactiva (Lab 3, punto 6)
 
 Colección `productos_mas_vendidos`, mantenida al día por el proceso **`worker`** (change stream sobre `ordenes` + `$merge`), no por estos endpoints. Detalle completo del diseño en [`docs/06-change-streams-merge.md`](docs/06-change-streams-merge.md).
 

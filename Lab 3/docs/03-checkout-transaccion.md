@@ -8,6 +8,44 @@ que la transacción multi-documento de checkout necesita crear — y **confirma*
 en distinto grado de detalle en el repo. No incluye implementación: es
 diseño previo al código, igual que `01-modelado-documental.md`.
 
+> ⚠️ **Este documento es el diseño original, previo al código.**
+> `CheckoutServicio.java` ya existe y se aparta del diseño de acá en varios
+> puntos (confirmado leyendo el código fuente, no este documento). El código
+> real es la fuente de verdad; lo que sigue quedó desactualizado en:
+>
+> 1. **§0 dice "ninguna de las cuatro [colecciones] tiene todavía código
+>    Java que la lea o escriba"** — falso hoy: `CheckoutServicio`,
+>    `OrdenMongoServicio` y `FacturaRepositorio` (este último de un flujo
+>    aparte, ver punto 5) ya leen/escriben las cuatro.
+> 2. **§1.2/§3 dicen que el checkout revalida `producto.precio`** contra la
+>    copia Mongo antes de congelar el snapshot en la orden. El código real
+>    **no relee el precio en ningún punto**: usa el que ya traía el carrito
+>    (`precioUnitario` del ítem). Ver javadoc de
+>    `CheckoutServicio.ejecutarCheckout`.
+> 3. **§1.3 el ejemplo de `ordenes` incluye `costoEnvio: 15000`** — el
+>    checkout real no calcula costo de envío ni lo escribe en la orden (por
+>    diseño: eso sigue siendo responsabilidad de Postgres/PostGIS, ver
+>    javadoc de clase de `CheckoutServicio`). El documento real no tiene ese
+>    campo.
+> 4. **§1.3 el `estado` de la orden usa el enum `PENDIENTE | APROBADA |
+>    CANCELADA`** — el código solo produce `PENDIENTE` (al crear,
+>    `CheckoutServicio`) y `CONFIRMADA` (al confirmar,
+>    `OrdenMongoServicio.confirmar()`, que es lo que dispara el change
+>    stream del punto 6). `APROBADA`/`CANCELADA` no los escribe nada. El
+>    campo `fechaConfirmacion` tampoco está en el ejemplo de este documento.
+> 5. **No se menciona el conflicto de shape en `facturas`.** Además de
+>    `CheckoutServicio`, existe `FacturaRepositorio.java` (flujo relacional,
+>    Lab 2 — el que usa hoy el frontend real) que escribe en la misma
+>    colección Mongo `facturas` con un shape plano incompatible con el de
+>    §1.4. Un solo `$jsonSchema` puede estar activo a la vez; ver el
+>    comentario extenso sobre esto en `mongo/schema-validation.js`
+>    (sección `facturaValidator`) para el estado actual y por qué sigue sin
+>    resolverse.
+>
+> El shape de `carritos` y `productos` (§1.1/§1.2) y el criterio de
+> embedding vs. referencing (§2) sí coinciden con el código y siguen
+> vigentes.
+
 ---
 
 ## 0. Qué ya existe en el repo (punto de partida)

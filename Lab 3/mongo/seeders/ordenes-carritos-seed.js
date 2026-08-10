@@ -31,8 +31,11 @@
 //   - ordenes:  replaceOne por _id (upsert); los _id son strings
 //     de ObjectId fijos para que el seed no cree duplicados al
 //     correrlo dos veces.
-//   - carritos: replaceOne por clienteId + ACTIVO/ABANDONADO
-//     (respeta el índice único partial del punto 5).
+//   - carritos: replaceOne por _id fijo (1..5), limpiando antes
+//     cualquier documento previo con el mismo clienteId+ACTIVO/
+//     ABANDONADO pero _id distinto (respeta el índice único partial
+//     del punto 5 y evita el ClassCastException del backend si un
+//     _id quedó como ObjectId de una corrida anterior).
 //
 // Requiere: schema-validation.js e indexes.js ya corridos.
 //
@@ -97,7 +100,19 @@ function itemCarrito(itemId, productoId, cantidad, stockDisponible) {
         nombreProducto: p.nombre,
         categoriaNombre: p.categoria,
         cantidad: NumberLong(cantidad),
-        precioUnitario: NumberDecimal(p.precio.toFixed(2)),
+        // OJO: a diferencia de `ordenes` (donde CheckoutServicio sí usa
+        // Decimal128), el backend real escribe carritos.items.precioUnitario
+        // como double llano (ver CarritoMongoRepositorio + la clase POJO
+        // ItemCarritoMongoEntidad, campo `Double precioUnitario`). El driver
+        // de Mongo rechaza decodificar Decimal128 -> Double por riesgo de
+        // pérdida de precisión, así que sembrarlo como NumberDecimal rompía
+        // con CodecConfigurationException cualquier lectura de ese carrito
+        // (agregar/actualizar/eliminar un ítem) en cuanto tocaba un item
+        // sembrado por este script. Double(...) es necesario y no basta con
+        // un literal JS: mongosh serializa un número entero sin decimales
+        // como BSON int32 por defecto, lo que el $jsonSchema (bsonType:
+        // ["double","decimal"]) rechaza igual que rechazaba "decimal" antes.
+        precioUnitario: Double(p.precio),
         cantidadMinimaB2B: NumberLong(1),
         stockDisponibleAlAgregar: NumberLong(stockDisponible),
         subtotal: NumberDecimal((p.precio * cantidad).toFixed(2)),
@@ -390,6 +405,7 @@ const HOY = new Date();
 const CARRITOS = [
     // ── Cliente 1 — bucket ALTO (subtotal por categoría ≥ 200.000) ──
     {
+        _id: 1,
         clienteId: NumberLong(1),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -401,6 +417,7 @@ const CARRITOS = [
     },
     // ── Cliente 2 — bucket MEDIO (50.000–200.000) ──────────────────
     {
+        _id: 2,
         clienteId: NumberLong(2),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -412,6 +429,7 @@ const CARRITOS = [
     },
     // ── Cliente 3 — bucket BAJO (< 50.000) ─────────────────────────
     {
+        _id: 3,
         clienteId: NumberLong(3),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -422,6 +440,7 @@ const CARRITOS = [
     },
     // ── Cliente 4 — bucket ALTO (varios buckets por categoría) ─────
     {
+        _id: 4,
         clienteId: NumberLong(4),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -433,6 +452,7 @@ const CARRITOS = [
     },
     // ── Cliente 5 — bucket ALTO (software) ─────────────────────────
     {
+        _id: 5,
         clienteId: NumberLong(5),
         estado: "ACTIVO",
         ultimaActividad: HOY,
@@ -450,15 +470,25 @@ const colCarritos = database.getCollection("carritos");
 let insertadasC = 0, actualizadasC = 0;
 
 for (const c of CARRITOS) {
-    // El índice unique-partial del punto 5 admite un solo documento
-    // con estado ACTIVO o ABANDONADO por clienteId. Usamos replace
-    // sobre ese filtro (no _id) para que sea idempotente incluso si
-    // el _id generado varía entre ejecuciones.
-    const filtro = {
+    // IMPORTANTE: el backend (CarritoRepositorio.mapear) asume que
+    // `_id` es siempre Number (esquema de contador Long, ver
+    // CarritoRepositorio.crearCarrito), igual que las órdenes reales
+    // creadas por la app. Por eso el seed fija `_id` explícito en vez
+    // de dejar que Mongo autogenere un ObjectId: un carrito con _id
+    // ObjectId rompe con ClassCastException cualquier lectura de ese
+    // carrito (GET /carrito, agregar producto, etc.).
+    //
+    // Como `_id` es inmutable, replaceOne por _id fallaría si ya
+    // existe un documento con el mismo clienteId+estado pero un _id
+    // distinto (p. ej. una corrida antigua de este seed que sí dejó
+    // un ObjectId). Se limpia ese caso primero para que la carga siga
+    // siendo idempotente sin importar el historial de la base.
+    colCarritos.deleteMany({
         clienteId: c.clienteId,
         estado: { $in: ["ACTIVO", "ABANDONADO"] },
-    };
-    const res = colCarritos.replaceOne(filtro, c, { upsert: true });
+        _id: { $ne: c._id },
+    });
+    const res = colCarritos.replaceOne({ _id: c._id }, c, { upsert: true });
     if (res.upsertedCount) insertadasC++;
     else if (res.modifiedCount) actualizadasC++;
 }

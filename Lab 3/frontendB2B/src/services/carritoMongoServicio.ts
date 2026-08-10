@@ -25,4 +25,12 @@ export const carritoMongoServicio = {
   obtenerCantidadMinima(productoId: number) {
     return http.get(`/api/mongo/carritos/config-productos/${productoId}`)
   },
+
+  // Todas las configuraciones a la vez, indexadas por productoId (como
+  // string en el JSON — las keys de un objeto siempre lo son). La usa la
+  // tabla de Gestión de Productos para no pedir el mínimo producto por
+  // producto.
+  obtenerTodasLasCantidadesMinimas() {
+    return http.get<Record<string, number>>('/api/mongo/carritos/config-productos')
+  },
 }

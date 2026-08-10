@@ -16,7 +16,9 @@ import org.bson.Document;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Optional;
 
@@ -168,5 +170,27 @@ public class CarritoMongoServicio {
         }
         Integer cantidadMinimaB2B = encontrado.getInteger("cantidadMinimaB2B");
         return cantidadMinimaB2B != null && cantidadMinimaB2B > 1 ? cantidadMinimaB2B : null;
+    }
+
+    /**
+     * Todas las configuraciones de mínimo B2B a la vez, indexadas por
+     * productoId. Existe para la columna "Mín. B2B" de la tabla de
+     * Gestión de Productos (Admin): sin esto, pintar esa columna
+     * significaría un GET /config-productos/{id} por cada fila de la
+     * tabla. Mismo criterio de "configurado" que
+     * {@link #obtenerCantidadMinima}: valores <= 1 no cuentan como
+     * configuración (nunca deberían quedar guardados así, pero por las
+     * dudas se filtran igual acá).
+     */
+    public Map<Long, Integer> obtenerTodasLasCantidadesMinimas() {
+        Map<Long, Integer> resultado = new HashMap<>();
+        for (Document doc : configuracionMinimaColeccion.find()) {
+            Number productoId = doc.get("productoId", Number.class);
+            Integer cantidadMinimaB2B = doc.getInteger("cantidadMinimaB2B");
+            if (productoId != null && cantidadMinimaB2B != null && cantidadMinimaB2B > 1) {
+                resultado.put(productoId.longValue(), cantidadMinimaB2B);
+            }
+        }
+        return resultado;
     }
 }

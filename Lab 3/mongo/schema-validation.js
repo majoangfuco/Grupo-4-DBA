@@ -245,66 +245,198 @@ if (coleccionesExistentes.includes("productos")) {
 const infoProductos = db.getCollectionInfos({ name: "productos" })[0];
 log(`productos: validationLevel=${infoProductos.options.validationLevel}, validationAction=${infoProductos.options.validationAction}`);
 
-// ─── Facturas documentales ────────────────────────────────────────────────
-// El shape es el que fija docs/03-checkout-transaccion.md §1.4 y el que
-// escribe CheckoutServicio.ejecutarCheckout(): NO es el de la factura
-// relacional (factura_entidad en Postgres, con precioTotal/costoEnvio y
-// clienteId plano). Las diferencias que importan:
-//   - `ordenId` es un ObjectId (referencia al _id de `ordenes`), no un Long.
-//   - los datos del cliente van embebidos en `cliente{}` como snapshot
-//     tributario congelado, no como un `clienteId` suelto en la raíz.
-//   - NO hay `items[]`: el detalle de línea vive en `ordenes.items`, y
-//     duplicarlo acá crearía dos copias divergentes de la misma verdad
-//     histórica (docs/03 §1.4 lo justifica en detalle).
-const facturaValidator = {
+// ─── Órdenes documentales (checkout transaccional — CheckoutServicio) ──────
+// Shape sacado directamente de CheckoutServicio.ejecutarCheckout() (no del
+// diseño previo de docs/03, que quedó desactualizado — ver nota al inicio de
+// ese doc). Dos escritores tocan esta colección:
+//   - CheckoutServicio.ejecutarCheckout(): inserta el documento completo con
+//     estado "PENDIENTE" (sin fechaConfirmacion todavía).
+//   - OrdenMongoServicio.confirmar(): transición PENDIENTE -> CONFIRMADA,
+//     agrega `fechaConfirmacion` (Date). Es el único otro estado que el
+//     código real produce; el código nunca escribe "APROBADA" ni
+//     "CANCELADA" pese a que docs/03 los menciona como diseño original.
+const ordenValidator = {
     $jsonSchema: {
         bsonType: "object",
-        title: "Factura documental emitida por el checkout transaccional",
+        title: "Orden documental emitida por el checkout transaccional (CheckoutServicio)",
         required: [
-            "numeroFactura",
-            "ordenId",
+            "numeroOrden",
+            "clienteId",
             "cliente",
+            "carritoId",
+            "estado",
+            "items",
             "totalNeto",
             "iva",
             "total",
-            "estado",
-            "fechaEmision"
+            "fechaOrden",
+            "facturaId"
+        ],
+        properties: {
+            numeroOrden: {
+                bsonType: "string",
+                minLength: 1,
+                description: "Correlativo ORD-AAAA-NNNNNN, comparte secuencia con numeroFactura (CheckoutServicio.siguienteSecuencia)"
+            },
+            clienteId: { bsonType: ["int", "long"], minimum: 1 },
+            cliente: {
+                bsonType: "object",
+                required: ["razonSocial", "rutEmpresa", "direccionEnvio"],
+                description: "Snapshot congelado al momento del checkout (pedido.razonSocial/rutEmpresa/direccionEnvio)",
+                properties: {
+                    razonSocial: { bsonType: "string", minLength: 1 },
+                    rutEmpresa: { bsonType: "string", minLength: 1 },
+                    direccionEnvio: { bsonType: "string", minLength: 1 }
+                }
+            },
+            carritoId: {
+                bsonType: ["int", "long"],
+                minimum: 1,
+                description: "_id del carrito (colección carritos) que originó esta orden, no un ObjectId"
+            },
+            estado: {
+                enum: ["PENDIENTE", "CONFIRMADA"],
+                description: "PENDIENTE al crearse (CheckoutServicio); CONFIRMADA solo vía OrdenMongoServicio.confirmar(), que es lo que dispara el change stream del punto 6"
+            },
+            items: {
+                bsonType: "array",
+                minItems: 1,
+                description: "Snapshot congelado e inmutable de las líneas compradas",
+                items: {
+                    bsonType: "object",
+                    required: ["productoId", "nombreProducto", "cantidad", "precioUnitario", "subtotal"],
+                    properties: {
+                        productoId: { bsonType: ["int", "long"], minimum: 1 },
+                        nombreProducto: { bsonType: "string" },
+                        cantidad: { bsonType: ["int", "long"], minimum: 1 },
+                        precioUnitario: { bsonType: ["double", "decimal"], minimum: 0 },
+                        subtotal: { bsonType: ["double", "decimal"], minimum: 0 }
+                    }
+                }
+            },
+            totalNeto: { bsonType: ["double", "decimal"], minimum: 0 },
+            iva: { bsonType: ["double", "decimal"], minimum: 0 },
+            total: { bsonType: ["double", "decimal"], minimum: 0 },
+            fechaOrden: { bsonType: "date" },
+            fechaConfirmacion: {
+                bsonType: ["date", "null"],
+                description: "Solo presente después de OrdenMongoServicio.confirmar(); ausente mientras la orden está PENDIENTE"
+            },
+            facturaId: {
+                bsonType: "objectId",
+                description: "Referencia al _id de la factura gemela, creada en la misma transacción"
+            }
+        }
+    }
+};
+
+if (coleccionesExistentes.includes("ordenes")) {
+    db.runCommand({
+        collMod: "ordenes",
+        validator: ordenValidator,
+        validationLevel: "strict",
+        validationAction: "error"
+    });
+    log('Validador aplicado sobre la colección "ordenes" existente (collMod).');
+} else {
+    db.createCollection("ordenes", {
+        validator: ordenValidator,
+        validationLevel: "strict",
+        validationAction: "error"
+    });
+    log('Colección "ordenes" creada con validador (createCollection).');
+}
+
+const infoOrdenes = db.getCollectionInfos({ name: "ordenes" })[0];
+log(`ordenes: validationLevel=${infoOrdenes.options.validationLevel}, validationAction=${infoOrdenes.options.validationAction}`);
+
+// ─── Facturas documentales ────────────────────────────────────────────────
+// ⚠️ CONFLICTO DE ARQUITECTURA CONOCIDO, SIN RESOLVER (ver auditoría Lab 3,
+// Punto A/B): dos servicios del backend escriben en esta MISMA colección
+// Mongo `facturas` con shapes incompatibles entre sí:
+//
+//   1. FacturaRepositorio.java (flujo RELACIONAL, Lab 2 — el que usa HOY
+//      el frontend real vía POST /api/ordenes/solicitar/{id}): escribe
+//      _id Long, clienteId/datosPagoId/ordenId planos (Long), precioTotal,
+//      costoEnvio, rutEmpresa plano, items[] embebidos con
+//      {productoId,nombreProducto,sku,precioUnitario,cantidad}.
+//
+//   2. CheckoutServicio.java (flujo documental Mongo, Punto A del Lab 3 —
+//      NO conectado al frontend todavía, solo probado por API/Postman):
+//      escribe _id ObjectId, cliente{clienteId,razonSocial,rutEmpresa}
+//      embebido, ordenId ObjectId, estado/total, SIN items[] (el detalle
+//      vive en ordenes.items — ver docs/03-checkout-transaccion.md §1.4).
+//
+// Un solo $jsonSchema puede estar activo a la vez. El validador de abajo
+// se dejó fijado en el shape (1) —el de FacturaRepositorio— porque es el
+// que ejercita el flujo de compra real de la aplicación hoy; validar el
+// shape (2) rompía cada compra real con "Document failed validation".
+// Mientras el equipo no decida cómo conviven ambos flujos (¿colecciones
+// separadas?, ¿unificar shape?, ¿el Mongo reemplaza al relacional?), NO
+// cambiar este validador al shape de CheckoutServicio sin coordinar con
+// quien mantiene FacturaRepositorio — ver Punto A de la auditoría.
+const facturaValidator = {
+    $jsonSchema: {
+        bsonType: "object",
+        title: "Factura documental (flujo relacional — FacturaRepositorio.java)",
+        required: [
+            "numeroFactura",
+            "clienteId",
+            "ordenId",
+            "precioTotal",
+            "fechaEmision",
+            "totalNeto",
+            "iva",
+            "items"
         ],
         properties: {
             numeroFactura: {
                 bsonType: "string",
                 minLength: 1,
-                description: "Correlativo tributario (F-AAAA-NNNNNN). Índice único."
+                description: "Correlativo tributario (FAC-NNNNNNNNNN, ver FacturaRepositorio.siguienteId). Índice único."
+            },
+            clienteId: {
+                bsonType: ["int", "long"],
+                minimum: 1,
+                description: "usuario_ID de Postgres, plano en la raíz (no embebido en cliente{})"
+            },
+            datosPagoId: {
+                bsonType: ["int", "long", "null"],
+                description: "Referencia a datos_pago_entidad en Postgres; opcional"
             },
             ordenId: {
-                bsonType: "objectId",
-                description: "Referencia al _id de la orden que originó la factura"
+                bsonType: ["int", "long"],
+                minimum: 1,
+                description: "orden_ID de PostgreSQL (orden_entidad), NO un ObjectId de Mongo"
             },
-            cliente: {
-                bsonType: "object",
-                required: ["clienteId", "razonSocial", "rutEmpresa"],
-                description: "Snapshot del cliente al momento de emitir; sin direccionEnvio (es dato de despacho, no tributario)",
-                properties: {
-                    clienteId: { bsonType: ["int", "long"], minimum: 1 },
-                    razonSocial: { bsonType: "string", minLength: 1 },
-                    rutEmpresa: { bsonType: "string", minLength: 1 }
-                }
-            },
-            totalNeto: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
-            iva: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
-            total: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
-            // montoTotal es el mismo valor que `total`, conservado por
-            // fidelidad al ejemplo de docs/03 §1.4. Opcional a propósito:
-            // si el equipo decide consolidar en un solo campo, el validador
-            // no se opone.
-            montoTotal: { bsonType: ["double", "decimal", "int", "long"], minimum: 0 },
-            estado: {
-                enum: ["EMITIDA", "ANULADA"],
-                description: "Ciclo de vida tributario de la factura"
+            precioTotal: {
+                bsonType: ["double", "decimal"],
+                minimum: 0,
+                description: "Total final (neto + IVA + envío) tal como lo calcula procesar_checkout en Postgres"
             },
             fechaEmision: { bsonType: "date" },
-            fechaAnulacion: { bsonType: ["date", "null"] },
-            motivoAnulacion: { bsonType: ["string", "null"] }
+            totalNeto: { bsonType: ["double", "decimal"], minimum: 0 },
+            iva: { bsonType: ["double", "decimal"], minimum: 0 },
+            costoEnvio: { bsonType: ["double", "decimal"], minimum: 0 },
+            rutEmpresa: {
+                bsonType: ["string", "null"],
+                description: "Copiado de usuario_entidad.rut_empresa al momento de emitir (FacturaRepositorio.obtenerRut)"
+            },
+            items: {
+                bsonType: "array",
+                description: "Detalle de línea embebido (a diferencia del shape documental, acá SÍ se duplica en la factura)",
+                items: {
+                    bsonType: "object",
+                    required: ["productoId", "nombreProducto", "precioUnitario", "cantidad"],
+                    properties: {
+                        productoId: { bsonType: ["int", "long"], minimum: 1 },
+                        nombreProducto: { bsonType: "string" },
+                        sku: { bsonType: ["string", "null"] },
+                        precioUnitario: { bsonType: ["double", "decimal"], minimum: 0 },
+                        cantidad: { bsonType: ["int", "long"], minimum: 1 }
+                    }
+                }
+            }
         }
     }
 };

@@ -5,7 +5,7 @@
 // =====================================================
 import axios from 'axios'
 import { computed, onMounted, ref } from 'vue'
-import { CheckCircle2, Map, MapPin, Package, X } from 'lucide-vue-next'
+import { CheckCircle2, Map, MapPin, Package, Trash2, X } from 'lucide-vue-next'
 import SelectorUbicacion, {
   type UbicacionSeleccionada,
 } from '@/components/SelectorUbicacion.vue'
@@ -976,6 +976,7 @@ onMounted(async () => {
               <th>Precio</th>
               <th>Cantidad</th>
               <th>Total</th>
+              <th class="th-acciones"></th>
             </tr>
           </thead>
           <tbody>
@@ -1000,9 +1001,19 @@ onMounted(async () => {
                 </div>
               </td>
               <td>{{ formatCurrency((item.producto?.precio ?? 0) * item.unidad_producto) }}</td>
+              <td class="td-acciones">
+                <button
+                  class="btn-eliminar-producto"
+                  title="Eliminar producto del carrito"
+                  aria-label="Eliminar producto del carrito"
+                  @click="abrirConfirmacion('eliminar', item)"
+                >
+                  <Trash2 :size="18" />
+                </button>
+              </td>
             </tr>
             <tr v-if="items.length === 0">
-              <td colspan="4" class="vacio">Carrito sin productos</td>
+              <td colspan="5" class="vacio">Carrito sin productos</td>
             </tr>
           </tbody>
         </table>
@@ -1336,6 +1347,21 @@ onMounted(async () => {
 .btn-cantidad { width: 26px; height: 26px; border-radius: 6px; border: 1px solid #ddd; background: #fff; cursor: pointer; }
 .btn-cantidad:hover { border-color: #156895; color: #156895; }
 .cantidad-valor { min-width: 24px; text-align: center; font-weight: 600; }
+.th-acciones, .td-acciones { width: 1%; white-space: nowrap; text-align: center; }
+.btn-eliminar-producto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  background: #fff;
+  color: #888;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.btn-eliminar-producto:hover { background: #fdeceb; border-color: #b00020; color: #b00020; }
 
 .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.35); display: flex; align-items: center; justify-content: center; z-index: 300; }
 .modal-box { background: #fff; border-radius: 14px; padding: 18px 20px; width: 520px; max-width: 92vw; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }

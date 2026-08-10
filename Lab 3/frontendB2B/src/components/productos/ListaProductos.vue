@@ -8,7 +8,7 @@
 // =====================================================
 
 import { ref } from 'vue'
-import { ArrowUpDown, Circle, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
+import { ArrowUpDown, Circle, Info, Pencil, Plus, RefreshCw, Trash2 } from 'lucide-vue-next'
 import FormularioEditarProducto from '@/components/productos/FormularioEditarProducto.vue'
 import FormularioEliminarProducto from '@/components/productos/FormularioEliminarProducto.vue'
 import FormularioActualizarStock from '@/components/productos/FormularioActualizarStock.vue'
@@ -24,6 +24,7 @@ interface Producto {
   stock_reservado?: number
   sku: string
   activo: boolean
+  cantidadMinimaB2B?: number | null
 }
 
 interface ConfigOrden {
@@ -110,16 +111,30 @@ const obtenerDireccion = (clave: string): 'asc' | 'desc' =>
   props.configOrden?.clave === clave ? props.configOrden.direccion : 'asc'
 
 // --- Columnas de la tabla ---
+// "stock_disponible" quedó como clave de la columna consolidada de Stock
+// (por compatibilidad con el ordenamiento por stock disponible que ya
+// hacía Productos-PaginaAdmin.vue) aunque ahora la columna se titula
+// simplemente "Stock" y también muestra las reservadas entre corchetes.
 const columnas = [
   { clave: 'activo',            etiqueta: 'Activo' },
   { clave: 'nombre_producto',   etiqueta: 'Nombre' },
   { clave: 'categoria_ID',      etiqueta: 'Categoría' },
   { clave: 'descripcion',       etiqueta: 'Descripción' },
   { clave: 'precio',            etiqueta: 'Precio' },
-  { clave: 'stock',             etiqueta: 'Stock' },
-  { clave: 'stock_disponible',  etiqueta: 'Stock disponible' },
+  { clave: 'stock_disponible',  etiqueta: 'Stock' },
+  { clave: 'cantidadMinimaB2B', etiqueta: 'Mín. B2B' },
   { clave: 'sku',               etiqueta: 'SKU' },
 ]
+
+const TOOLTIP_STOCK = 'Unidades disponibles para la venta. Entre corchetes: unidades actualmente reservadas en carritos u órdenes pendientes.'
+const TOOLTIP_MINIMO_B2B = 'Cantidad mínima de unidades que un cliente debe pedir de este producto. Se configura en "Editar Producto".'
+
+// --- Formato de la celda de Stock consolidada: "974 [15 reservadas]" ---
+const formatearStock = (prod: Producto) => {
+  const reservado = prod.stock_reservado ?? 0
+  const disponible = (prod.stock ?? 0) - reservado
+  return reservado > 0 ? `${disponible} [${reservado} reservadas]` : `${disponible}`
+}
 </script>
 
 <template>
@@ -137,6 +152,22 @@ const columnas = [
           >
             <span class="encabezado-contenido">
               {{ col.etiqueta }}
+              <span
+                v-if="col.clave === 'stock_disponible'"
+                class="icono-info"
+                :title="TOOLTIP_STOCK"
+                @click.stop
+              >
+                <Info :size="13" />
+              </span>
+              <span
+                v-else-if="col.clave === 'cantidadMinimaB2B'"
+                class="icono-info"
+                :title="TOOLTIP_MINIMO_B2B"
+                @click.stop
+              >
+                <Info :size="13" />
+              </span>
               <span class="icono-orden">
                 <ArrowUpDown :size="14" />
               </span>
@@ -184,7 +215,10 @@ const columnas = [
               {{ props.categoriasMap?.get(prod.categoria_ID) ?? prod.categoria_ID }}
             </span>
             <span v-else-if="col.clave === 'stock_disponible'">
-              {{ (prod.stock ?? 0) - (prod.stock_reservado ?? 0) }}
+              {{ formatearStock(prod) }}
+            </span>
+            <span v-else-if="col.clave === 'cantidadMinimaB2B'">
+              {{ prod.cantidadMinimaB2B && prod.cantidadMinimaB2B > 1 ? prod.cantidadMinimaB2B : 'Sin mínimo' }}
             </span>
             <span v-else-if="col.clave === 'activo'">
               <Circle v-if="prod.activo" :size="14" class="status-dot active" title="Activo" />
@@ -286,6 +320,8 @@ const columnas = [
 .celda-encabezado:hover { background-color: #0f5070; }
 .encabezado-contenido { display: inline-flex; align-items: center; gap: 6px; }
 .icono-orden { font-size: 0.8rem; opacity: 0.8; }
+.icono-info { display: inline-flex; opacity: 0.75; cursor: help; }
+.icono-info:hover { opacity: 1; }
 .fila-producto { border-bottom: 1px solid #f0f0f0; transition: background-color 0.15s; }
 .fila-producto:hover { background-color: #f0f7ff; }
 .celda { padding: 12px 16px; text-align: center; color: #333; }
