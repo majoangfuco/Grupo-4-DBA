@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { Database, RefreshCw, TrendingUp, Package, Trophy, Layers, AlertCircle, ChevronDown, ChevronUp } from 'lucide-vue-next'
+import {
+  BarChart2, RefreshCw, Package, TrendingUp, Trophy, Medal, Layers,
+  AlertCircle, CheckCircle2, ChevronDown, ChevronUp,
+} from 'lucide-vue-next'
 import {
   mongoReporteServicio,
   type BucketVolumen,
@@ -29,10 +32,10 @@ const colorBucket = (id: string | number): string => {
   return '#1a9c5b'                             // MEDIO
 }
 
-const iconoBucket = (id: string | number): string => {
-  if (typeof id === 'string') return '🏆'
-  if (id === 0) return '📦'
-  return '📈'
+const iconoBucket = (id: string | number) => {
+  if (typeof id === 'string') return Trophy // ALTO
+  if (id === 0) return Package              // BAJO
+  return TrendingUp                          // MEDIO
 }
 
 const toggleBucket = (id: string | number) => {
@@ -44,6 +47,7 @@ const productosMasVendidos = ref<ProductoMasVendido[]>([])
 const limiteTop = ref(10)
 const recalculando = ref(false)
 const mensajeRecalculo = ref<string | null>(null)
+const mensajeRecalculoTipo = ref<'ok' | 'error'>('ok')
 
 const ultimaActualizacion = computed<string>(() => {
   if (!productosMasVendidos.value.length) return '—'
@@ -69,7 +73,7 @@ const cargarVolumen = async () => {
   try {
     bucketsVolumen.value = await mongoReporteServicio.obtenerVolumenProyectado()
   } catch (e: any) {
-    errorVolumen.value = e?.response?.data || e?.message || 'Error al cargar el pipeline de volumen'
+    errorVolumen.value = e?.response?.data || e?.message || 'No se pudo cargar el volumen de ventas proyectado'
   }
 }
 
@@ -78,7 +82,7 @@ const cargarMasVendidos = async () => {
   try {
     productosMasVendidos.value = await mongoReporteServicio.obtenerProductosMasVendidos(limiteTop.value)
   } catch (e: any) {
-    errorMasVendidos.value = e?.response?.data?.error || e?.message || 'Error al cargar la vista materializada'
+    errorMasVendidos.value = e?.response?.data?.error || e?.message || 'No se pudieron cargar los productos más vendidos'
   }
 }
 
@@ -93,10 +97,12 @@ const recalcular = async () => {
   mensajeRecalculo.value = null
   try {
     const res = await mongoReporteServicio.recalcularProductosMasVendidos()
-    mensajeRecalculo.value = `✅ ${res.mensaje} (${res.productosEnRanking} productos)`
+    mensajeRecalculoTipo.value = 'ok'
+    mensajeRecalculo.value = `${res.mensaje} (${res.productosEnRanking} productos)`
     await cargarMasVendidos()
   } catch (e: any) {
-    mensajeRecalculo.value = `❌ ${e?.response?.data?.error || e?.message || 'Error al recalcular'}`
+    mensajeRecalculoTipo.value = 'error'
+    mensajeRecalculo.value = e?.response?.data?.error || e?.message || 'Error al recalcular'
   } finally {
     recalculando.value = false
     setTimeout(() => { mensajeRecalculo.value = null }, 6000)
@@ -112,13 +118,13 @@ onMounted(cargarTodo)
     <!-- ===== ENCABEZADO ===== -->
     <div class="encabezado">
       <div class="encabezado-titulo">
-        <span class="icono-mongo"><Database :size="22" /></span>
+        <span class="icono-mongo"><BarChart2 :size="22" /></span>
         <div>
-          <h1 class="titulo-pagina">Reportes MongoDB</h1>
-          <p class="subtitulo">Aggregation Pipeline · Change Streams · Vista Materializada</p>
+          <h1 class="titulo-pagina">Panel de Ventas</h1>
+          <p class="subtitulo">Resumen de ventas y productos más vendidos, actualizado en tiempo real</p>
         </div>
       </div>
-      <button class="btn-refrescar" @click="cargarTodo" :disabled="cargando" title="Recargar datos desde MongoDB">
+      <button class="btn-refrescar" @click="cargarTodo" :disabled="cargando" title="Recargar datos">
         <RefreshCw :size="15" :class="{ girando: cargando }" />
         <span>{{ cargando ? 'Cargando...' : 'Recargar' }}</span>
       </button>
@@ -127,7 +133,7 @@ onMounted(cargarTodo)
     <!-- ===== ESTADO: CARGANDO ===== -->
     <div v-if="cargando" class="estado-cargando">
       <div class="spinner" />
-      <span>Consultando MongoDB...</span>
+      <span>Cargando datos...</span>
     </div>
 
     <template v-else>
@@ -138,12 +144,10 @@ onMounted(cargarTodo)
       <section class="seccion">
         <div class="seccion-header">
           <div class="seccion-titulo-grupo">
-            <span class="badge-tarea">Tarea 4</span>
             <h2 class="seccion-titulo">
               <Layers :size="18" /> Volumen de Ventas Proyectado
             </h2>
           </div>
-          <span class="seccion-subtitulo">Pipeline: <code>$match → $unwind → $group → $sort → $bucket</code></span>
         </div>
 
         <!-- Error volumen -->
@@ -167,7 +171,7 @@ onMounted(cargarTodo)
             <!-- Cabecera del bucket (clickeable para expandir) -->
             <button class="bucket-header" @click="toggleBucket(bucket._id)">
               <div class="bucket-info">
-                <span class="bucket-icono">{{ iconoBucket(bucket._id) }}</span>
+                <component :is="iconoBucket(bucket._id)" :size="22" class="bucket-icono" />
                 <div>
                   <p class="bucket-etiqueta">{{ etiquetaBucket(bucket._id) }}</p>
                   <p class="bucket-cantidad">{{ bucket.cantidad }} proyección{{ bucket.cantidad !== 1 ? 'es' : '' }}</p>
@@ -206,12 +210,13 @@ onMounted(cargarTodo)
       <section class="seccion">
         <div class="seccion-header">
           <div class="seccion-titulo-grupo">
-            <span class="badge-tarea badge-tarea--verde">Tarea 6</span>
             <h2 class="seccion-titulo">
               <Trophy :size="18" /> Productos Más Vendidos
             </h2>
           </div>
-          <span class="seccion-subtitulo">Vista materializada <code>productos_mas_vendidos</code> · Change Streams + <code>$merge</code></span>
+          <span class="seccion-subtitulo">
+            <RefreshCw :size="12" /> Se actualiza automáticamente con cada venta
+          </span>
         </div>
 
         <!-- Controles Tarea 6 -->
@@ -226,19 +231,23 @@ onMounted(cargarTodo)
             </select>
           </div>
 
-          <button class="btn-recalcular" @click="recalcular" :disabled="recalculando" title="Fuerza el recálculo completo del ranking vía $merge">
+          <button class="btn-recalcular" @click="recalcular" :disabled="recalculando" title="Fuerza una actualización inmediata del ranking">
             <RefreshCw :size="14" :class="{ girando: recalculando }" />
-            <span>{{ recalculando ? 'Recalculando...' : 'Recalcular ($merge)' }}</span>
+            <span>{{ recalculando ? 'Actualizando...' : 'Actualizar ahora' }}</span>
           </button>
 
           <div class="ultima-actualizacion">
-            <span class="dot-live" title="Actualizado reactivamente por Change Streams" />
+            <span class="dot-live" title="Se actualiza solo con cada venta confirmada" />
             Actualizado: <strong>{{ ultimaActualizacion }}</strong>
           </div>
         </div>
 
         <!-- Feedback recálculo -->
-        <div v-if="mensajeRecalculo" class="alerta-feedback">{{ mensajeRecalculo }}</div>
+        <div v-if="mensajeRecalculo" class="alerta-feedback" :class="{ 'alerta-feedback--error': mensajeRecalculoTipo === 'error' }">
+          <CheckCircle2 v-if="mensajeRecalculoTipo === 'ok'" :size="16" />
+          <AlertCircle v-else :size="16" />
+          {{ mensajeRecalculo }}
+        </div>
 
         <!-- Error -->
         <div v-if="errorMasVendidos" class="alerta-error">
@@ -247,7 +256,7 @@ onMounted(cargarTodo)
 
         <!-- Sin datos -->
         <div v-else-if="!productosMasVendidos.length" class="sin-datos">
-          No hay datos en la vista materializada. Confirma una orden en el sistema para que el Change Stream la procese.
+          Todavía no hay ventas registradas. En cuanto se confirme una orden, el ranking se actualiza solo.
         </div>
 
         <!-- Ranking -->
@@ -271,15 +280,13 @@ onMounted(cargarTodo)
                 :class="{ 'fila-podio': idx < 3 }"
               >
                 <td class="col-pos">
-                  <span class="medalla" :class="`medalla-${idx + 1}`">
-                    {{ idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1 }}
-                  </span>
+                  <Medal v-if="idx < 3" :size="18" class="medalla" :class="`medalla-${idx + 1}`" />
+                  <span v-else class="posicion">{{ idx + 1 }}</span>
                 </td>
                 <td>
                   <div class="producto-celda">
                     <Package :size="14" class="ico-pkg" />
                     <span>{{ prod.nombreProducto }}</span>
-                    <span class="badge-id-sm">#{{ prod.productoId }}</span>
                   </div>
                 </td>
                 <td class="txt-r">
@@ -331,6 +338,8 @@ onMounted(cargarTodo)
   color: white;
   border-radius: 10px;
   box-shadow: 0 2px 8px rgba(21, 104, 149, 0.35);
+  font-size: 1.3rem;
+  line-height: 1;
 }
 
 .titulo-pagina {
@@ -434,23 +443,6 @@ onMounted(cargarTodo)
   gap: 10px;
 }
 
-.badge-tarea {
-  font-size: 0.7rem;
-  font-weight: 700;
-  padding: 3px 10px;
-  border-radius: 20px;
-  background: #e8f4fd;
-  color: #156895;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  white-space: nowrap;
-}
-
-.badge-tarea--verde {
-  background: #e6f7ef;
-  color: #1a9c5b;
-}
-
 .seccion-titulo {
   display: flex;
   align-items: center;
@@ -462,16 +454,11 @@ onMounted(cargarTodo)
 }
 
 .seccion-subtitulo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 0.78rem;
   color: #888;
-}
-
-.seccion-subtitulo code {
-  background: #f0f4f8;
-  border-radius: 4px;
-  padding: 1px 5px;
-  font-size: 0.75rem;
-  color: #156895;
 }
 
 /* ── Alertas ────────────────────────────────────────────── */
@@ -489,6 +476,9 @@ onMounted(cargarTodo)
 }
 
 .alerta-feedback {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin: 12px 22px 0;
   padding: 10px 16px;
   background: #e6f7ef;
@@ -496,6 +486,12 @@ onMounted(cargarTodo)
   border: 1px solid #b2e4cc;
   border-radius: 8px;
   font-size: 0.875rem;
+}
+
+.alerta-feedback--error {
+  background: #ffebee;
+  color: #c62828;
+  border-color: #ffcdd2;
 }
 
 .sin-datos {
@@ -538,8 +534,8 @@ onMounted(cargarTodo)
 }
 
 .bucket-icono {
-  font-size: 1.5rem;
-  line-height: 1;
+  color: var(--color-bucket);
+  flex-shrink: 0;
 }
 
 .bucket-etiqueta {
@@ -673,8 +669,14 @@ onMounted(cargarTodo)
   text-align: center !important;
 }
 
-.medalla {
-  font-size: 1.1rem;
+.medalla-1 { color: #d4af37; } /* oro */
+.medalla-2 { color: #a8a8a8; } /* plata */
+.medalla-3 { color: #b08d57; } /* bronce */
+
+.posicion {
+  color: #888;
+  font-weight: 600;
+  font-size: 0.85rem;
 }
 
 .fila-podio td { background: #fefdf7; }
@@ -697,15 +699,6 @@ onMounted(cargarTodo)
   border-radius: 12px;
 }
 
-.badge-id-sm {
-  display: inline-block;
-  background: #f0f4f8;
-  color: #888;
-  font-size: 0.68rem;
-  padding: 1px 6px;
-  border-radius: 10px;
-  margin-left: 4px;
-}
 
 .badge-unidades {
   display: inline-block;

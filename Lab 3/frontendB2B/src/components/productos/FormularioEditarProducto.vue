@@ -34,10 +34,12 @@ const producto = reactive({
 
 const categorias = ref<CategoriaEntidad[]>([])
 
-// Cantidad mínima B2B (Mongo, no vive en producto_entidad de Postgres —
-// ver AjustesCarrito-PaginaAdmin.vue, que tiene la misma regla). Arranca
-// en 1 (= "sin configuración especial") hasta que cargarCantidadMinima
-// traiga el valor real, si existe.
+// Cantidad mínima B2B (colección configuracion_b2b_productos en Mongo, no
+// vive en producto_entidad de Postgres). Arranca en 1 (= "sin
+// configuración especial") hasta que cargarCantidadMinima traiga el valor
+// real, si existe. Antes se gestionaba en una vista aparte
+// (Ajustes de Carrito / AjustesCarrito-PaginaAdmin.vue, eliminada) — ahora
+// vive acá, integrada al resto de la edición del producto.
 const cantidadMinimaB2B = ref(1)
 
 // --- Alerta de resultado ---
@@ -123,8 +125,8 @@ const manejarGuardar = async () => {
   }
 
   // Dos escrituras independientes (producto_entidad en Postgres, mínimo
-  // B2B en Mongo — mismo endpoint que usa AjustesCarrito-PaginaAdmin.vue,
-  // sin duplicar lógica). Promise.allSettled para que un fallo en una no
+  // B2B en Mongo — carritoMongoServicio.establecerCantidadMinima, sin
+  // duplicar lógica). Promise.allSettled para que un fallo en una no
   // oculte que la otra sí se guardó.
   const [resultadoProducto, resultadoMinimo] = await Promise.allSettled([
     productoServicio.actualizar(props.idProducto, producto),
