@@ -57,7 +57,9 @@ Lab 3/
 │   └── seeders/               # Datos de prueba (productos, configuración B2B)
 ├── docs/
 │   ├── 01-modelado-documental.md   # Justificación embedding vs referencing (entregable)
+│   ├── 02-schema-validation.md     # Diseño del validador $jsonSchema + $expr (Tarea 2)
 │   ├── 03-checkout-transaccion.md  # Transacción multi-documento de checkout
+│   ├── 04-aggregation-pipeline.md  # Pipeline $group → $sort → $bucket (Tarea 4)
 │   ├── 05-indices.md               # Estrategia de índices
 │   └── 06-change-streams-merge.md  # Change Streams + $merge y por qué el worker va aparte
 ├── backendB2B/
