@@ -77,6 +77,18 @@ database.carritos.createIndex(
     }
 );
 
+// Índice de texto para búsqueda por nombre de producto.
+// La colección `productos` de Mongo es la copia acotada que usa
+// CheckoutServicio. El catálogo real está en Postgres (producto_entidad),
+// pero se expone el índice aquí para demostrar el requerimiento de
+// índices de texto del enunciado y para que búsquedas ad-hoc en mongosh
+// (e.g. $text: { $search: "notebook" }) funcionen sin scan completo.
+database.productos.createIndex(
+    { nombre: "text" },
+    { name: "text_productos_nombre", default_language: "spanish" }
+);
+
 log(`Indices listos. TTL de carritos abandonados: ${TTL_CARRITO_SEGUNDOS} segundos.`);
 log(`facturas: ${JSON.stringify(database.facturas.getIndexes())}`);
 log(`carritos: ${JSON.stringify(database.carritos.getIndexes())}`);
+log(`productos: ${JSON.stringify(database.productos.getIndexes())}`);
