@@ -15,6 +15,7 @@ interface Producto {
   descripcion: string
   precio: number
   stock: number
+  stock_reservado?: number
   sku: string
   
 }
@@ -50,6 +51,10 @@ const obtenerCantidad = (productoId: number) => {
 const setCantidad = (productoId: number, valor: string) => {
   const num = Number(valor)
   cantidades.value[productoId] = Number.isNaN(num) || num <= 0 ? 1 : num
+}
+
+const stockDisponible = (producto: Producto) => {
+  return Math.max(0, producto.stock - (producto.stock_reservado ?? 0))
 }
 
 // --- Helpers de ordenamiento ---
@@ -131,11 +136,14 @@ const columnas = [
               class="input-cantidad"
               type="number"
               min="1"
+              :max="stockDisponible(prod)"
               :value="obtenerCantidad(prod.producto_ID)"
               @input="setCantidad(prod.producto_ID, ($event.target as HTMLInputElement).value)"
             />
             <button
               class="btn-accion"
+              :disabled="stockDisponible(prod) <= 0"
+              :title="stockDisponible(prod) <= 0 ? 'No hay stock disponible para este producto' : 'Agregar al carrito'"
               @click="emit('agregar', prod, obtenerCantidad(prod.producto_ID))"
             >Agregar</button>
           </td>

@@ -99,7 +99,7 @@ const guardarCantidadMinima = async () => {
     <div class="contenedor-centrado">
       <form class="tarjeta-formulario" @submit.prevent="guardarCantidadMinima">
         <h2 class="titulo-seccion">Configurar cantidad mínima B2B</h2>
-        <p class="ayuda">Si un producto no tiene configuración, se asume como mínimo 1 producto.</p>
+        <p class="ayuda">Si un producto no tiene configuración, no se aplica mínimo B2B especial. Guardar 1 quita la configuración.</p>
 
         <div class="campo">
           <label>Filtrar por categoría </label>

@@ -72,8 +72,8 @@ public class CarritoProductoRepositorio {
                         // conservar el disponible observado al iniciar la actividad.
                         .append("stockDisponibleAlAgregar", Math.max(0,
                                 rs.getInt("stock") - rs.getInt("stock_reservado") + cantidad))
-                        .append("cantidadMinimaB2B", cantidadMinimaB2B != null ? cantidadMinimaB2B.longValue() : 1L)
                         .append("sku", rs.getString("sku")), productoId);
+        producto.append("cantidadMinimaB2B", cantidadMinimaB2B != null ? cantidadMinimaB2B.longValue() : 1L);
         producto.append("itemId", siguienteId("carritoItems"))
                 .append("cantidad", cantidad)
                 .append("agregadoEn", new java.util.Date());
@@ -154,9 +154,26 @@ public class CarritoProductoRepositorio {
         producto.setDescripcion(item.getString("descripcion"));
         producto.setSku(item.getString("sku"));
         producto.setPrecio(item.get("precioUnitario", Number.class).floatValue());
+        completarStockActual(producto);
         entidad.setProducto(producto);
         entidad.setUnidad_producto(numero(item, "cantidad"));
         return entidad;
+    }
+
+    private void completarStockActual(ProductoEntidad producto) {
+        List<Document> stock = jdbc.query("""
+                SELECT stock, stock_reservado, activo
+                FROM producto_entidad
+                WHERE producto_id = ?
+                """, (rs, row) -> new Document("stock", rs.getInt("stock"))
+                        .append("stock_reservado", rs.getInt("stock_reservado"))
+                        .append("activo", rs.getBoolean("activo")), producto.getProducto_ID());
+        if (stock.isEmpty()) return;
+
+        Document actual = stock.get(0);
+        producto.setStock(actual.getInteger("stock"));
+        producto.setStock_reservado(actual.getInteger("stock_reservado"));
+        producto.setActivo(Boolean.TRUE.equals(actual.getBoolean("activo")));
     }
 
     private long siguienteId(String secuencia) {

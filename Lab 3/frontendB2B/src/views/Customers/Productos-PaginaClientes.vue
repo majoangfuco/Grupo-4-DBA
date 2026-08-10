@@ -20,6 +20,7 @@ interface Producto {
   descripcion: string
   precio: number
   stock: number
+  stock_reservado?: number
   sku: string
 }
 
@@ -154,6 +155,12 @@ const obtenerCarritoId = async () => {
 
 const agregarAlCarrito = async (producto: Producto, cantidad: number) => {
   try {
+    const stockDisponible = stockDisponibleProducto(producto)
+    if (cantidad > stockDisponible) {
+      toastTipo.value = 'error'
+      toastMensaje.value = 'La cantidad solicitada excede el stock disponible'
+      return
+    }
     const idCarrito = await obtenerCarritoId()
     await carritoProductoServicio.agregarProducto({
       carritoId: idCarrito,
@@ -185,7 +192,19 @@ const agregarAlCarrito = async (producto: Producto, cantidad: number) => {
   }
 }
 
+const stockDisponibleProducto = (producto: Producto) =>
+  Math.max(0, producto.stock - (producto.stock_reservado ?? 0))
+
 const abrirConfirmacionAgregar = (producto: Producto, cantidad: number) => {
+  if (cantidad > stockDisponibleProducto(producto)) {
+    toastTipo.value = 'error'
+    toastMensaje.value = 'La cantidad solicitada excede el stock disponible'
+    if (toastTimer) window.clearTimeout(toastTimer)
+    toastTimer = window.setTimeout(() => {
+      toastMensaje.value = null
+    }, 4500)
+    return
+  }
   modalProducto.value = producto
   modalCantidad.value = cantidad
   modalAbierto.value = true

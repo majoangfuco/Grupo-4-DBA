@@ -82,6 +82,8 @@ public class CarritoProductoControlador {
 		try {
 			carritoProductoServicio.eliminarItem(id);
 			return ResponseEntity.ok("Item eliminado correctamente");
+		} catch (IllegalArgumentException e) {
+			return ResponseEntity.badRequest().body(e.getMessage());
 		} catch (Exception e) {
 			return ResponseEntity.status(HttpStatus.NOT_FOUND).body(e.getMessage());
 		}

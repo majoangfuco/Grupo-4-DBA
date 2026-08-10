@@ -29,7 +29,7 @@ import java.util.Optional;
 @Service
 public class CarritoMongoServicio {
 
-    private static final int MINIMO_POR_DEFECTO = 1;
+    private static final int MINIMO_TECNICO_SIN_CONFIGURACION = 1;
 
     private final CarritoMongoRepositorio carritoMongoRepositorio;
     private final ProductoServicio productoServicio;
@@ -75,6 +75,9 @@ public class CarritoMongoServicio {
         int stockReservado = producto.getStock_reservado() != null ? producto.getStock_reservado() : 0;
         int stockDisponibleAntesDeReserva = producto.getStock() - stockReservado + cantidadTotal.intValue();
         Integer cantidadMinimaB2B = obtenerCantidadMinima(productoId);
+        int minimoParaDocumento = cantidadMinimaB2B != null
+                ? cantidadMinimaB2B
+                : MINIMO_TECNICO_SIN_CONFIGURACION;
 
         /**   minimoB2B y stockDisponible se validan en el validador de colección de Mongo.
             * Si falla, lanza MongoWriteException con error 121 (DocumentValidationFailure).
@@ -85,7 +88,7 @@ public class CarritoMongoServicio {
                     "No hay stock suficiente de \"" + producto.getNombre_producto() + "\": disponible "
                             + stockDisponibleAntesDeReserva + ", solicitado " + cantidadTotal + ".");
         }
-        if (cantidadTotal < cantidadMinimaB2B) {
+        if (cantidadMinimaB2B != null && cantidadTotal < cantidadMinimaB2B) {
             throw new CarritoMongoValidationException(
                     "El pedido mínimo B2B para \"" + producto.getNombre_producto() + "\" es de "
                             + cantidadMinimaB2B + " unidades (pediste " + cantidadTotal + ").");
@@ -97,7 +100,7 @@ public class CarritoMongoServicio {
         item.setNombreProducto(producto.getNombre_producto());
         item.setCantidad(cantidadTotal.intValue());
         item.setPrecioUnitario(producto.getPrecio().doubleValue());
-        item.setCantidadMinimaB2B(cantidadMinimaB2B);
+        item.setCantidadMinimaB2B(minimoParaDocumento);
         item.setStockDisponibleAlAgregar(stockDisponibleAntesDeReserva);
 
         try {
@@ -143,6 +146,10 @@ public class CarritoMongoServicio {
         if (cantidadMinimaB2B == null || cantidadMinimaB2B < 1) {
             throw new CarritoMongoValidationException("La cantidad mínima B2B debe ser mayor o igual a 1");
         }
+        if (cantidadMinimaB2B == 1) {
+            configuracionMinimaColeccion.deleteOne(Filters.eq("productoId", productoId));
+            return;
+        }
         Document documento = new Document("productoId", productoId)
                 .append("cantidadMinimaB2B", cantidadMinimaB2B);
         configuracionMinimaColeccion.replaceOne(
@@ -151,13 +158,15 @@ public class CarritoMongoServicio {
 
     /**
      * Si el Admin todavía no configuró un mínimo para este producto, se
-     * asume 1 (equivale a "sin mínimo especial").
+     * devuelve null. El documento de carrito usa 1 como mínimo técnico,
+     * pero la regla B2B solo se aplica cuando existe configuración.
      */
     public Integer obtenerCantidadMinima(Long productoId) {
         Document encontrado = configuracionMinimaColeccion.find(Filters.eq("productoId", productoId)).first();
         if (encontrado == null) {
-            return MINIMO_POR_DEFECTO;
+            return null;
         }
-        return encontrado.getInteger("cantidadMinimaB2B", MINIMO_POR_DEFECTO);
+        Integer cantidadMinimaB2B = encontrado.getInteger("cantidadMinimaB2B");
+        return cantidadMinimaB2B != null && cantidadMinimaB2B > 1 ? cantidadMinimaB2B : null;
     }
 }

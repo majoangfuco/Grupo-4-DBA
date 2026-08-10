@@ -3,7 +3,6 @@ package com.ecommerceb2b.backend.Entities;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import org.bson.types.ObjectId;
 
 import java.util.Date;
 import java.util.List;
@@ -16,7 +15,7 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 public class CarritoMongoEntidad {
-    private ObjectId id;
+    private Long id;
     private Long clienteId;
     //("ACTIVO", "ABANDONADO", "PAGADO")
     private String estado;

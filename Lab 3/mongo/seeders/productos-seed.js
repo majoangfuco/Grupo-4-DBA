@@ -41,27 +41,15 @@ function log(msg) {
     print(`[productos-seed] ${msg}`);
 }
 
-// cantidadMinimaB2B: producto_entidad (Postgres) no tiene este concepto —
-// vive aparte, en la colección Mongo "configuracion_b2b_productos" que
-// administra CarritoMongoServicio.establecerCantidadMinima, con 1 como
-// default cuando el Admin no configuró nada
-// (CarritoMongoServicio.MINIMO_POR_DEFECTO). Se replica ese mismo default
-// acá por consistencia de shape; si más adelante se configuran mínimos
-// reales por producto, este seeder queda desactualizado en ese campo — no
-// es su fuente de verdad.
+// cantidadMinimaB2B: producto_entidad (Postgres) no tiene este concepto.
+// La fuente de verdad es configuracion_b2b_productos, gestionada por el
+// Admin. En esta copia documental se conserva 1 solo como piso técnico de
+// cantidad positiva, no como regla B2B especial.
 const CANTIDAD_MINIMA_B2B_DEFAULT = 1;
 
-// Excepciones al default: productos que en la práctica solo se venden en
-// lote (caja/pallet/pack), donde pedir menos que el mínimo no tiene
-// sentido comercial. Con TODOS los productos en 1 la regla de negocio
-// "cantidad < cantidadMinimaB2B" del validador ($expr en carritoValidator,
-// más arriba en este archivo) nunca se dispara — estos 3 existen para
-// poder demostrarla en vivo.
-const CANTIDAD_MINIMA_B2B_OVERRIDES = {
-    6: 5,   // Set Toners Impresora Láser — ya se vende empaquetado ("Pack de 4 tóners"); mínimo 5 packs por pedido B2B
-    15: 10, // Resmas de Papel A4 (Caja) — la unidad de venta ya es "Caja de 10 resmas"; mínimo 10 cajas por pedido B2B
-    22: 10, // Mouse Inalámbrico Ergonómico — ítem de bajo valor unitario, se distribuye por pallet; mínimo 10 unidades
-};
+// Sin mínimos precargados: si se quiere aplicar una regla B2B, el Admin
+// debe configurarla explícitamente.
+const CANTIDAD_MINIMA_B2B_OVERRIDES = {};
 
 // _id, nombre, precioUnitario (SIN IVA, igual que producto_entidad.precio),
 // stock — copiados 1:1 desde el INSERT INTO producto_entidad de

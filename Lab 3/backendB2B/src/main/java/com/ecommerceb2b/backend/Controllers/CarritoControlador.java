@@ -32,6 +32,10 @@ public class CarritoControlador {
 		} catch (IllegalArgumentException e) {
 			return ResponseEntity.badRequest().body(e.getMessage());
 		} catch (Exception e) {
+			// TODO (temporal, para diagnóstico): sacar este printStackTrace
+			// una vez encontrada la causa del 500. El catch original nunca
+			// logueaba "e", por eso no aparecía nada en los logs.
+			e.printStackTrace();
 			return ResponseEntity.internalServerError().body("Error al obtener carrito");
 		}
 	}

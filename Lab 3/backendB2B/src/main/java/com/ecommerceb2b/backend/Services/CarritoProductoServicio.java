@@ -4,6 +4,7 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.NoSuchElementException;
 
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,26 +42,34 @@ public class CarritoProductoServicio {
 				.encontrarPorCarritoYProducto(idCarrito, idProducto)
 				.orElse(null);
 
-		carritoProductoRepositorio.reservarStock(idProducto, cantidad);
+		long cantidadFinal = cantidad;
+		long deltaStock = cantidad;
+		if (existente != null) {
+			cantidadFinal = existente.getUnidad_producto() + cantidad;
+		}
+		Integer cantidadMinimaB2B = carritoMongoServicio.obtenerCantidadMinima(idProducto);
+		if (cantidadMinimaB2B != null && cantidadFinal < cantidadMinimaB2B) {
+			throw new IllegalArgumentException(
+					"La cantidad minima para este producto es " + cantidadMinimaB2B);
+		}
+
+		if (deltaStock > 0) {
+			reservarStockValidado(idProducto, (int) deltaStock);
+		}
 
 		CarritoProductoEntidad resultado;
-		Long cantidadTotalFinal;
-		Integer cantidadMinimaB2B = carritoMongoServicio.obtenerCantidadMinima(idProducto);
 		if (existente != null) {
-			Long nuevaCantidad = existente.getUnidad_producto() + cantidad;
 			carritoProductoRepositorio.actualizarCantidad(
 				existente.getCarrito_Producto_ID(),
-				nuevaCantidad,
+				cantidadFinal,
 				cantidadMinimaB2B
 			);
-			existente.setUnidad_producto(nuevaCantidad);
+			existente.setUnidad_producto(cantidadFinal);
 			resultado = existente;
-			cantidadTotalFinal = nuevaCantidad;
 		} else {
 			carritoProductoRepositorio.crear(idCarrito, idProducto, (long) cantidad, cantidadMinimaB2B);
 			resultado = carritoProductoRepositorio.encontrarPorCarritoYProducto(idCarrito, idProducto)
 					.orElseThrow(() -> new IllegalStateException("No se pudo crear el item del carrito"));
-			cantidadTotalFinal = (long) cantidad;
 		}
 
 		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(idCarrito)
@@ -68,6 +77,7 @@ public class CarritoProductoServicio {
 		Long clienteId = carrito.getUsuario().getUsuario_ID();
 		try {
 			actualizarMinimoB2B(resultado, idProducto);
+			carritoMongoServicio.establecerCantidadItem(clienteId, idProducto, cantidadFinal);
 		} catch (CarritoMongoValidationException e) {
 			throw new IllegalArgumentException(e.getMessage());
 		}
@@ -119,23 +129,37 @@ public class CarritoProductoServicio {
 			throw new IllegalStateException("Solo se pueden modificar ítems de un carrito ACTIVO");
 		}
 		Long cantidadActual = actual.getUnidad_producto();
+		Integer cantidadMinimaB2B = carritoMongoServicio.obtenerCantidadMinima(actual.getProducto().getProducto_ID());
+		if (cantidadMinimaB2B != null && nuevaCantidad < cantidadMinimaB2B) {
+			throw new IllegalArgumentException(
+					"La cantidad minima para este producto es " + cantidadMinimaB2B);
+		}
 		int delta = nuevaCantidad - cantidadActual.intValue();
 
 		if (delta > 0) {
-			carritoProductoRepositorio.reservarStock(
+			reservarStockValidado(
 				actual.getProducto().getProducto_ID(),
 				delta
 			);
 		} else if (delta < 0) {
-			carritoProductoRepositorio.liberarStock(
+			liberarStockValidado(
 				actual.getProducto().getProducto_ID(),
 				Math.abs(delta)
 			);
 		}
 
-		Integer cantidadMinimaB2B = carritoMongoServicio.obtenerCantidadMinima(actual.getProducto().getProducto_ID());
 		carritoProductoRepositorio.actualizarCantidad(idCarritoProducto, (long) nuevaCantidad, cantidadMinimaB2B);
 		actual.setUnidad_producto((long) nuevaCantidad);
+
+		CarritoEntidad carrito = carritoRepositorio.encontrarPorId(actual.getCarrito().getCarrito_ID())
+				.orElseThrow(() -> new IllegalStateException(
+						"Carrito no encontrado: " + actual.getCarrito().getCarrito_ID()));
+		Long clienteId = carrito.getUsuario().getUsuario_ID();
+		try {
+			carritoMongoServicio.establecerCantidadItem(clienteId, actual.getProducto().getProducto_ID(), (long) nuevaCantidad);
+		} catch (CarritoMongoValidationException e) {
+			throw new IllegalArgumentException(e.getMessage());
+		}
 
 		return actual;
 	}
@@ -149,7 +173,7 @@ public class CarritoProductoServicio {
 		if (!carritoProductoRepositorio.carritoEstaActivo(actual.getCarrito().getCarrito_ID())) {
 			throw new IllegalStateException("Solo se pueden eliminar ítems de un carrito ACTIVO");
 		}
-		carritoProductoRepositorio.liberarStock(
+		liberarStockValidado(
 				actual.getProducto().getProducto_ID(),
 				actual.getUnidad_producto().intValue()
 		);
@@ -158,7 +182,7 @@ public class CarritoProductoServicio {
 
 	/** Usado al abandonar: libera SQL sin modificar todavía el documento. */
 	public void liberarStockPorAbandono(CarritoProductoEntidad item) {
-		carritoProductoRepositorio.liberarStock(
+		liberarStockValidado(
 				item.getProducto().getProducto_ID(), item.getUnidad_producto().intValue());
 	}
 
@@ -179,5 +203,33 @@ public class CarritoProductoServicio {
 	private void actualizarMinimoB2B(CarritoProductoEntidad item, Long productoId) {
 		item.setCantidadMinimaB2B(carritoMongoServicio.obtenerCantidadMinima(productoId));
 	}
-}
 
+	private void reservarStockValidado(Long productoId, int cantidad) {
+		try {
+			carritoProductoRepositorio.reservarStock(productoId, cantidad);
+		} catch (DataAccessException e) {
+			String mensaje = e.getMostSpecificCause() != null
+					? e.getMostSpecificCause().getMessage()
+					: e.getMessage();
+			if (mensaje != null && mensaje.toLowerCase().contains("stock insuficiente")) {
+				throw new IllegalArgumentException("La cantidad solicitada excede el stock disponible");
+			}
+			throw e;
+		}
+	}
+
+	private void liberarStockValidado(Long productoId, int cantidad) {
+		try {
+			carritoProductoRepositorio.liberarStock(productoId, cantidad);
+		} catch (DataAccessException e) {
+			String mensaje = e.getMostSpecificCause() != null
+					? e.getMostSpecificCause().getMessage()
+					: e.getMessage();
+			if (mensaje != null && mensaje.toLowerCase().contains("stock reservado insuficiente")) {
+				throw new IllegalArgumentException(
+						"No se pudo liberar stock reservado para este producto. Actualiza el carrito e intenta nuevamente");
+			}
+			throw e;
+		}
+	}
+}

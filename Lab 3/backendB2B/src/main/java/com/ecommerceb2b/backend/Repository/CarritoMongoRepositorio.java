@@ -41,7 +41,7 @@ public class CarritoMongoRepositorio {
      * array de Mongo no se llena de líneas duplicadas del mismo producto
      * cuando el cliente sube/baja la cantidad desde "Mi carrito".
      */
-    public void establecerItem(org.bson.types.ObjectId carritoId, ItemCarritoMongoEntidad item) {
+    public void establecerItem(Long carritoId, ItemCarritoMongoEntidad item) {
         Bson filtroConItem = Filters.and(
                 Filters.eq("_id", carritoId),
                 Filters.eq("items.productoId", item.getProductoId()));

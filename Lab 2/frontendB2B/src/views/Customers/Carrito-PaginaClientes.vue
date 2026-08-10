@@ -903,7 +903,7 @@ onMounted(async () => {
           <div class="modal-info">
             <div class="modal-nombre">{{ modalItem?.producto?.nombre_producto }}</div>
             <div class="modal-cantidad">
-              {{ modalAccion === 'agregar' ? 'Agregar 1 unidad' : 'Quitar este producto' }}
+              {{ modalAccion === 'agregar' ? 'Agregar 1 unidad' : '¿Cantidad minima alcanzada, desea quitar este producto?' }}
             </div>
           </div>
         </div>

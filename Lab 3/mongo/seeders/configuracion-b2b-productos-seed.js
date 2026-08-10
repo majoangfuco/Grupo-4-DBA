@@ -11,11 +11,9 @@
 // la consultan: Filters.eq("productoId", productoId), nunca por _id).
 //
 // Si el Admin nunca configuró un mínimo para un producto,
-// CarritoMongoServicio.obtenerCantidadMinima devuelve 1 por defecto
-// (MINIMO_POR_DEFECTO) sin necesidad de que exista el documento acá — por
-// eso este seeder SOLO carga los productos con mínimo distinto de 1. No
-// tiene sentido poblar los 25 productos con cantidadMinimaB2B: 1, sería
-// idéntico a no tener el documento.
+// CarritoMongoServicio.obtenerCantidadMinima devuelve null. El carrito usa
+// 1 solo como piso técnico de Mongo para cantidades positivas, pero no se
+// aplica una regla B2B especial hasta que exista un documento acá.
 //
 // Estos overrides deben ser LOS MISMOS `productoId`/valor que
 // CANTIDAD_MINIMA_B2B_OVERRIDES en mongo/seeders/productos-seed.js (ese
@@ -47,12 +45,9 @@ function log(msg) {
     print(`[configuracion-b2b-productos-seed] ${msg}`);
 }
 
-// Debe calcar CANTIDAD_MINIMA_B2B_OVERRIDES de productos-seed.js.
-const CANTIDAD_MINIMA_B2B_OVERRIDES = {
-    6: 5,   // Set Toners Impresora Láser — mínimo 5 packs por pedido B2B
-    15: 10, // Resmas de Papel A4 (Caja) — mínimo 10 cajas por pedido B2B
-    22: 10, // Mouse Inalámbrico Ergonómico — mínimo 10 unidades por pedido B2B
-};
+// Sin mínimos precargados: la regla B2B empieza a aplicar solo cuando el
+// Admin guarda una configuración desde la interfaz.
+const CANTIDAD_MINIMA_B2B_OVERRIDES = {};
 
 const coleccion = database.getCollection("configuracion_b2b_productos");
 
@@ -64,8 +59,11 @@ const operaciones = Object.entries(CANTIDAD_MINIMA_B2B_OVERRIDES).map(([producto
     }
 }));
 
-const resultado = coleccion.bulkWrite(operaciones, { ordered: true });
-
-log(`Seed aplicado: ${resultado.upsertedCount} insertados, ${resultado.modifiedCount} actualizados `
-    + `(de ${operaciones.length} configuraciones totales).`);
-log('Recordatorio: productos sin documento acá usan el default de CarritoMongoServicio.MINIMO_POR_DEFECTO (1).');
+if (operaciones.length > 0) {
+    const resultado = coleccion.bulkWrite(operaciones, { ordered: true });
+    log(`Seed aplicado: ${resultado.upsertedCount} insertados, ${resultado.modifiedCount} actualizados `
+        + `(de ${operaciones.length} configuraciones totales).`);
+} else {
+    log("Seed sin mínimos precargados: no se insertaron configuraciones B2B.");
+}
+log('Recordatorio: productos sin documento acá no tienen mínimo B2B especial configurado.');

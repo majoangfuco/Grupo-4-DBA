@@ -42,7 +42,7 @@ let toastTimer: number | null = null
 const modalAbierto = ref(false)
 const modalAccion = ref<'agregar' | 'eliminar'>('eliminar')
 const modalItem = ref<CarritoProductoEntidad | null>(null)
-const minimosB2B = ref<Record<number, number>>({})
+const minimosB2B = ref<Record<number, number | null>>({})
 
 // Mostrar al cliente la confirmacion del pedido y logística asignada.
 const almacenAsignado = ref<string | null>(null)
@@ -668,8 +668,8 @@ const cargarItems = async (carritoId: number) => {
   subtotal.value = subtotalResp.data
   minimosB2B.value = Object.fromEntries(
     itemsResp.data
-      .map((item) => [item.producto?.producto_ID, item.cantidadMinimaB2B ?? 1] as const)
-      .filter((entry): entry is readonly [number, number] => typeof entry[0] === 'number'),
+      .map((item) => [item.producto?.producto_ID, item.cantidadMinimaB2B ?? null] as const)
+      .filter((entry): entry is readonly [number, number | null] => typeof entry[0] === 'number'),
   )
 }
 
@@ -684,14 +684,22 @@ const notificar = (mensaje: string, tipo: 'ok' | 'error') => {
 
 const actualizarCantidad = async (item: CarritoProductoEntidad, nuevaCantidad: number) => {
   if (!carrito.value?.carrito_ID) return
+  const minimo = minimoB2BItem(item)
+  if (nuevaCantidad <= 0) {
+    abrirConfirmacion('eliminar', item)
+    return
+  }
+  if (minimo !== null && nuevaCantidad < minimo) {
+    notificar(`La cantidad minima para este producto es ${minimo}`, 'error')
+    return
+  }
+  if (nuevaCantidad > stockDisponibleItem(item)) {
+    notificar('La cantidad solicitada excede el stock disponible', 'error')
+    return
+  }
   try {
-    if (nuevaCantidad <= 0) {
-      abrirConfirmacion('eliminar', item)
-      return
-    } else {
-      await carritoProductoServicio.actualizarCantidad(item.carrito_Producto_ID, nuevaCantidad)
-      notificar('Cantidad actualizada', 'ok')
-    }
+    await carritoProductoServicio.actualizarCantidad(item.carrito_Producto_ID, nuevaCantidad)
+    notificar('Cantidad actualizada', 'ok')
     await cargarItems(carrito.value.carrito_ID)
   } catch (err: unknown) {
     console.error('Error al actualizar carrito:', err)
@@ -700,11 +708,23 @@ const actualizarCantidad = async (item: CarritoProductoEntidad, nuevaCantidad: n
 }
 
 const disminuirUnidad = async (item: CarritoProductoEntidad) => {
+  if (!puedeDisminuir(item)) {
+    return
+  }
+  const minimo = minimoB2BItem(item)
   const actual = item.unidad_producto ?? 0
+  if (minimo !== null && actual <= minimo) {
+    abrirConfirmacion('eliminar', item)
+    return
+  }
   await actualizarCantidad(item, actual - 1)
 }
 
 const aumentarUnidad = async (item: CarritoProductoEntidad) => {
+  if (!puedeAumentar(item)) {
+    notificar('La cantidad solicitada excede el stock disponible', 'error')
+    return
+  }
   abrirConfirmacion('agregar', item)
 }
 
@@ -726,13 +746,12 @@ const confirmarModal = async () => {
   cerrarModal()
   try {
     if (modalAccion.value === 'agregar') {
-      await carritoProductoServicio.actualizarCantidad(item.carrito_Producto_ID, actual + 1)
-      notificar('Cantidad actualizada', 'ok')
+      await actualizarCantidad(item, actual + 1)
     } else {
       await carritoProductoServicio.eliminarItem(item.carrito_Producto_ID)
       notificar('Producto eliminado del carrito', 'ok')
+      await cargarItems(carrito.value.carrito_ID)
     }
-    await cargarItems(carrito.value.carrito_ID)
   } catch (err: unknown) {
     console.error('Error al actualizar carrito:', err)
     notificar(extraerMensajeError(err, 'No se pudo actualizar el carrito'), 'error')
@@ -778,17 +797,17 @@ const total = computed(() => subtotal.value)
 const stockDisponibleItem = (item: CarritoProductoEntidad) => {
   const stockTotal = item.producto?.stock ?? 0
   const stockReservado = item.producto?.stock_reservado ?? 0
-  return Math.max(0, stockTotal - stockReservado)
+  const cantidadActual = item.unidad_producto ?? 0
+  return Math.max(0, stockTotal - stockReservado + cantidadActual)
 }
 
 const minimoB2BItem = (item: CarritoProductoEntidad) => {
   const productoId = item.producto?.producto_ID
-  if (productoId == null) return item.cantidadMinimaB2B ?? 1
-  return minimosB2B.value[productoId] ?? item.cantidadMinimaB2B ?? 1
+  if (productoId == null) return item.cantidadMinimaB2B ?? null
+  return minimosB2B.value[productoId] ?? item.cantidadMinimaB2B ?? null
 }
 
-const puedeDisminuir = (item: CarritoProductoEntidad) =>
-  (item.unidad_producto ?? 0) > minimoB2BItem(item)
+const puedeDisminuir = (item: CarritoProductoEntidad) => (item.unidad_producto ?? 0) > 0
 
 const puedeAumentar = (item: CarritoProductoEntidad) =>
   (item.unidad_producto ?? 0) < stockDisponibleItem(item)
